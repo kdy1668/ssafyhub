@@ -1,54 +1,119 @@
 pipeline {
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        IMAGE_NAME = 'ssafyhub-backend'
+        CONTAINER_NAME = 'ssafyhub-backend-container'
+        PREVIOUS_CONTAINER_NAME = 'ssafyhub-backend-container-previous'
+    }
+
     stages {
-        // 1. 코드 체크아웃 (GitLab에서 소스 가져오기)
         stage('Checkout') {
             steps {
                 echo 'GitLab에서 최신 코드를 가져오는 중입니다...'
+                checkout scm
             }
         }
 
-        // 2. 빌드 단계 (Gradle 기준)
         stage('Build') {
             steps {
-                echo 'Gradle 빌드를 시작합니다...'
+                echo '테스트를 포함한 Gradle 빌드를 시작합니다...'
                 sh 'chmod +x ./gradlew'
-                // 테스트를 제외하고 빌드하려면 -x test 유지 (필요시 제거 가능)
-                sh './gradlew clean build -x test'
+                sh './gradlew clean build'
             }
         }
 
-        // 3. 배포 단계 (도커 기반 자동 배포)
-        stage('Deploy') {
+        stage('Docker Build') {
             steps {
-                echo '도커 이미지를 빌드하고 서버에 배포합니다...'
+                echo '도커 이미지를 빌드합니다...'
+                sh 'docker build -t "$IMAGE_NAME:$BUILD_NUMBER" -t "$IMAGE_NAME:latest" .'
+            }
+        }
 
-                // 1) 최신 코드를 기반으로 새 도커 이미지 생성
-                sh 'docker build -t ssafyhub-backend .'
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo '새 컨테이너를 실행하고 상태를 확인합니다...'
 
-                // 2) 기존에 돌고 있던 컨테이너가 있다면 안전하게 중지 및 삭제
-                sh 'docker stop ssafyhub-backend-container || true'
-                sh 'docker rm ssafyhub-backend-container || true'
+                withCredentials([
+                    string(credentialsId: 'ssafyhub-db-url', variable: 'DB_URL'),
+                    usernamePassword(
+                        credentialsId: 'ssafyhub-db-credentials',
+                        usernameVariable: 'DB_USERNAME',
+                        passwordVariable: 'DB_PASSWORD'
+                    ),
+                    string(credentialsId: 'ssafyhub-jwt-secret', variable: 'JWT_SECRET'),
+                    string(credentialsId: 'ssafyhub-aws-region', variable: 'AWS_REGION'),
+                    string(credentialsId: 'ssafyhub-s3-bucket', variable: 'AWS_S3_BUCKET')
+                ]) {
+                    sh '''
+                        set -eu
 
-                // 3) 새로 만든 이미지로 백그라운드 컨테이너 실행 (포트 8080 매핑)
-                sh 'docker run -d --name ssafyhub-backend-container -p 8080:8080 ssafyhub-backend'
+                        docker rm -f "$PREVIOUS_CONTAINER_NAME" 2>/dev/null || true
+
+                        if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+                            docker stop "$CONTAINER_NAME"
+                            docker rename "$CONTAINER_NAME" "$PREVIOUS_CONTAINER_NAME"
+                        fi
+
+                        docker run -d \
+                            --name "$CONTAINER_NAME" \
+                            --restart unless-stopped \
+                            -p 8080:8080 \
+                            -e DB_URL \
+                            -e DB_USERNAME \
+                            -e DB_PASSWORD \
+                            -e JWT_SECRET \
+                            -e AWS_REGION \
+                            -e AWS_S3_BUCKET \
+                            "$IMAGE_NAME:$BUILD_NUMBER"
+
+                        healthy=false
+                        for attempt in $(seq 1 30); do
+                            if curl -fsS http://localhost:8080/actuator/health >/dev/null; then
+                                healthy=true
+                                break
+                            fi
+                            sleep 2
+                        done
+
+                        if [ "$healthy" != "true" ]; then
+                            echo '새 컨테이너의 헬스체크가 실패했습니다.'
+                            docker logs "$CONTAINER_NAME" || true
+                            docker rm -f "$CONTAINER_NAME" || true
+
+                            if docker container inspect "$PREVIOUS_CONTAINER_NAME" >/dev/null 2>&1; then
+                                docker rename "$PREVIOUS_CONTAINER_NAME" "$CONTAINER_NAME"
+                                docker start "$CONTAINER_NAME"
+                            fi
+
+                            exit 1
+                        fi
+
+                        docker rm -f "$PREVIOUS_CONTAINER_NAME" 2>/dev/null || true
+                    '''
+                }
             }
         }
     }
 
-    // 4. 빌드 결과 후처리 (매터모스트 알림 연동)
     post {
         success {
             script {
                 mattermostSend color: 'good',
-                message: "✅ 성공: ${env.JOB_NAME} #${env.BUILD_NUMBER} 빌드가 성공적으로 끝났습니다! (<${env.BUILD_URL}|빌드 결과 보기>)"
+                message: "✅ 성공: ${env.JOB_NAME} #${env.BUILD_NUMBER} 빌드와 배포가 성공했습니다! (<${env.BUILD_URL}|빌드 결과 보기>)"
             }
         }
         failure {
             script {
                 mattermostSend color: 'danger',
-                message: "❌ 실패: ${env.JOB_NAME} #${env.BUILD_NUMBER} 빌드가 실패했습니다. 로그를 확인해주세요! (<${env.BUILD_URL}|빌드 결과 보기>)"
+                message: "❌ 실패: ${env.JOB_NAME} #${env.BUILD_NUMBER} 빌드 또는 배포가 실패했습니다. 로그를 확인해주세요! (<${env.BUILD_URL}|빌드 결과 보기>)"
             }
         }
     }
