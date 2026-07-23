@@ -1,6 +1,6 @@
-package com.ssafyhub.backend.domain.auth.service;
+package com.ssafyhub.backend.domain.member.service;
 
-import com.ssafyhub.backend.domain.auth.dto.SignupRequest;
+import com.ssafyhub.backend.domain.member.dto.SignupRequest;
 import com.ssafyhub.backend.domain.member.dto.MemberResponse;
 import com.ssafyhub.backend.domain.member.entity.Member;
 import com.ssafyhub.backend.domain.member.repository.MemberRepository;
@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+public class MemberService {
 
     private static final int BCRYPT_MAX_PASSWORD_BYTES = 72;
 
@@ -32,7 +32,7 @@ public class AuthService {
             throw new BusinessException(ErrorCode.PASSWORD_TOO_LONG);
         }
 
-        String studentNumber = request.studentNumber().trim();
+        String studentNumber = request.normalizedStudentNumber();
 
         if (memberRepository.existsByStudentNumber(studentNumber)) {
             throw new BusinessException(ErrorCode.DUPLICATE_STUDENT_NUMBER);

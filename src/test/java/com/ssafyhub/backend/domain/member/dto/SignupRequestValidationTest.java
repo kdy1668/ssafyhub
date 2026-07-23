@@ -1,4 +1,4 @@
-package com.ssafyhub.backend.domain.auth.dto;
+package com.ssafyhub.backend.domain.member.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -80,5 +80,14 @@ class SignupRequestValidationTest {
         assertThat(violations)
                 .extracting(violation -> violation.getPropertyPath().toString())
                 .contains("passwordConfirm");
+    }
+
+    @Test
+    void 학번의_앞뒤_공백을_제거한다() {
+        SignupRequest request = new SignupRequest(
+                "team-a", "member", " 202512345 ", "password1234", "password1234"
+        );
+
+        assertThat(request.normalizedStudentNumber()).isEqualTo("202512345");
     }
 }

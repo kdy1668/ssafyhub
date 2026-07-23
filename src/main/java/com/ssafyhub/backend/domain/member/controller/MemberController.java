@@ -1,8 +1,8 @@
-package com.ssafyhub.backend.domain.auth.controller;
+package com.ssafyhub.backend.domain.member.controller;
 
-import com.ssafyhub.backend.domain.auth.dto.SignupRequest;
-import com.ssafyhub.backend.domain.auth.service.AuthService;
 import com.ssafyhub.backend.domain.member.dto.MemberResponse;
+import com.ssafyhub.backend.domain.member.dto.SignupRequest;
+import com.ssafyhub.backend.domain.member.service.MemberService;
 import com.ssafyhub.backend.global.common.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,15 +14,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/v1/members")
 @RequiredArgsConstructor
-public class AuthController {
+public class MemberController {
 
-    private final AuthService authService;
+    private final MemberService memberService;
 
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<MemberResponse>> signup(@Valid @RequestBody SignupRequest request) {
-        MemberResponse response = authService.signup(request);
+        MemberResponse response = memberService.signup(request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
