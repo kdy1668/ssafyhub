@@ -1,4 +1,4 @@
-package com.ssafyhub.backend.domain.auth.dto;
+package com.ssafyhub.backend.domain.member.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -24,6 +24,10 @@ public record SignupRequest(
         @Size(min = 8, max = 100, message = "비밀번호 확인은 8자 이상 100자 이하로 입력해주세요.")
         String passwordConfirm
 ) {
+
+    public String normalizedStudentNumber() {
+        return studentNumber.trim();
+    }
 
     @Override
     public String toString() {

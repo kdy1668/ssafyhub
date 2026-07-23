@@ -1,4 +1,4 @@
-package com.ssafyhub.backend.domain.auth.service;
+package com.ssafyhub.backend.domain.member.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -7,7 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.ssafyhub.backend.domain.auth.dto.SignupRequest;
+import com.ssafyhub.backend.domain.member.dto.SignupRequest;
 import com.ssafyhub.backend.domain.member.dto.MemberResponse;
 import com.ssafyhub.backend.domain.member.entity.Member;
 import com.ssafyhub.backend.domain.member.repository.MemberRepository;
@@ -23,7 +23,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
-class AuthServiceTest {
+class MemberServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
@@ -32,7 +32,7 @@ class AuthServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
-    private AuthService authService;
+    private MemberService memberService;
 
     private SignupRequest validRequest(String studentNumber) {
         return new SignupRequest("team-a", "홍길동", studentNumber, "password1234", "password1234");
@@ -45,7 +45,7 @@ class AuthServiceTest {
         given(passwordEncoder.encode("password1234")).willReturn("encodedHash");
         given(memberRepository.save(any(Member.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        MemberResponse response = authService.signup(request);
+        MemberResponse response = memberService.signup(request);
 
         assertThat(response.studentNumber()).isEqualTo("202512345");
         verify(memberRepository).existsByStudentNumber("202512345");
@@ -56,7 +56,7 @@ class AuthServiceTest {
         SignupRequest request = validRequest("202512345");
         given(memberRepository.existsByStudentNumber("202512345")).willReturn(true);
 
-        assertThatThrownBy(() -> authService.signup(request))
+        assertThatThrownBy(() -> memberService.signup(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.DUPLICATE_STUDENT_NUMBER);
@@ -72,7 +72,7 @@ class AuthServiceTest {
         given(memberRepository.save(any(Member.class)))
                 .willThrow(new DataIntegrityViolationException("duplicate key"));
 
-        assertThatThrownBy(() -> authService.signup(request))
+        assertThatThrownBy(() -> memberService.signup(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.DUPLICATE_STUDENT_NUMBER);
@@ -82,7 +82,7 @@ class AuthServiceTest {
     void 비밀번호와_비밀번호_확인이_다르면_예외가_발생한다() {
         SignupRequest request = new SignupRequest("team-a", "홍길동", "202512345", "password1234", "different1234");
 
-        assertThatThrownBy(() -> authService.signup(request))
+        assertThatThrownBy(() -> memberService.signup(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PASSWORD_CONFIRM_MISMATCH);
@@ -95,7 +95,7 @@ class AuthServiceTest {
         String longPassword = "가".repeat(30);
         SignupRequest request = new SignupRequest("team-a", "홍길동", "202512345", longPassword, longPassword);
 
-        assertThatThrownBy(() -> authService.signup(request))
+        assertThatThrownBy(() -> memberService.signup(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PASSWORD_TOO_LONG);
@@ -111,7 +111,7 @@ class AuthServiceTest {
         ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
         given(memberRepository.save(captor.capture())).willAnswer(invocation -> invocation.getArgument(0));
 
-        authService.signup(request);
+        memberService.signup(request);
 
         assertThat(captor.getValue().getPasswordHash())
                 .isEqualTo("encodedHash")
