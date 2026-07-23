@@ -36,22 +36,26 @@ pipeline {
 
         stage('Deploy') {
             when {
-                branch 'main'
+                // main 브랜치와 develop 브랜치 모두 배포 단계를 실행하도록 수정
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
             }
             steps {
                 echo '새 컨테이너를 실행하고 상태를 확인합니다...'
 
                 withCredentials([
-                    string(credentialsId: 'ssafyhub-db-url', variable: 'DB_URL'),
-                    usernamePassword(
-                        credentialsId: 'ssafyhub-db-credentials',
-                        usernameVariable: 'DB_USERNAME',
-                        passwordVariable: 'DB_PASSWORD'
-                    ),
-                    string(credentialsId: 'ssafyhub-jwt-secret', variable: 'JWT_SECRET'),
-                    string(credentialsId: 'ssafyhub-aws-region', variable: 'AWS_REGION'),
-                    string(credentialsId: 'ssafyhub-s3-bucket', variable: 'AWS_S3_BUCKET')
-                ]) {
+                        string(credentialsId: 'ssafyhub-db-url', variable: 'DB_URL'),
+                        usernamePassword(
+                            credentialsId: 'ssafyhub-db-credentials',
+                            usernameVariable: 'DB_USERNAME',
+                            passwordVariable: 'DB_PASSWORD'
+                        ),
+                        string(credentialsId: 'ssafyhub-jwt-secret', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'ssafyhub-aws-region', variable: 'AWS_REGION'),
+                        string(credentialsId: 'ssafyhub-s3-bucket', variable: 'AWS_S3_BUCKET')
+                    ]) {
                     sh '''
                         set -eu
 
