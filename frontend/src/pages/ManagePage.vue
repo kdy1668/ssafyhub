@@ -1,9 +1,14 @@
 <script setup>
 import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+import AppHeader from "../components/common/AppHeader.vue";
+import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import ResourceModal from "../components/manage/ResourceModal.vue";
 import { useDeployments } from "../composables/useDeployments";
+
+const router = useRouter();
 
 // 3초 폴링이 적용된 조회 엔진
 const { data: deployments, isLoading } = useDeployments();
@@ -52,8 +57,14 @@ const isRunningOrSuccess = computed(() => {
 
 <template>
   <div class="min-h-screen bg-background font-sans antialiased">
+    <AppHeader />
     <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
-      
+
+      <!-- 뒤로가기 -->
+      <BaseButton variant="ghost" class="mb-4 -ml-2" @click="router.back()">
+        ← 뒤로가기
+      </BaseButton>
+
       <div class="mb-6 flex flex-col gap-1 border-b border-border/80 pb-4">
         <h1 class="mt-1 text-2xl font-bold text-ink-900">내 배포 상태</h1>
         <p class="text-xs text-ink-500">

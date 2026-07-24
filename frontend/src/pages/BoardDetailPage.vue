@@ -4,6 +4,8 @@ import { useRoute, useRouter } from "vue-router";
 import BaseCard from "../components/common/BaseCard.vue";
 import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
+import BaseBadge from "../components/common/BaseBadge.vue";
+import StatusBadge from "../components/manage/StatusBadge.vue";
 import { usePost } from "../composables/usePost";
 import { useDeletePost } from "../composables/useDeletePost";
 import { useToastStore } from "../stores/useToastStore";
@@ -33,7 +35,7 @@ function handleDelete() {
   deletePost(postId.value, {
     onSuccess: () => {
       toastStore.showToast("게시글이 삭제되었습니다.", "success");
-      router.push("/board");
+      router.push("/home");
     },
   });
 }
@@ -52,7 +54,7 @@ function handleDelete() {
           </div>
           <h1 class="mt-1 text-xl font-bold text-ink-900">게시글 상세 정보</h1>
         </div>
-        <BaseButton variant="ghost" class="text-xs sm:text-sm" @click="router.push('/board')">
+        <BaseButton variant="ghost" class="text-xs sm:text-sm" @click="router.push('/home')">
           ← 목록으로 돌아가기
         </BaseButton>
       </div>
@@ -76,7 +78,7 @@ function handleDelete() {
         <div class="mb-2 text-3xl">⚠️</div>
         <p class="text-base font-semibold text-danger">게시글을 불러오지 못했습니다.</p>
         <p class="mt-1 text-xs text-ink-500">{{ error?.message }}</p>
-        <BaseButton class="mt-4" variant="secondary" @click="router.push('/board')">
+        <BaseButton class="mt-4" variant="secondary" @click="router.push('/home')">
           목록으로 이동
         </BaseButton>
       </div>
@@ -87,6 +89,9 @@ function handleDelete() {
           
           <!-- 게시글 헤더 영역 -->
           <div class="border-b border-border pb-5">
+            <BaseBadge :tone="post.type === 'deploy' ? 'info' : 'neutral'" class="mb-2">
+              {{ post.type === "deploy" ? "🚀 배포 공유" : "💬 자유" }}
+            </BaseBadge>
             <h1 class="text-xl font-bold text-ink-900 sm:text-2xl leading-snug">
               {{ post.title }}
             </h1>
@@ -98,9 +103,31 @@ function handleDelete() {
               <span v-if="post.author" class="inline-flex items-center gap-1.5">
                 <span class="text-border">|</span>
                 <span class="font-medium text-ink-700">작성자</span>
-                <span>{{ post.author }}</span>
+                <span>{{ post.author }}<template v-if="post.team"> · {{ post.team }}</template></span>
               </span>
             </div>
+          </div>
+
+          <!-- 배포 서비스 정보 (deploy 타입만) -->
+          <div
+            v-if="post.type === 'deploy' && post.deployment"
+            class="mt-5 rounded-md border border-border bg-background p-4"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-sm font-semibold text-ink-900">
+                {{ post.deployment.projectName }}
+              </span>
+              <StatusBadge kind="deploy" :status="post.deployment.deployStatus" />
+            </div>
+            <a
+              v-if="post.deployment.url"
+              :href="post.deployment.url"
+              target="_blank"
+              rel="noreferrer"
+              class="mt-2 block truncate text-xs text-primary hover:underline"
+            >
+              🔗 {{ post.deployment.url }}
+            </a>
           </div>
 
           <!-- 게시글 본문 영역 -->
@@ -110,7 +137,7 @@ function handleDelete() {
 
           <!-- 하단 컨트롤 영역 -->
           <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-border pt-6">
-            <BaseButton variant="ghost" @click="router.push('/board')">
+            <BaseButton variant="ghost" @click="router.push('/home')">
               ← 목록으로
             </BaseButton>
             <div class="flex items-center gap-2">

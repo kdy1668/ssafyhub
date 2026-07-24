@@ -1,5 +1,5 @@
 import { apiClient, USE_MOCKS, mockDelay } from "./client";
-import { mockPosts, nextPostId } from "./mockData";
+import { mockPosts, nextPostId, mockUser } from "./mockData";
 
 export async function fetchPosts() {
   if (USE_MOCKS) {
@@ -31,8 +31,13 @@ export async function createPost(payload) {
     }
     const post = {
       id: nextPostId(),
+      type: "free",
       title: payload.title,
       content: payload.content ?? "",
+      author: mockUser.name,
+      team: mockUser.team,
+      likes: 0,
+      commentCount: 0,
       createdAt: new Date().toISOString(),
     };
     mockPosts.push(post);

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
+import AppHeader from "../components/common/AppHeader.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import BaseInput from "../components/common/BaseInput.vue";
 import BaseSelect from "../components/common/BaseSelect.vue";
@@ -89,8 +90,14 @@ async function handleSubmit() {
 
 <template>
   <div class="min-h-screen bg-background font-sans antialiased">
+    <AppHeader />
     <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
-      
+
+      <!-- 뒤로가기 -->
+      <BaseButton variant="ghost" class="mb-4 -ml-2" @click="router.back()">
+        ← 뒤로가기
+      </BaseButton>
+
       <!-- 상단 서브 헤더 -->
       <div class="mb-6 flex flex-col gap-1 border-b border-border/80 pb-4">
         <div class="flex items-center gap-2">

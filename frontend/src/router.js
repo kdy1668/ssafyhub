@@ -4,6 +4,7 @@ import LandingPage from "./pages/LandingPage.vue";
 import LoginPage from "./pages/LoginPage.vue";
 import SignupPage from "./pages/SignupPage.vue";
 import HomePage from "./pages/HomePage.vue";
+import MyPage from "./pages/MyPage.vue";
 import DeployRequestPage from "./pages/DeployRequestPage.vue";
 import ManagePage from "./pages/ManagePage.vue";
 import BoardListPage from "./pages/BoardListPage.vue";
@@ -17,6 +18,7 @@ export const router = createRouter({
     { path: "/signup", component: SignupPage },
     { path: "/login", component: LoginPage },
     { path: "/home", component: HomePage, meta: { requiresAuth: true } },
+    { path: "/mypage", component: MyPage, meta: { requiresAuth: true } },
     { path: "/deploy/new", component: DeployRequestPage, meta: { requiresAuth: true } },
     { path: "/deployments", component: ManagePage, meta: { requiresAuth: true } },
     { path: "/board", component: BoardListPage, meta: { requiresAuth: true } },
