@@ -1,6 +1,9 @@
 package com.ssafyhub.backend.domain.member.entity;
 
+import com.ssafyhub.backend.domain.member.enums.MemberRole;
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -42,6 +45,10 @@ public class Member {
     @Column(name = "team_name", nullable = false, length = 50)
     private String teamName;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private MemberRole role;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -55,5 +62,6 @@ public class Member {
         this.passwordHash = passwordHash;
         this.name = name;
         this.teamName = teamName;
+        this.role = MemberRole.MEMBER;
     }
 }
