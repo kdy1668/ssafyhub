@@ -1,9 +1,10 @@
 import { ref, reactive, computed } from "vue";
-import { useQuery } from "@tanstack/vue-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
   fetchDeployments,
   getPresignedUrls,
   createDeployment as apiCreateDeployment,
+  updateDeployment as apiUpdateDeployment,
   putFileToS3WithProgress,
 } from "../api/deployments";
 
@@ -74,6 +75,7 @@ export function useCreateDeployment() {
       backendFile, frontendFile,
       projectName, runtimeVersion, internalPort,
       databaseName, databasePassword, envList,
+      description = "", visibility = "PRIVATE",
       simulateFailure = false,
     } = args;
 
@@ -132,6 +134,8 @@ export function useCreateDeployment() {
         internalPort: Number(internalPort),
         databaseName,
         databasePassword,
+        description,
+        visibility,
         env: envList,
       });
 
@@ -168,4 +172,15 @@ export function useCreateDeployment() {
     retry,
     reset,
   };
+}
+
+// 3. 배포 설명/공개여부 수정 (마이페이지 편집용)
+export function useUpdateDeployment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }) => apiUpdateDeployment(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deployments"] });
+    },
+  });
 }

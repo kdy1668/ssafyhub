@@ -124,6 +124,8 @@ export async function createDeployment(deployData) {
       runtimeVersion: deployData.runtimeVersion || "17",
       internalPort: deployData.internalPort || "8080",
       databaseName: deployData.databaseName || "app_db",
+      description: deployData.description || "",
+      visibility: deployData.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE",
     };
 
     mockDeployments.unshift(newMockDeployment);
@@ -136,5 +138,23 @@ export async function createDeployment(deployData) {
   }
 
   const { data } = await apiClient.post("/api/v1/deployments", deployData);
+  return data;
+}
+
+// 배포의 설명/공개여부 수정 (마이페이지에서 사용)
+export async function updateDeployment(deploymentId, payload) {
+  if (USE_MOCKS) {
+    await mockDelay(400);
+    const dep = mockDeployments.find((d) => String(d.id) === String(deploymentId));
+    if (!dep) {
+      throw new Error("배포를 찾을 수 없습니다.");
+    }
+    if (payload.description !== undefined) dep.description = payload.description;
+    if (payload.visibility !== undefined) {
+      dep.visibility = payload.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+    }
+    return { ...dep };
+  }
+  const { data } = await apiClient.patch(`/api/v1/deployments/${deploymentId}`, payload);
   return data;
 }

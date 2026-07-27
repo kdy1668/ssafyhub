@@ -6,6 +6,7 @@ import BaseCard from "../components/common/BaseCard.vue";
 import BaseInput from "../components/common/BaseInput.vue";
 import BaseSelect from "../components/common/BaseSelect.vue";
 import BaseButton from "../components/common/BaseButton.vue";
+import BaseTextarea from "../components/common/BaseTextarea.vue";
 import AppIcon from "../components/common/AppIcon.vue";
 import EnvVarsEditor from "../components/deploy/EnvVarsEditor.vue";
 import PreviewModal from "../components/deploy/PreviewModal.vue";
@@ -43,6 +44,8 @@ const frontendFile = ref(null);
 // 텍스트/설정 폼 상태
 const form = reactive({
   projectName: "",
+  description: "",
+  visibility: "PRIVATE", // "PUBLIC" | "PRIVATE"
   runtimeVersion: "21",
   internalPort: 8080,
   databaseName: "",
@@ -81,6 +84,8 @@ function buildPayload() {
     backendFile: backendFile.value,
     frontendFile: frontendFile.value,
     projectName: form.projectName,
+    description: form.description,
+    visibility: form.visibility,
     runtimeVersion: form.runtimeVersion,
     internalPort: form.internalPort,
     databaseName: form.databaseName,
@@ -155,6 +160,45 @@ async function handleRetry() {
             v-model="form.projectName"
             :error="errors.projectName"
           />
+
+          <!-- 서비스 설명 -->
+          <BaseTextarea
+            id="description"
+            label="서비스 설명 (선택)"
+            placeholder="이 배포 서비스에 대한 간단한 설명을 입력하세요"
+            v-model="form.description"
+            rows="3"
+          />
+
+          <!-- 공개 여부 토글 -->
+          <div>
+            <span class="mb-1.5 block text-sm font-medium text-ink-700">공개 여부</span>
+            <div class="inline-flex rounded-lg bg-background p-1 ring-1 ring-border">
+              <button
+                type="button"
+                :class="[
+                  'rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
+                  form.visibility === 'PRIVATE' ? 'bg-primary text-white shadow-sm' : 'text-ink-500 hover:text-ink-900',
+                ]"
+                @click="form.visibility = 'PRIVATE'"
+              >
+                비공개
+              </button>
+              <button
+                type="button"
+                :class="[
+                  'rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
+                  form.visibility === 'PUBLIC' ? 'bg-primary text-white shadow-sm' : 'text-ink-500 hover:text-ink-900',
+                ]"
+                @click="form.visibility = 'PUBLIC'"
+              >
+                공개
+              </button>
+            </div>
+            <p class="mt-1.5 text-xs text-ink-500">
+              {{ form.visibility === "PUBLIC" ? "다른 팀원에게 이 배포가 공개됩니다." : "나만 볼 수 있는 비공개 배포입니다." }}
+            </p>
+          </div>
 
           <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <BaseSelect

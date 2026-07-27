@@ -13,6 +13,8 @@ export const mockDeployments = [
     serverStatus: "RUNNING",
     deployStatus: "DEPLOYED",
     url: "https://shopping-api.example-deploy.com",
+    description: "쇼핑몰 상품/주문 백엔드 API 서버",
+    visibility: "PUBLIC",
     createdAt: "2026-07-10T09:00:00Z",
   },
   {
@@ -22,6 +24,8 @@ export const mockDeployments = [
     serverStatus: "RUNNING",
     deployStatus: "DEPLOYING",
     url: "https://internal-dashboard.example-deploy.com",
+    description: "사내 운영 대시보드",
+    visibility: "PRIVATE",
     createdAt: "2026-07-15T02:30:00Z",
   },
   {
@@ -31,6 +35,8 @@ export const mockDeployments = [
     serverStatus: "STOPPED",
     deployStatus: "FAILED",
     url: "https://batch-worker.example-deploy.com",
+    description: "정산 배치 워커",
+    visibility: "PRIVATE",
     createdAt: "2026-07-12T13:20:00Z",
   },
 ];
