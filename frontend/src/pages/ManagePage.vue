@@ -73,6 +73,19 @@ function saveEdit() {
   );
 }
 
+// 공개 여부 즉시 토글
+function toggleVisibility(dep) {
+  if (!dep) return;
+  const next = dep.visibility === "PUBLIC" ? "PRIVATE" : "PUBLIC";
+  updateDeployment(
+    { id: dep.id, payload: { visibility: next } },
+    {
+      onSuccess: () => toastStore.showToast(`${next === "PUBLIC" ? "공개" : "비공개"}로 전환했습니다.`, "success"),
+      onError: (e) => toastStore.showToast(e.message || "변경에 실패했습니다.", "error"),
+    }
+  );
+}
+
 // 리소스 모달 열림 상태 관리
 const isResourceModalOpen = ref(false);
 
@@ -302,9 +315,19 @@ const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = useDeployme
           </div>
           <div>
             <span class="block text-xs font-medium text-ink-500 mb-1">공개 여부</span>
-            <BaseBadge :tone="currentDeployment.visibility === 'PUBLIC' ? 'info' : 'neutral'">
-              {{ currentDeployment.visibility === "PUBLIC" ? "공개" : "비공개" }}
-            </BaseBadge>
+            <div class="flex items-center gap-2">
+              <BaseBadge :tone="currentDeployment.visibility === 'PUBLIC' ? 'info' : 'neutral'">
+                {{ currentDeployment.visibility === "PUBLIC" ? "공개" : "비공개" }}
+              </BaseBadge>
+              <button
+                type="button"
+                :disabled="isSavingEdit"
+                class="rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-ink-700 transition-colors hover:bg-black/5 disabled:opacity-60"
+                @click="toggleVisibility(currentDeployment)"
+              >
+                {{ currentDeployment.visibility === "PUBLIC" ? "비공개로 전환" : "공개로 전환" }}
+              </button>
+            </div>
           </div>
           <div v-if="currentDeployment.url" class="sm:col-span-2">
             <span class="block text-xs font-medium text-ink-500 mb-1">배포 URL</span>
