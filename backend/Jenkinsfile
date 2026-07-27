@@ -22,15 +22,19 @@ pipeline {
         stage('Build') {
             steps {
                 echo '테스트를 포함한 Gradle 빌드를 시작합니다...'
-                sh 'chmod +x ./gradlew'
-                sh './gradlew clean build'
+                dir('backend') {
+                    sh 'chmod +x ./gradlew'
+                    sh './gradlew clean build'
+                }
             }
         }
 
         stage('Docker Build') {
             steps {
                 echo '도커 이미지를 빌드합니다...'
-                sh 'docker build -t "$IMAGE_NAME:$BUILD_NUMBER" -t "$IMAGE_NAME:latest" .'
+                dir('backend') {
+                    sh 'docker build -t "$IMAGE_NAME:$BUILD_NUMBER" -t "$IMAGE_NAME:latest" .'
+                }
             }
         }
 
