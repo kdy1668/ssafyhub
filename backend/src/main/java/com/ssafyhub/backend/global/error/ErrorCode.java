@@ -17,6 +17,7 @@ public enum ErrorCode {
     REVOKED_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH_007", "폐기된 Refresh Token입니다."),
     AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "인증이 필요합니다."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "접근 권한이 없습니다."),
+    CSRF_TOKEN_INVALID(HttpStatus.FORBIDDEN, "CSRF_001", "CSRF 토큰이 없거나 유효하지 않습니다."),
 
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_004", "회원을 찾을 수 없습니다."),
 
