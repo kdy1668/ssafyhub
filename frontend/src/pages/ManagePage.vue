@@ -12,7 +12,7 @@ import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
 import StatusBadge from "../components/manage/StatusBadge.vue";
-import { useDeployments } from "../composables/useDeployments";
+import { useDeployments, useDeleteDeployment } from "../composables/useDeployments";
 import { useCurrentUser } from "../composables/useCurrentUser";
 import { useToastStore } from "../stores/useToastStore";
 
@@ -46,10 +46,13 @@ function goList() {
 const isResourceModalOpen = ref(false);
 
 // --- 서버 제어 + 확인 모달 ---
+const { mutate: deleteDeployment, isPending: isDeleting } = useDeleteDeployment();
+
 const CONTROL_META = {
   start: { title: "서버 시작", message: "서버를 시작하시겠습니까?", confirmText: "시작", confirmVariant: "primary" },
   stop: { title: "서버 중지", message: "서버를 중지하시겠습니까? 서비스 접속이 중단됩니다.", confirmText: "중지", confirmVariant: "danger" },
   restart: { title: "서버 재시작", message: "서버를 재시작하시겠습니까? 잠시 서비스가 중단될 수 있습니다.", confirmText: "재시작", confirmVariant: "danger" },
+  delete: { title: "배포 삭제", message: "이 배포를 삭제하시겠습니까? 삭제하면 되돌릴 수 없습니다.", confirmText: "삭제", confirmVariant: "danger" },
 };
 
 const confirmState = reactive({
@@ -70,10 +73,29 @@ function cancelControl() {
   confirmState.action = null;
 }
 
-// 확인 후 실제 동작: 실제 시작/중지/재시작은 백엔드 팀에서 향후 연동 예정.
+// 확인 후 실제 동작
 function confirmControl() {
-  const labels = { start: "시작", stop: "중지", restart: "재시작" };
   const action = confirmState.action;
+
+  // 삭제만 실제 처리(목록에서 제거 후 결과 알림 + 목록 복귀)
+  if (action === "delete") {
+    const id = currentDeployment.value?.id;
+    deleteDeployment(id, {
+      onSuccess: () => {
+        cancelControl();
+        toastStore.showToast("배포가 삭제되었습니다.", "success");
+        goList();
+      },
+      onError: (e) => {
+        cancelControl();
+        toastStore.showToast(e.message || "삭제에 실패했습니다.", "error");
+      },
+    });
+    return;
+  }
+
+  // 시작/중지/재시작은 백엔드 연동 예정 (껍데기)
+  const labels = { start: "시작", stop: "중지", restart: "재시작" };
   cancelControl();
   toastStore.showToast(`${labels[action] || action} 기능은 백엔드 연동 예정입니다.`, "info");
 }
@@ -248,9 +270,11 @@ const isRunningOrSuccess = computed(() => {
           <span class="text-sm font-bold text-ink-900">서버 제어</span>
           <ControlButtons
             :status="currentDeployment.status || currentDeployment.deployStatus"
+            :loading-action="isDeleting ? 'delete' : ''"
             @start="requestControl('start')"
             @stop="requestControl('stop')"
             @restart="requestControl('restart')"
+            @delete="requestControl('delete')"
           />
         </div>
       </BaseCard>
@@ -279,6 +303,7 @@ const isRunningOrSuccess = computed(() => {
       :message="confirmMeta.message"
       :confirm-text="confirmMeta.confirmText"
       :confirm-variant="confirmMeta.confirmVariant"
+      :loading="isDeleting"
       @confirm="confirmControl"
       @cancel="cancelControl"
     />

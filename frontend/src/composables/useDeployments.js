@@ -5,6 +5,7 @@ import {
   getPresignedUrls,
   createDeployment as apiCreateDeployment,
   updateDeployment as apiUpdateDeployment,
+  deleteDeployment as apiDeleteDeployment,
   putFileToS3WithProgress,
 } from "../api/deployments";
 
@@ -179,6 +180,17 @@ export function useUpdateDeployment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, payload }) => apiUpdateDeployment(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deployments"] });
+    },
+  });
+}
+
+// 4. 배포 삭제 (운영 제어)
+export function useDeleteDeployment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => apiDeleteDeployment(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deployments"] });
     },

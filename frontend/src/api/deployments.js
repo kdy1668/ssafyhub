@@ -141,6 +141,21 @@ export async function createDeployment(deployData) {
   return data;
 }
 
+// 배포 삭제 (운영 제어)
+export async function deleteDeployment(deploymentId) {
+  if (USE_MOCKS) {
+    await mockDelay(500);
+    const idx = mockDeployments.findIndex((d) => String(d.id) === String(deploymentId));
+    if (idx === -1) {
+      throw new Error("배포를 찾을 수 없습니다.");
+    }
+    mockDeployments.splice(idx, 1);
+    return { success: true };
+  }
+  await apiClient.delete(`/api/v1/deployments/${deploymentId}`);
+  return { success: true };
+}
+
 // 배포의 설명/공개여부 수정 (마이페이지에서 사용)
 export async function updateDeployment(deploymentId, payload) {
   if (USE_MOCKS) {
