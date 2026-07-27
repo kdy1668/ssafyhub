@@ -5,6 +5,10 @@ pipeline {
         skipDefaultCheckout(true)
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
+        // 동시 실행되면 두 빌드가 같은 S3 버킷에 --delete 로 sync 하면서
+        // 서로의 산출물을 지울 수 있다.
+        disableConcurrentBuilds()
+        timeout(time: 20, unit: 'MINUTES')
     }
 
     tools {
@@ -47,9 +51,17 @@ pipeline {
 
         stage('Deploy') {
             when {
+                beforeAgent true
                 anyOf {
                     branch 'main'
                     branch 'develop'
+                }
+                // 모노레포이므로 백엔드만 바뀐 푸시에는 재배포하지 않는다.
+                // 수동 실행(Build Now)은 변경 내역과 무관하게 항상 배포한다 —
+                // 첫 빌드나 재배포 목적의 실행이 조용히 건너뛰어지지 않도록.
+                anyOf {
+                    changeset 'frontend/**'
+                    triggeredBy 'UserIdCause'
                 }
             }
             steps {
