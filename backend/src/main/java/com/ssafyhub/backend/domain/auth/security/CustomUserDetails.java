@@ -13,13 +13,22 @@ public class CustomUserDetails implements UserDetails {
 
     private final Long memberId;
     private final String studentNumber;
+    private final String password;
     private final String name;
     private final String teamName;
     private final String role;
 
-    private CustomUserDetails(Long memberId, String studentNumber, String name, String teamName, String role) {
+    private CustomUserDetails(
+            Long memberId,
+            String studentNumber,
+            String password,
+            String name,
+            String teamName,
+            String role
+    ) {
         this.memberId = memberId;
         this.studentNumber = studentNumber;
+        this.password = password;
         this.name = name;
         this.teamName = teamName;
         this.role = role;
@@ -29,6 +38,7 @@ public class CustomUserDetails implements UserDetails {
         return new CustomUserDetails(
                 member.getId(),
                 member.getStudentNumber(),
+                member.getPasswordHash(),
                 member.getName(),
                 member.getTeamName(),
                 member.getRole().name()
@@ -43,7 +53,7 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public String getPassword() {
-        return null;
+        return password;
     }
 
     @Override
