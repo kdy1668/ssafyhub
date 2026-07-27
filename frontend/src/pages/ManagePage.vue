@@ -300,6 +300,28 @@ const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = useDeployme
             <span class="block text-xs font-medium text-ink-500 mb-1">Database 이름</span>
             <span class="text-sm font-semibold text-ink-900">{{ currentDeployment.databaseName || '-' }}</span>
           </div>
+          <div>
+            <span class="block text-xs font-medium text-ink-500 mb-1">공개 여부</span>
+            <BaseBadge :tone="currentDeployment.visibility === 'PUBLIC' ? 'info' : 'neutral'">
+              {{ currentDeployment.visibility === "PUBLIC" ? "공개" : "비공개" }}
+            </BaseBadge>
+          </div>
+          <div v-if="currentDeployment.url" class="sm:col-span-2">
+            <span class="block text-xs font-medium text-ink-500 mb-1">배포 URL</span>
+            <a
+              :href="currentDeployment.url"
+              target="_blank"
+              rel="noreferrer"
+              class="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              <AppIcon name="link" class="h-3.5 w-3.5 shrink-0" />
+              <span class="truncate">{{ currentDeployment.url }}</span>
+            </a>
+          </div>
+          <div class="sm:col-span-2">
+            <span class="block text-xs font-medium text-ink-500 mb-1">서비스 설명</span>
+            <span class="text-sm text-ink-700">{{ currentDeployment.description || "-" }}</span>
+          </div>
         </div>
 
         <div class="rounded-md bg-primary-light p-4 text-sm text-primary">
