@@ -1,22 +1,12 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
     name: ssafyhub-backend
-
-  config:
-    import: "optional:file:.env[.properties]"
-
-  datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/ssafyhub?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
-    username: ${DB_USERNAME:ssafyhub}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   jpa:
-    hibernate:
-      ddl-auto: update
     properties:
       hibernate:
         format_sql: true
@@ -33,12 +23,22 @@ management:
       show-details: when_authorized
 
 jwt:
-  secret: ${JWT_SECRET}
   access-token-expiration-millis: ${JWT_ACCESS_TOKEN_EXPIRATION_MILLIS:1800000}
   refresh-token-expiration-millis: ${JWT_REFRESH_TOKEN_EXPIRATION_MILLIS:1209600000}
 
 aws:
   region: ${AWS_REGION:ap-northeast-2}
   s3:
-    bucket: ${AWS_S3_BUCKET:ssafyhub-local-bucket}
     presigned-url-expiration-minutes: ${AWS_S3_PRESIGNED_URL_EXPIRATION_MINUTES:10}
+
+deployment:
+  supported-runtime-versions: ${SUPPORTED_RUNTIME_VERSIONS:17,21}
+  public-domain: ${DEPLOYMENT_PUBLIC_DOMAIN:ssafyhub.site}
+  outbox:
+    polling-delay-ms: ${DEPLOYMENT_OUTBOX_POLLING_DELAY_MS:5000}
+    batch-size: ${DEPLOYMENT_OUTBOX_BATCH_SIZE:20}
+
+devops:
+  was:
+    connect-timeout-ms: ${DEVOPS_WAS_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${DEVOPS_WAS_READ_TIMEOUT_MS:5000}

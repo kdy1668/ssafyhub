@@ -32,7 +32,7 @@ public class MemberService {
             throw new BusinessException(ErrorCode.PASSWORD_TOO_LONG);
         }
 
-        String studentNumber = request.normalizedStudentNumber();
+        String studentNumber = request.studentNumber();
 
         if (memberRepository.existsByStudentNumber(studentNumber)) {
             throw new BusinessException(ErrorCode.DUPLICATE_STUDENT_NUMBER);

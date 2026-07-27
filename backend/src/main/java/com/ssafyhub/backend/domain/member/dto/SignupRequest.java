@@ -1,6 +1,7 @@
 package com.ssafyhub.backend.domain.member.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record SignupRequest(
@@ -13,7 +14,7 @@ public record SignupRequest(
         String name,
 
         @NotBlank(message = "학번을 입력해주세요.")
-        @Size(max = 30, message = "학번은 30자를 초과할 수 없습니다.")
+        @Pattern(regexp = "^\\d{7}$", message = "학번은 숫자 7자리로 입력해주세요.")
         String studentNumber,
 
         @NotBlank(message = "비밀번호를 입력해주세요.")
@@ -24,11 +25,6 @@ public record SignupRequest(
         @Size(min = 8, max = 100, message = "비밀번호 확인은 8자 이상 100자 이하로 입력해주세요.")
         String passwordConfirm
 ) {
-
-    public String normalizedStudentNumber() {
-        return studentNumber.trim();
-    }
-
     @Override
     public String toString() {
         return "SignupRequest[teamName=%s, name=%s, studentNumber=%s, password=****, passwordConfirm=****]"
