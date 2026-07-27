@@ -97,12 +97,31 @@ pipeline {
                             -e DEVOPS_WAS_BASE_URL \
                             "$IMAGE_NAME:$BUILD_NUMBER"
 
+                        # Jenkins가 컨테이너로 구동되는 경우 이 sh 스텝의 localhost는
+                        # Jenkins 컨테이너 자신을 가리킨다. 공식 이미지는 내부에서 8080을
+                        # 리슨하므로 localhost:8080은 백엔드가 아니라 Jenkins에 닿아
+                        # 인증 없는 요청에 403을 돌려준다. 실제 백엔드를 확인하기 위해
+                        # 두 경로를 순서대로 시도한다.
                         healthy=false
                         for attempt in $(seq 1 30); do
-                            if curl -fsS http://localhost:8080/actuator/health >/dev/null; then
+                            # 1) 같은 브리지 네트워크에 있으면 컨테이너 IP로 직접 접근
+                            backend_ip=$(docker inspect \
+                                -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+                                "$CONTAINER_NAME" 2>/dev/null || true)
+                            if [ -n "$backend_ip" ] \
+                                && curl -fsS "http://$backend_ip:8080/actuator/health" >/dev/null 2>&1; then
                                 healthy=true
                                 break
                             fi
+
+                            # 2) 폴백: 호스트 네트워크를 쓰는 일회용 컨테이너로
+                            #    호스트에 퍼블리시된 8080을 확인한다.
+                            if docker run --rm --network host curlimages/curl:latest \
+                                -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+                                healthy=true
+                                break
+                            fi
+
                             sleep 2
                         done
 
