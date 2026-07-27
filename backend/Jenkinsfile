@@ -139,6 +139,25 @@ pipeline {
                         fi
 
                         docker rm -f "$PREVIOUS_CONTAINER_NAME" 2>/dev/null || true
+
+                        # 배포가 확정된 뒤에만 이미지를 정리한다.
+                        # 빌드마다 400MB짜리 태그가 쌓여 8GB 루트 디스크를 채우기 때문.
+                        # 현재 빌드와 직전 빌드는 롤백용으로 남기고 나머지 숫자 태그를
+                        # 지운다. 시간 기준(until=...)은 며칠 전 이미지를 놓치는 반면
+                        # 베이스 이미지를 지워버려서 쓰지 않는다. 정렬 기준도 쓰지 않는데,
+                        # 잡을 재생성하면 빌드 번호가 초기화되어 옛 태그가 최신으로
+                        # 잘못 판정되기 때문이다.
+                        docker images "$IMAGE_NAME" --format "{{.Tag}}" \
+                            | grep -E "^[0-9]+$" \
+                            | grep -vx "$BUILD_NUMBER" \
+                            | grep -vx "$((BUILD_NUMBER - 1))" \
+                            | xargs -r -I{} docker rmi "$IMAGE_NAME:{}" 2>/dev/null || true
+
+                        # 위 삭제로 참조를 잃은 중간 레이어 정리 (-a 없이: 태그된
+                        # 이미지는 건드리지 않으므로 베이스 이미지는 보존된다)
+                        docker image prune -f >/dev/null 2>&1 || true
+
+                        df -h / | tail -1
                     '''
                 }
             }
