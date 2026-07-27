@@ -43,6 +43,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             Claims claims = tokenProvider.parseClaims(accessToken);
+
+            if (!JwtConstants.ACCESS_TOKEN_TYPE.equals(tokenProvider.getTokenType(claims))) {
+                throw new BusinessException(ErrorCode.INVALID_TOKEN);
+            }
+
             Long memberId = tokenProvider.getMemberId(claims);
 
             Member member = memberRepository.findById(memberId)
