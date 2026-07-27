@@ -15,7 +15,7 @@ function handleLogout() {
 <template>
   <header class="sticky top-0 z-10 border-b border-border bg-surface">
     <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-      <span class="text-lg font-bold text-ink-900">DeployHub</span>
+      <span class="text-lg font-bold text-ink-900"><span class="text-primary">SSAFY</span>HUB</span>
       <div class="flex items-center gap-2">
         <BaseButton variant="ghost">마이페이지</BaseButton>
         <BaseButton variant="secondary" @click="handleLogout">로그아웃</BaseButton>

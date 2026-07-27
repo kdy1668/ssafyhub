@@ -3,6 +3,8 @@ import { useRouter } from "vue-router";
 import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
 import PostTable from "../components/board/PostTable.vue";
+import AppHeader from "../components/common/AppHeader.vue";
+import AppIcon from "../components/common/AppIcon.vue";
 import { usePosts } from "../composables/usePosts";
 
 const router = useRouter();
@@ -11,6 +13,7 @@ const { data: posts, isLoading, isError, error } = usePosts();
 
 <template>
   <div class="min-h-screen bg-background font-sans antialiased">
+    <AppHeader />
     <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
       <!-- 페이지 상단 헤더 영역 -->
       <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/80 pb-4">
@@ -24,7 +27,8 @@ const { data: posts, isLoading, isError, error } = usePosts();
         </div>
         <div class="flex items-center gap-3">
           <BaseButton class="shadow-card" @click="router.push('/board/new')">
-            ✏️ 새 글 작성
+            <AppIcon name="pencil" class="h-4 w-4" />
+            새 글 작성
           </BaseButton>
         </div>
       </div>
@@ -45,7 +49,7 @@ const { data: posts, isLoading, isError, error } = usePosts();
           v-else-if="isError"
           class="flex flex-col items-center justify-center rounded-md border border-danger/30 bg-danger-light px-4 py-8 text-center"
         >
-          <div class="mb-2 text-2xl">⚠️</div>
+          <AppIcon name="alert" class="mb-2 h-7 w-7 text-danger" />
           <p class="text-sm font-semibold text-danger">게시글을 불러오지 못했습니다.</p>
           <p class="mt-1 text-xs text-ink-500">{{ error?.message }}</p>
         </div>
