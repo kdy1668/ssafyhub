@@ -1,0 +1,29 @@
+spring:
+  config:
+    import: "optional:file:.env[.properties]"
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/ssafyhub?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:ssafyhub}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+jwt:
+  secret: ${JWT_SECRET}
+
+aws:
+  s3:
+    bucket: ${AWS_S3_BUCKET:ssafyhub-local-bucket}
+
+security:
+  encryption-key: ${SECRET_ENCRYPTION_KEY}
+
+deployment:
+  outbox:
+    enabled: ${DEPLOYMENT_OUTBOX_ENABLED:false}
+
+devops:
+  was:
+    base-url: ${DEVOPS_WAS_BASE_URL:http://localhost:8081}

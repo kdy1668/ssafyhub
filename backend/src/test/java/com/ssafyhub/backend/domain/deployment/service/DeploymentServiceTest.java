@@ -80,6 +80,7 @@ class DeploymentServiceTest {
                 secretEncryptor
         );
         ReflectionTestUtils.setField(deploymentService, "supportedRuntimeVersions", List.of("17", "21"));
+        ReflectionTestUtils.setField(deploymentService, "publicDomain", "ssafyhub.site");
 
         member = new Member("1551343", "hash", "홍길동", "E206");
         ReflectionTestUtils.setField(member, "id", 11L);
@@ -104,6 +105,7 @@ class DeploymentServiceTest {
         assertThat(response.deploymentId()).isEqualTo(100L);
         assertThat(response.status()).isEqualTo(DeploymentStatus.PENDING);
         assertThat(response.displayStatus()).isEqualTo("배포 대기 중");
+        assertThat(response.expectedUrl()).isEqualTo("https://1551343.ssafyhub.site");
 
         ArgumentCaptor<Deployment> deploymentCaptor = ArgumentCaptor.forClass(Deployment.class);
         verify(deploymentRepository).saveAndFlush(deploymentCaptor.capture());

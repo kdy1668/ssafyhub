@@ -89,4 +89,23 @@ public class DeploymentOutbox {
                 now
         );
     }
+
+    public void startProcessing() {
+        this.status = OutboxStatus.PROCESSING;
+        this.attemptCount++;
+        this.lastError = null;
+    }
+
+    public void markPublished(LocalDateTime now) {
+        this.status = OutboxStatus.PUBLISHED;
+        this.processedAt = now;
+        this.lastError = null;
+    }
+
+    public void markFailed(LocalDateTime now, String lastError) {
+        this.status = OutboxStatus.FAILED;
+        this.processedAt = now;
+        this.lastError = lastError;
+    }
+
 }

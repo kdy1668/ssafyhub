@@ -14,7 +14,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
         "jwt.secret=01234567890123456789012345678901",
-        "security.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+        "security.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "deployment.outbox.enabled=false"
 })
 class SsafyhubBackendApplicationTests {
 

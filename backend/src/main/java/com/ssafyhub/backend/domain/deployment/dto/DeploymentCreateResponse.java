@@ -7,6 +7,7 @@ public record DeploymentCreateResponse(
         Long deploymentId,
         DeploymentStatus status,
         String displayStatus,
+        String expectedUrl,
         LocalDateTime requestedAt
 ) {
 }

@@ -50,6 +50,9 @@ public class DeploymentService {
     @Value("${deployment.supported-runtime-versions}")
     private List<String> supportedRuntimeVersions;
 
+    @Value("${deployment.public-domain}")
+    private String publicDomain;
+
     @Transactional
     public DeploymentCreateResponse createDeployment(Long memberId, DeploymentCreateRequest request) {
         Member member = memberRepository.findById(memberId)
@@ -118,6 +121,7 @@ public class DeploymentService {
                 deployment.getId(),
                 DeploymentStatus.PENDING,
                 "배포 대기 중",
+                "https://%s.%s".formatted(member.getStudentNumber(), publicDomain),
                 requestedAt
         );
     }
