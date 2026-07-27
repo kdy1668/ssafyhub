@@ -6,11 +6,14 @@ import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import AppIcon from "../components/common/AppIcon.vue";
+import BaseBadge from "../components/common/BaseBadge.vue";
 import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
+import StatusBadge from "../components/manage/StatusBadge.vue";
 import { useDeployments } from "../composables/useDeployments";
+import { useCurrentUser } from "../composables/useCurrentUser";
 import { useToastStore } from "../stores/useToastStore";
 
 const route = useRoute();
@@ -19,6 +22,25 @@ const toastStore = useToastStore();
 
 // 3초 폴링이 적용된 조회 엔진
 const { data: deployments, isLoading } = useDeployments();
+const { data: user } = useCurrentUser();
+
+// 내가 등록한 배포 목록 (허브 목록)
+const myDeployments = computed(() => {
+  const list = deployments.value ?? [];
+  if (!user.value) return list;
+  return list.filter((d) => d.owner === user.value.name);
+});
+
+// ?id 가 있으면 상세, 없으면 목록 허브
+const viewId = computed(() => route.query.id ?? null);
+const isDetail = computed(() => Boolean(viewId.value && currentDeployment.value));
+
+function goDetail(dep) {
+  router.push({ path: "/deployments", query: { id: dep.id } });
+}
+function goList() {
+  router.push({ path: "/deployments" });
+}
 
 // 리소스 모달 열림 상태 관리
 const isResourceModalOpen = ref(false);
@@ -61,16 +83,11 @@ function handleRefreshLogs() {
   toastStore.showToast("로그 새로고침 기능은 백엔드 연동 예정입니다.", "info");
 }
 
-// 쿼리(?id=)로 지정된 배포를 표시. 없으면 첫 번째 배포를 기본 표시.
+// ?id 로 지정된 배포 상세 (id 없으면 상세 없음 → 목록 표시)
 const currentDeployment = computed(() => {
   const list = deployments.value;
-  if (!list || list.length === 0) return null;
-  const id = route.query.id;
-  if (id != null) {
-    const found = list.find((d) => String(d.id) === String(id));
-    if (found) return found;
-  }
-  return list[0];
+  if (!list || list.length === 0 || viewId.value == null) return null;
+  return list.find((d) => String(d.id) === String(viewId.value)) || null;
 });
 
 // 상태에 따른 UI(색상, 애니메이션, 아이콘) 처리
@@ -110,33 +127,68 @@ const isRunningOrSuccess = computed(() => {
     <AppHeader />
     <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
 
-      <!-- 뒤로가기 -->
-      <BaseButton variant="ghost" class="mb-4 -ml-2" @click="router.back()">
-        ← 뒤로가기
+      <!-- 뒤로가기 / 목록으로 -->
+      <BaseButton variant="ghost" class="mb-4 -ml-2" @click="isDetail ? goList() : router.back()">
+        {{ isDetail ? "← 목록으로" : "← 뒤로가기" }}
       </BaseButton>
 
       <div class="mb-6 flex flex-col gap-1 border-b border-border/80 pb-4">
-        <h1 class="mt-1 text-2xl font-bold text-ink-900">내 배포 상태</h1>
+        <h1 class="mt-1 text-2xl font-bold text-ink-900">
+          {{ isDetail ? "내 배포 상태" : "내 배포 목록" }}
+        </h1>
         <p class="text-xs text-ink-500">
-          현재 진행 중이거나 완료된 프로젝트의 배포 상태를 단일 화면에서 확인합니다.
+          {{ isDetail
+            ? "진행 중이거나 완료된 프로젝트의 배포 상태를 확인합니다."
+            : "내가 등록한 프로젝트를 한눈에 확인하고, 카드를 눌러 상세 상태로 이동하세요." }}
         </p>
       </div>
 
-      <!-- 로딩 중일 때 기존 BaseSkeleton 활용 -->
+      <!-- 로딩 -->
       <div v-if="isLoading" class="flex flex-col gap-4">
         <BaseSkeleton class="h-20 w-full rounded-lg" />
         <BaseSkeleton class="h-40 w-full rounded-lg" />
       </div>
-      
-      <!-- 배포 내역이 없을 때 -->
-      <div v-else-if="!currentDeployment" class="flex flex-col items-center justify-center py-20">
-        <p class="text-ink-600 mb-4">현재 등록된 배포 프로젝트가 없습니다.</p>
-        <router-link to="/deploy/new" class="rounded-md bg-primary px-4 py-2 text-white hover:bg-primary-hover">
-          새 프로젝트 배포하기
-        </router-link>
-      </div>
 
-      <!-- 단일 배포 상태 화면 -->
+      <!-- ===== 목록 허브 (상세가 아닐 때) ===== -->
+      <template v-else-if="!isDetail">
+        <!-- 비어있음 -->
+        <div v-if="myDeployments.length === 0" class="flex flex-col items-center justify-center py-20">
+          <p class="mb-4 text-ink-600">아직 등록된 배포 프로젝트가 없습니다.</p>
+          <router-link to="/deploy/new" class="rounded-md bg-primary px-4 py-2 text-white hover:bg-primary-hover">
+            새 프로젝트 배포하기
+          </router-link>
+        </div>
+
+        <!-- 프로젝트 카드 목록 -->
+        <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <button
+            v-for="dep in myDeployments"
+            :key="dep.id"
+            type="button"
+            class="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-cardHover"
+            @click="goDetail(dep)"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-sm font-semibold text-ink-900">{{ dep.projectName }}</span>
+              <StatusBadge kind="deploy" :status="dep.deployStatus" />
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <StatusBadge v-if="dep.serverStatus" kind="server" :status="dep.serverStatus" />
+              <BaseBadge v-if="dep.visibility" :tone="dep.visibility === 'PUBLIC' ? 'info' : 'neutral'">
+                {{ dep.visibility === "PUBLIC" ? "공개" : "비공개" }}
+              </BaseBadge>
+            </div>
+            <p v-if="dep.description" class="line-clamp-2 text-xs leading-relaxed text-ink-600">
+              {{ dep.description }}
+            </p>
+            <span class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary">
+              상세 보기 →
+            </span>
+          </button>
+        </div>
+      </template>
+
+      <!-- ===== 단일 배포 상세 화면 ===== -->
       <BaseCard v-else class="p-6 sm:p-8 shadow-card border border-border bg-surface rounded-lg">
         
         <div class="flex items-center justify-between mb-6 border-b border-border pb-4">
