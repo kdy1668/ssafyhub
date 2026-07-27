@@ -17,6 +17,8 @@ aws:
 
 security:
   encryption-key: ${SECRET_ENCRYPTION_KEY}
+  cookie:
+    secure: true
 
 deployment:
   outbox:

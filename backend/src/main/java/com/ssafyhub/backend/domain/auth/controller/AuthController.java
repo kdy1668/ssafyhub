@@ -16,6 +16,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +30,15 @@ public class AuthController {
 
     private final AuthService authService;
     private final CookieUtil cookieUtil;
+
+    @GetMapping("/csrf")
+    public ResponseEntity<ApiResponse<Void>> csrf(CsrfToken csrfToken) {
+        csrfToken.getToken();
+
+        return ResponseEntity.ok(
+                ApiResponse.success("CSRF 토큰이 발급되었습니다.", null)
+        );
+    }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(
