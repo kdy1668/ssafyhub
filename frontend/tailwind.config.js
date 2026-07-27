@@ -4,45 +4,58 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "#F2F3F3",
+        background: "#F6F8FB",
         surface: "#FFFFFF",
-        border: "#D5DBDB",
+        border: "#E6EAF0",
+        // 삼성 딥 블루 계열 (브랜드 메인)
         primary: {
-          DEFAULT: "#0972D3",
-          hover: "#075A9E",
-          light: "#EAF3FB",
+          DEFAULT: "#1428A0",
+          hover: "#101F86",
+          light: "#EAF0FF",
+          soft: "#D6E2FF",
         },
+        // 스카이/애저 블루 (강조·그라디언트)
+        sky: {
+          DEFAULT: "#1F8CE6",
+          hover: "#1877C6",
+          light: "#E7F3FE",
+        },
+        // 경고용 앰버
         accent: {
-          DEFAULT: "#EC7211",
-          light: "#FCEEE2",
+          DEFAULT: "#C77700",
+          light: "#FBF1E1",
         },
         success: {
-          DEFAULT: "#1D8102",
-          light: "#E9F5E4",
+          DEFAULT: "#137333",
+          light: "#E6F4EA",
         },
         danger: {
-          DEFAULT: "#D91515",
-          light: "#FDEBEC",
+          DEFAULT: "#C5221F",
+          light: "#FCE8E6",
         },
         ink: {
-          900: "#16191F",
-          700: "#414D5C",
-          500: "#5F6B7A",
-          300: "#879596",
+          900: "#0F172A",
+          700: "#334155",
+          500: "#64748B",
+          300: "#94A3B8",
         },
       },
       borderRadius: {
-        sm: "4px",
-        DEFAULT: "6px",
-        md: "6px",
-        lg: "8px",
+        sm: "6px",
+        DEFAULT: "8px",
+        md: "10px",
+        lg: "14px",
+        xl: "20px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(0, 28, 36, 0.08)",
-        popover: "0 2px 8px rgba(0, 28, 36, 0.16)",
+        card: "0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06)",
+        cardHover: "0 6px 20px rgba(20, 40, 160, 0.12)",
+        popover: "0 8px 24px rgba(16, 24, 40, 0.12)",
       },
       fontFamily: {
         sans: [
+          "Pretendard",
+          "Pretendard Variable",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
