@@ -1,14 +1,21 @@
 <script setup>
-import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, ref, reactive } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import AppHeader from "../components/common/AppHeader.vue";
 import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
 import BaseCard from "../components/common/BaseCard.vue";
+import AppIcon from "../components/common/AppIcon.vue";
+import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ResourceModal from "../components/manage/ResourceModal.vue";
+import ControlButtons from "../components/manage/ControlButtons.vue";
+import LogViewer from "../components/manage/LogViewer.vue";
 import { useDeployments } from "../composables/useDeployments";
+import { useToastStore } from "../stores/useToastStore";
 
+const route = useRoute();
 const router = useRouter();
+const toastStore = useToastStore();
 
 // 3초 폴링이 적용된 조회 엔진
 const { data: deployments, isLoading } = useDeployments();
@@ -16,11 +23,54 @@ const { data: deployments, isLoading } = useDeployments();
 // 리소스 모달 열림 상태 관리
 const isResourceModalOpen = ref(false);
 
-// 명세서 조건: "사용자별 배포 1건 고정 (단일 화면)"
+// --- 서버 제어 + 확인 모달 ---
+const CONTROL_META = {
+  start: { title: "서버 시작", message: "서버를 시작하시겠습니까?", confirmText: "시작", confirmVariant: "primary" },
+  stop: { title: "서버 중지", message: "서버를 중지하시겠습니까? 서비스 접속이 중단됩니다.", confirmText: "중지", confirmVariant: "danger" },
+  restart: { title: "서버 재시작", message: "서버를 재시작하시겠습니까? 잠시 서비스가 중단될 수 있습니다.", confirmText: "재시작", confirmVariant: "danger" },
+};
+
+const confirmState = reactive({
+  open: false,
+  action: null,
+});
+
+const confirmMeta = computed(() => CONTROL_META[confirmState.action] || {});
+
+// 제어 버튼 클릭 → 확인 모달 오픈
+function requestControl(action) {
+  confirmState.action = action;
+  confirmState.open = true;
+}
+
+function cancelControl() {
+  confirmState.open = false;
+  confirmState.action = null;
+}
+
+// 확인 후 실제 동작: 실제 시작/중지/재시작은 백엔드 팀에서 향후 연동 예정.
+function confirmControl() {
+  const labels = { start: "시작", stop: "중지", restart: "재시작" };
+  const action = confirmState.action;
+  cancelControl();
+  toastStore.showToast(`${labels[action] || action} 기능은 백엔드 연동 예정입니다.`, "info");
+}
+
+// 로그 새로고침 껍데기 (백엔드 연동 예정)
+function handleRefreshLogs() {
+  toastStore.showToast("로그 새로고침 기능은 백엔드 연동 예정입니다.", "info");
+}
+
+// 쿼리(?id=)로 지정된 배포를 표시. 없으면 첫 번째 배포를 기본 표시.
 const currentDeployment = computed(() => {
-  return deployments.value && deployments.value.length > 0 
-    ? deployments.value[0] 
-    : null;
+  const list = deployments.value;
+  if (!list || list.length === 0) return null;
+  const id = route.query.id;
+  if (id != null) {
+    const found = list.find((d) => String(d.id) === String(id));
+    if (found) return found;
+  }
+  return list[0];
 });
 
 // 상태에 따른 UI(색상, 애니메이션, 아이콘) 처리
@@ -32,18 +82,18 @@ const statusConfig = computed(() => {
 
   switch (status) {
     case "RUNNING":
-    case "DEPLOYED": // 🚀 모크 환경에서 쓰이는 DEPLOYED도 성공으로 처리
-      return { label: "실행 중", class: "bg-green-100 text-green-700", icon: "🟢" };
+    case "DEPLOYED":
+      return { label: "실행 중", class: "bg-success-light text-success", dot: "bg-success" };
     case "FAILED":
-      return { label: "배포 실패", class: "bg-red-100 text-red-700", icon: "🔴" };
+      return { label: "배포 실패", class: "bg-danger-light text-danger", dot: "bg-danger" };
     case "PENDING":
-      return { label: "대기 중", class: "bg-yellow-100 text-yellow-700 animate-pulse", icon: "⏳" };
+      return { label: "대기 중", class: "bg-accent-light text-accent animate-pulse", dot: "bg-accent" };
     case "BUILDING":
-      return { label: "빌드 중", class: "bg-blue-100 text-blue-700 animate-pulse", icon: "🔨" };
+      return { label: "빌드 중", class: "bg-primary-light text-primary animate-pulse", dot: "bg-primary" };
     case "DEPLOYING":
-      return { label: "배포 중", class: "bg-blue-100 text-blue-700 animate-pulse", icon: "🚀" };
+      return { label: "배포 중", class: "bg-primary-light text-primary animate-pulse", dot: "bg-primary" };
     default:
-      return { label: status, class: "bg-gray-100 text-gray-700", icon: "⚙️" };
+      return { label: status, class: "bg-black/5 text-ink-700", dot: "bg-ink-300" };
   }
 });
 
@@ -81,7 +131,7 @@ const isRunningOrSuccess = computed(() => {
       <!-- 배포 내역이 없을 때 -->
       <div v-else-if="!currentDeployment" class="flex flex-col items-center justify-center py-20">
         <p class="text-ink-600 mb-4">현재 등록된 배포 프로젝트가 없습니다.</p>
-        <router-link to="/deploy/new" class="rounded bg-primary px-4 py-2 text-white hover:bg-primary-dark">
+        <router-link to="/deploy/new" class="rounded-md bg-primary px-4 py-2 text-white hover:bg-primary-hover">
           새 프로젝트 배포하기
         </router-link>
       </div>
@@ -94,20 +144,22 @@ const isRunningOrSuccess = computed(() => {
             {{ currentDeployment.projectName }}
           </h2>
           <div class="flex items-center gap-3">
-            <span 
+            <span
               class="px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1.5"
               :class="statusConfig.class"
             >
-              {{ statusConfig.icon }} {{ statusConfig.label }}
+              <span class="h-1.5 w-1.5 rounded-full" :class="statusConfig.dot" />
+              {{ statusConfig.label }}
             </span>
 
             <!-- 성공/실행 중 상태일 때만 리소스 보기 버튼 노출 -->
             <button
               v-if="isRunningOrSuccess"
               @click="isResourceModalOpen = true"
-              class="rounded border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-ink-100"
+              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
             >
-              📊 리소스
+              <AppIcon name="chart" class="h-4 w-4" />
+              리소스
             </button>
           </div>
         </div>
@@ -127,18 +179,37 @@ const isRunningOrSuccess = computed(() => {
           </div>
         </div>
 
-        <div class="bg-blue-50 text-blue-700 p-4 rounded-md text-sm">
+        <div class="rounded-md bg-primary-light p-4 text-sm text-primary">
           <p v-if="isRunningOrSuccess">
-            🎉 배포가 성공적으로 완료되었습니다! 서비스가 정상적으로 실행 중입니다.
+            배포가 성공적으로 완료되었습니다. 서비스가 정상적으로 실행 중입니다.
           </p>
           <p v-else-if="(currentDeployment.status || currentDeployment.deployStatus) === 'FAILED'">
-            ⚠️ 배포 중 오류가 발생했습니다. 다시 시도해 주세요.
+            배포 중 오류가 발생했습니다. 다시 시도해 주세요.
           </p>
           <p v-else>
-            🔄 현재 배포 프로세스가 진행 중입니다. 이 화면은 3초마다 자동으로 갱신됩니다.
+            현재 배포 프로세스가 진행 중입니다. 이 화면은 3초마다 자동으로 갱신됩니다.
           </p>
         </div>
+
+        <!-- 서버 제어 버튼 (껍데기 UI, 백엔드 연동 예정) -->
+        <div class="mt-6 flex items-center justify-between border-t border-border pt-6">
+          <span class="text-sm font-bold text-ink-900">서버 제어</span>
+          <ControlButtons
+            :status="currentDeployment.status || currentDeployment.deployStatus"
+            @start="requestControl('start')"
+            @stop="requestControl('stop')"
+            @restart="requestControl('restart')"
+          />
+        </div>
       </BaseCard>
+
+      <!-- 로그 뷰어 (껍데기 UI, 백엔드 로그 연동 예정) -->
+      <div v-if="currentDeployment" class="mt-6">
+        <LogViewer
+          :logs="[]"
+          @refresh="handleRefreshLogs"
+        />
+      </div>
     </main>
 
     <!-- 리소스 모달 컴포넌트 (타입 경고 방지를 위해 deployment-id를 문자열로 안전하게 변환) -->
@@ -147,6 +218,17 @@ const isRunningOrSuccess = computed(() => {
       :deployment-id="currentDeployment?.id ? String(currentDeployment.id) : undefined"
       :project-name="currentDeployment?.projectName"
       @close="isResourceModalOpen = false"
+    />
+
+    <!-- 서버 제어 확인 모달 -->
+    <ConfirmModal
+      :open="confirmState.open"
+      :title="confirmMeta.title"
+      :message="confirmMeta.message"
+      :confirm-text="confirmMeta.confirmText"
+      :confirm-variant="confirmMeta.confirmVariant"
+      @confirm="confirmControl"
+      @cancel="cancelControl"
     />
   </div>
 </template>

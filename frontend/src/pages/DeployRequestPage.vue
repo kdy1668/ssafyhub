@@ -6,13 +6,15 @@ import BaseCard from "../components/common/BaseCard.vue";
 import BaseInput from "../components/common/BaseInput.vue";
 import BaseSelect from "../components/common/BaseSelect.vue";
 import BaseButton from "../components/common/BaseButton.vue";
+import AppIcon from "../components/common/AppIcon.vue";
 import EnvVarsEditor from "../components/deploy/EnvVarsEditor.vue";
 import PreviewModal from "../components/deploy/PreviewModal.vue";
+import UploadProgress from "../components/deploy/UploadProgress.vue";
 import { useModalStore } from "../stores/useModalStore";
 import { useToastStore } from "../stores/useToastStore";
 
 // 새로 만든 엔진(로직) import (경로를 프로젝트에 맞게 확인해주세요)
-import { useCreateDeployment } from "../composables/useDeployments"; 
+import { useCreateDeployment } from "../composables/useDeployments";
 
 const RUNTIME_OPTIONS = [
   { value: "17", label: "Java 17" },
@@ -22,7 +24,17 @@ const RUNTIME_OPTIONS = [
 const router = useRouter();
 const modalStore = useModalStore();
 const toastStore = useToastStore();
-const { executeDeploy, isDeploying } = useCreateDeployment();
+const {
+  executeDeploy,
+  retry,
+  isDeploying,
+  phase,
+  uploads,
+  hasError,
+} = useCreateDeployment();
+
+// 테스트용: 업로드 실패/재시도 화면을 확인하기 위한 실패 시뮬레이션 토글
+const simulateFailure = ref(false);
 
 // S3에 직접 올릴 파일 상태
 const backendFile = ref(null);
@@ -64,26 +76,45 @@ function validate() {
   return !Object.values(errors).some(Boolean);
 }
 
+function buildPayload() {
+  return {
+    backendFile: backendFile.value,
+    frontendFile: frontendFile.value,
+    projectName: form.projectName,
+    runtimeVersion: form.runtimeVersion,
+    internalPort: form.internalPort,
+    databaseName: form.databaseName,
+    databasePassword: form.databasePassword,
+    envList: form.envVars.filter((v) => v.key && v.value),
+    simulateFailure: simulateFailure.value,
+  };
+}
+
+async function onDeploySuccess() {
+  toastStore.showToast("배포 요청이 성공적으로 접수되었습니다.", "success");
+  router.push("/deployments"); // 성공 시 상태 화면으로 이동 (3초 폴링 자동 시작)
+}
+
 async function handleSubmit() {
   if (!validate()) return;
 
   try {
-    // 🚀 작성해둔 S3 업로드 + 배포 엔진 실행
-    await executeDeploy({
-      backendFile: backendFile.value,
-      frontendFile: frontendFile.value,
-      projectName: form.projectName,
-      runtimeVersion: form.runtimeVersion,
-      internalPort: form.internalPort,
-      databaseName: form.databaseName,
-      databasePassword: form.databasePassword,
-      envList: form.envVars.filter((v) => v.key && v.value),
-    });
-
-    toastStore.showToast("배포 요청이 성공적으로 접수되었습니다.", "success");
-    router.push("/deployments"); // 성공 시 상태 화면으로 이동 (3초 폴링 자동 시작)
+    // 🚀 S3 업로드(진행률 추적) + 배포 엔진 실행
+    await executeDeploy(buildPayload());
+    await onDeploySuccess();
   } catch (error) {
-    toastStore.showToast(error.message || "배포 요청 중 오류가 발생했습니다.", "error");
+    // 실패 시 페이지에 머물러 진행률/재시도 UI 를 노출한다.
+    toastStore.showToast(error.message || "업로드에 실패했습니다. 다시 시도해 주세요.", "error");
+  }
+}
+
+// 실패한 업로드 재시도
+async function handleRetry() {
+  try {
+    await retry();
+    await onDeploySuccess();
+  } catch (error) {
+    toastStore.showToast(error.message || "재시도에 실패했습니다.", "error");
   }
 }
 </script>
@@ -191,23 +222,40 @@ async function handleSubmit() {
           <!-- 환경변수 영역 -->
           <EnvVarsEditor v-model="form.envVars" />
 
+          <!-- 업로드 진행률 / 실패·재시도 패널 (업로드 시작 후에만 표시) -->
+          <UploadProgress
+            v-if="phase !== 'idle'"
+            :uploads="uploads"
+            :phase="phase"
+            @retry="handleRetry"
+          />
+
+          <!-- 테스트용: 업로드 실패 시뮬레이션 토글 -->
+          <label class="flex cursor-pointer items-center gap-2 text-xs text-ink-500">
+            <input type="checkbox" v-model="simulateFailure" class="accent-danger" />
+            업로드 실패 시뮬레이션 (테스트용 — 체크 시 프론트엔드 업로드가 실패합니다)
+          </label>
+
           <!-- 하단 버튼 액션 영역 -->
           <div class="mt-2 flex items-center justify-end gap-3 border-t border-border pt-6">
             <BaseButton
               type="button"
               variant="secondary"
+              :disabled="isDeploying"
               @click="modalStore.openModal('preview')"
             >
-              👁️ 미리보기
+              <AppIcon name="eye" class="h-4 w-4" />
+              미리보기
             </BaseButton>
-            
+
             <BaseButton
               type="submit"
               :loading="isDeploying"
               :disabled="isDeploying"
               class="shadow-card"
             >
-              {{ isDeploying ? "🚀 업로드 및 배포 중..." : "🚀 배포하기" }}
+              <AppIcon v-if="!isDeploying" name="upload" class="h-4 w-4" />
+              {{ isDeploying ? "업로드 및 배포 중..." : hasError ? "다시 배포하기" : "배포하기" }}
             </BaseButton>
           </div>
         </form>

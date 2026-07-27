@@ -61,7 +61,7 @@ export const mockPosts = [
       deployStatus: "DEPLOYED",
     },
     likes: 12,
-    commentCount: 3,
+    commentCount: 2,
     createdAt: "2026-07-20T08:00:00Z",
   },
   {
@@ -77,7 +77,7 @@ export const mockPosts = [
       deployStatus: "DEPLOYING",
     },
     likes: 5,
-    commentCount: 1,
+    commentCount: 0,
     createdAt: "2026-07-19T02:30:00Z",
   },
   {
@@ -88,7 +88,7 @@ export const mockPosts = [
     author: "김서비",
     team: "플랫폼팀",
     likes: 8,
-    commentCount: 2,
+    commentCount: 1,
     createdAt: "2026-07-18T10:00:00Z",
   },
   {
@@ -99,14 +99,14 @@ export const mockPosts = [
     author: "박하늘",
     team: "백엔드팀",
     likes: 3,
-    commentCount: 4,
+    commentCount: 2,
     createdAt: "2026-07-16T05:30:00Z",
   },
   {
     id: 1,
     type: "free",
     title: "환영합니다",
-    content: "DeployHub 커뮤니티에 오신 것을 환영합니다.",
+    content: "SSAFYHUB 커뮤니티에 오신 것을 환영합니다.",
     author: "관리자",
     team: "운영팀",
     likes: 15,
@@ -119,4 +119,54 @@ let nextMockPostId = 6;
 
 export function nextPostId() {
   return nextMockPostId++;
+}
+
+// 게시글별 댓글 (postId 기준)
+export const mockComments = [
+  {
+    id: 101,
+    postId: 5,
+    author: "이도윤",
+    team: "프론트팀",
+    content: "오 축하드려요! 주문 엔드포인트 부하 테스트 같이 해봐요 👍",
+    createdAt: "2026-07-20T09:10:00Z",
+  },
+  {
+    id: 102,
+    postId: 5,
+    author: "박하늘",
+    team: "백엔드팀",
+    content: "상품 목록 API 응답 속도가 인상적이네요. 캐시 적용하신 건가요?",
+    createdAt: "2026-07-20T10:02:00Z",
+  },
+  {
+    id: 103,
+    postId: 3,
+    author: "박하늘",
+    team: "백엔드팀",
+    content: "좋은 공간이네요. 자주 들르겠습니다!",
+    createdAt: "2026-07-18T11:20:00Z",
+  },
+  {
+    id: 104,
+    postId: 2,
+    author: "김서비",
+    team: "플랫폼팀",
+    content: "502면 대개 백엔드 컨테이너가 아직 안 떠서 그럴 수 있어요. readiness probe 확인해보세요.",
+    createdAt: "2026-07-16T06:00:00Z",
+  },
+  {
+    id: 105,
+    postId: 2,
+    author: "관리자",
+    team: "운영팀",
+    content: "인그레스 타임아웃 설정도 함께 점검 부탁드립니다.",
+    createdAt: "2026-07-16T06:30:00Z",
+  },
+];
+
+let nextMockCommentId = 106;
+
+export function nextCommentId() {
+  return nextMockCommentId++;
 }

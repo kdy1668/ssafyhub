@@ -10,7 +10,7 @@ import { RouterLink } from "vue-router";
         to="/"
         class="text-lg font-bold text-ink-900 transition-opacity hover:opacity-70"
       >
-        <span class="text-primary">Deploy</span>Hub
+        <span class="text-primary">SSAFY</span>HUB
       </RouterLink>
     </div>
   </header>

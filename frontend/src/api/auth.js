@@ -29,7 +29,9 @@ export async function loginRequest({ studentId, password }) {
       throw new Error("학번과 비밀번호를 입력해주세요.");
     }
     // 백엔드 없이 동작하도록 임의의 mock 토큰을 발급합니다.
-    return { token: `mock-token-${mockUser.id}`, user: mockUser };
+    // 테스트 편의: 학번이 "admin"이면 관리자 권한으로 로그인됩니다.
+    const role = studentId === "admin" ? "ADMIN" : "USER";
+    return { token: `mock-token-${mockUser.id}`, user: { ...mockUser, role } };
   }
   const { data } = await apiClient.post("/api/users/login", { studentId, password });
   return data;

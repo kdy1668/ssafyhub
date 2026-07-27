@@ -5,6 +5,7 @@ import AppHeader from "../components/common/AppHeader.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
+import AppIcon from "../components/common/AppIcon.vue";
 import StatusBadge from "../components/manage/StatusBadge.vue";
 import { useCurrentUser } from "../composables/useCurrentUser";
 import { useDeployments } from "../composables/useDeployments";
@@ -87,7 +88,10 @@ function handleLogout() {
         <!-- 내가 배포한 서비스 -->
         <section>
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-base font-bold text-ink-900">📦 내가 배포한 서비스</h2>
+            <h2 class="inline-flex items-center gap-2 text-base font-bold text-ink-900">
+              <AppIcon name="cube" class="h-4 w-4 text-primary" />
+              내가 배포한 서비스
+            </h2>
             <button
               type="button"
               class="text-xs font-medium text-primary hover:underline"
@@ -102,7 +106,7 @@ function handleLogout() {
               v-for="dep in myDeployments"
               :key="dep.id"
               class="cursor-pointer p-4 transition-colors hover:border-primary/40"
-              @click="router.push('/deployments')"
+              @click="router.push({ path: '/deployments', query: { id: dep.id } })"
             >
               <div class="flex items-center justify-between gap-2">
                 <span class="font-mono text-sm font-semibold text-ink-900">{{ dep.projectName }}</span>
@@ -113,10 +117,11 @@ function handleLogout() {
                 :href="dep.url"
                 target="_blank"
                 rel="noreferrer"
-                class="mt-2 block truncate text-xs text-primary hover:underline"
+                class="mt-2 inline-flex items-center gap-1 truncate text-xs text-primary hover:underline"
                 @click.stop
               >
-                🔗 {{ dep.url }}
+                <AppIcon name="link" class="h-3.5 w-3.5 shrink-0" />
+                <span class="truncate">{{ dep.url }}</span>
               </a>
               <p class="mt-1 text-xs text-ink-500">배포일 {{ formatDate(dep.createdAt) }}</p>
             </BaseCard>
@@ -136,7 +141,10 @@ function handleLogout() {
         <!-- 내가 쓴 글 / 공유 -->
         <section>
           <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-base font-bold text-ink-900">📝 내가 쓴 글 / 공유</h2>
+            <h2 class="inline-flex items-center gap-2 text-base font-bold text-ink-900">
+              <AppIcon name="pencil" class="h-4 w-4 text-primary" />
+              내가 쓴 글 / 공유
+            </h2>
             <button
               type="button"
               class="text-xs font-medium text-primary hover:underline"
@@ -155,7 +163,10 @@ function handleLogout() {
                 @click="router.push(`/board/${post.id}`)"
               >
                 <span class="flex min-w-0 items-center gap-2">
-                  <span class="shrink-0 text-xs">{{ post.type === "deploy" ? "🚀" : "💬" }}</span>
+                  <span
+                    class="h-1.5 w-1.5 shrink-0 rounded-full"
+                    :class="post.type === 'deploy' ? 'bg-primary' : 'bg-ink-300'"
+                  />
                   <span class="truncate text-sm text-ink-900">{{ post.title }}</span>
                 </span>
                 <span class="shrink-0 text-xs text-ink-500">{{ formatDate(post.createdAt) }}</span>

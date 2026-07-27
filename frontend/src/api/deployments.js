@@ -49,6 +49,70 @@ export async function getPresignedUrls(backendFileName, frontendFileName) {
   return data; 
 }
 
+/**
+ * S3(presigned URL)로 파일을 PUT 업로드하면서 진행률을 콜백으로 전달한다.
+ * - 실제 환경: XMLHttpRequest 의 upload.onprogress 로 실제 진행률 추적
+ * - mock 환경: presigned URL 이 mock 이면 실제 네트워크 없이 진행률을 시뮬레이션
+ *
+ * @param {string} url            presigned upload URL
+ * @param {File}   file           업로드할 파일
+ * @param {(p:number)=>void} onProgress  0~100 진행률 콜백
+ * @param {{ simulateFailure?: boolean }} [opts]  테스트용 실패 시뮬레이션
+ * @returns {Promise<void>}
+ */
+export function putFileToS3WithProgress(url, file, onProgress, opts = {}) {
+  const isMock = !url || url.includes("mock");
+
+  // --- mock: 진행률 시뮬레이션 ---
+  if (isMock) {
+    return new Promise((resolve, reject) => {
+      let progress = 0;
+      const timer = setInterval(() => {
+        progress += Math.random() * 18 + 7; // 한 틱에 7~25%
+        // 테스트용 실패: 70% 부근에서 강제 실패
+        if (opts.simulateFailure && progress >= 65) {
+          clearInterval(timer);
+          onProgress(Math.min(Math.round(progress), 70));
+          reject(new Error("업로드 중 네트워크 오류가 발생했습니다. (시뮬레이션)"));
+          return;
+        }
+        if (progress >= 100) {
+          progress = 100;
+          onProgress(100);
+          clearInterval(timer);
+          resolve();
+          return;
+        }
+        onProgress(Math.round(progress));
+      }, 200);
+    });
+  }
+
+  // --- real: XHR 로 실제 진행률 추적 ---
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    if (file.type) xhr.setRequestHeader("Content-Type", file.type);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+      } else {
+        reject(new Error(`S3 업로드 실패 (HTTP ${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("네트워크 오류로 업로드에 실패했습니다."));
+    xhr.onabort = () => reject(new Error("업로드가 중단되었습니다."));
+    xhr.send(file);
+  });
+}
+
 export async function createDeployment(deployData) {
   if (USE_MOCKS) {
     await mockDelay(500);
