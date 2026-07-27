@@ -42,3 +42,9 @@ aws:
   s3:
     bucket: ${AWS_S3_BUCKET:ssafyhub-local-bucket}
     presigned-url-expiration-minutes: ${AWS_S3_PRESIGNED_URL_EXPIRATION_MINUTES:10}
+
+security:
+  encryption-key: ${SECRET_ENCRYPTION_KEY}
+
+deployment:
+  supported-runtime-versions: ${SUPPORTED_RUNTIME_VERSIONS:17,21}

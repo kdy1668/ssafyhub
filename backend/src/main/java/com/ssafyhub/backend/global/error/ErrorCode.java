@@ -28,6 +28,20 @@ public enum ErrorCode {
             "ARTIFACT_004",
             "업로드 URL 발급에 실패했습니다."
     ),
+    ARTIFACT_NOT_FOUND(HttpStatus.NOT_FOUND, "ARTIFACT_005", "업로드 파일 정보를 찾을 수 없습니다."),
+    ARTIFACT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "ARTIFACT_006", "본인이 발급받은 파일만 사용할 수 있습니다."),
+    ARTIFACT_TYPE_MISMATCH(HttpStatus.BAD_REQUEST, "ARTIFACT_007", "업로드 파일 유형이 올바르지 않습니다."),
+    ARTIFACT_ALREADY_USED(HttpStatus.CONFLICT, "ARTIFACT_008", "이미 사용된 업로드 파일입니다."),
+    ARTIFACT_FILE_NOT_FOUND(HttpStatus.BAD_REQUEST, "ARTIFACT_009", "S3에 업로드된 파일이 존재하지 않습니다."),
+    ARTIFACT_STORAGE_CHECK_FAILED(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "ARTIFACT_010",
+            "업로드 파일을 확인할 수 없습니다. 잠시 후 다시 시도해주세요."
+    ),
+
+    DEPLOYMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "DEPLOYMENT_001", "사용자별 배포는 하나만 생성할 수 있습니다."),
+    UNSUPPORTED_RUNTIME_VERSION(HttpStatus.BAD_REQUEST, "DEPLOYMENT_002", "지원하지 않는 Java 실행 버전입니다."),
+    DUPLICATE_ENV_KEY(HttpStatus.BAD_REQUEST, "DEPLOYMENT_003", "중복된 환경변수 이름이 존재합니다."),
     ;
 
     private final HttpStatus status;

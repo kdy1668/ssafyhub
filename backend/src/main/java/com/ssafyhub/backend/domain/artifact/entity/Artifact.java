@@ -87,4 +87,7 @@ public class Artifact {
         this.expiresAt = expiresAt;
     }
 
+    public void markUsed() {
+        this.status = ArtifactStatus.USED;
+    }
 }
