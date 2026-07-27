@@ -1,11 +1,15 @@
 package com.ssafyhub.backend.global.config;
 
 import com.ssafyhub.backend.domain.auth.filter.JwtAuthenticationFilter;
+import com.ssafyhub.backend.domain.auth.security.CustomUserDetailsService;
 import com.ssafyhub.backend.domain.auth.security.JwtAccessDeniedHandler;
 import com.ssafyhub.backend.domain.auth.security.JwtAuthenticationEntryPoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,6 +27,17 @@ public class WebSecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            CustomUserDetailsService customUserDetailsService,
+            PasswordEncoder passwordEncoder
+    ) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(customUserDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+
+        return new ProviderManager(provider);
     }
 
     @Bean

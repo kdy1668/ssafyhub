@@ -7,6 +7,7 @@ import com.ssafyhub.backend.domain.auth.dto.LoginResult;
 import com.ssafyhub.backend.domain.auth.dto.ReissueResult;
 import com.ssafyhub.backend.domain.auth.entity.RefreshToken;
 import com.ssafyhub.backend.domain.auth.repository.RefreshTokenRepository;
+import com.ssafyhub.backend.domain.auth.security.CustomUserDetails;
 import com.ssafyhub.backend.domain.auth.support.JwtConstants;
 import com.ssafyhub.backend.domain.auth.support.TokenHasher;
 import com.ssafyhub.backend.domain.auth.support.TokenProvider;
@@ -18,7 +19,10 @@ import io.jsonwebtoken.Claims;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,34 +32,46 @@ public class AuthService {
 
     private final MemberRepository memberRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
     private final TokenProvider tokenProvider;
     private final TokenHasher tokenHasher;
 
     @Transactional
     public LoginResult login(LoginRequest request) {
-        Member member = memberRepository.findByStudentNumber(request.studentNumber())
-                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
+        CustomUserDetails userDetails = authenticate(request);
 
-        if (!passwordEncoder.matches(request.password(), member.getPasswordHash())) {
-            throw new BusinessException(ErrorCode.LOGIN_FAILED);
-        }
+        Long memberId = userDetails.getMemberId();
+        String role = userDetails.getRole();
 
-        String role = member.getRole().name();
-        String accessToken = tokenProvider.createAccessToken(member.getId(), role);
-        String refreshToken = tokenProvider.createRefreshToken(member.getId());
+        String accessToken = tokenProvider.createAccessToken(memberId, role);
+        String refreshToken = tokenProvider.createRefreshToken(memberId);
 
-        storeRefreshToken(member, refreshToken);
+        storeRefreshToken(memberRepository.getReferenceById(memberId), refreshToken);
 
         LoginMemberResponse memberResponse = new LoginMemberResponse(
-                member.getId(),
-                member.getName(),
-                member.getStudentNumber(),
-                member.getTeamName(),
+                memberId,
+                userDetails.getName(),
+                userDetails.getStudentNumber(),
+                userDetails.getTeamName(),
                 role
         );
 
         return new LoginResult(accessToken, refreshToken, new LoginResponse(memberResponse));
+    }
+
+    private CustomUserDetails authenticate(LoginRequest request) {
+        UsernamePasswordAuthenticationToken authenticationToken =
+                new UsernamePasswordAuthenticationToken(
+                        request.studentNumber(),
+                        request.password()
+                );
+
+        try {
+            Authentication authentication = authenticationManager.authenticate(authenticationToken);
+            return (CustomUserDetails) authentication.getPrincipal();
+        } catch (AuthenticationException e) {
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
+        }
     }
 
     @Transactional
