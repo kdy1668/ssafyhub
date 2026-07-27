@@ -1,5 +1,6 @@
 package com.ssafyhub.backend;
 
+import com.ssafyhub.backend.domain.artifact.repository.ArtifactRepository;
 import com.ssafyhub.backend.domain.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +13,9 @@ class SsafyhubBackendApplicationTests {
 
     @MockitoBean
     private MemberRepository memberRepository;
+
+    @MockitoBean
+    private ArtifactRepository artifactRepository;
 
     @Test
     void contextLoads() {
