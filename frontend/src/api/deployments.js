@@ -1,5 +1,5 @@
 import { apiClient, USE_MOCKS, mockDelay } from "./client";
-import { mockDeployments, mockResourceUsageFor } from "./mockData";
+import { mockDeployments, mockResourceUsageFor, mockLogsFor } from "./mockData";
 
 export async function fetchDeployments() {
   if (USE_MOCKS) {
@@ -21,6 +21,15 @@ export async function fetchDeploymentResources(deploymentId) {
     return mockResourceUsageFor(deploymentId);
   }
   const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/resources`);
+  return data;
+}
+
+export async function fetchDeploymentLogs(deploymentId) {
+  if (USE_MOCKS) {
+    await mockDelay(400);
+    return mockLogsFor(deploymentId);
+  }
+  const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/logs`);
   return data;
 }
 

@@ -11,8 +11,11 @@ import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
+import MetricsPanel from "../components/manage/MetricsPanel.vue";
 import StatusBadge from "../components/manage/StatusBadge.vue";
 import { useDeployments, useDeleteDeployment } from "../composables/useDeployments";
+import { useDeploymentResources } from "../composables/useDeploymentResources";
+import { useDeploymentLogs } from "../composables/useDeploymentLogs";
 import { useCurrentUser } from "../composables/useCurrentUser";
 import { useToastStore } from "../stores/useToastStore";
 
@@ -100,9 +103,9 @@ function confirmControl() {
   toastStore.showToast(`${labels[action] || action} 기능은 백엔드 연동 예정입니다.`, "info");
 }
 
-// 로그 새로고침 껍데기 (백엔드 연동 예정)
+// 로그 수동 새로고침
 function handleRefreshLogs() {
-  toastStore.showToast("로그 새로고침 기능은 백엔드 연동 예정입니다.", "info");
+  refetchLogs();
 }
 
 // ?id 로 지정된 배포 상세 (id 없으면 상세 없음 → 목록 표시)
@@ -142,6 +145,12 @@ const isRunningOrSuccess = computed(() => {
   const status = currentDeployment.value.status || currentDeployment.value.deployStatus;
   return status === "RUNNING" || status === "DEPLOYED";
 });
+
+// --- 로그 / 메트릭 대시보드 (상세 화면) ---
+const deploymentId = computed(() => currentDeployment.value?.id ?? null);
+// 메트릭: 실행 중일 때만, 로그: 상세면 항상 (빌드/실패 로그도 확인)
+const { data: metrics, isLoading: metricsLoading } = useDeploymentResources(deploymentId, isRunningOrSuccess);
+const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = useDeploymentLogs(deploymentId, isDetail);
 </script>
 
 <template>
@@ -279,10 +288,12 @@ const isRunningOrSuccess = computed(() => {
         </div>
       </BaseCard>
 
-      <!-- 로그 뷰어 (껍데기 UI, 백엔드 로그 연동 예정) -->
-      <div v-if="currentDeployment" class="mt-6">
+      <!-- 로그 · 메트릭 대시보드 (상세 화면) -->
+      <div v-if="isDetail" class="mt-6 flex flex-col gap-6">
+        <MetricsPanel v-if="isRunningOrSuccess" :data="metrics" :loading="metricsLoading" />
         <LogViewer
-          :logs="[]"
+          :logs="logs ?? []"
+          :loading="logsLoading"
           @refresh="handleRefreshLogs"
         />
       </div>
