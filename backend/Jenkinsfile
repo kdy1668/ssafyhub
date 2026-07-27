@@ -58,7 +58,17 @@ pipeline {
                         ),
                         string(credentialsId: 'ssafyhub-jwt-secret', variable: 'JWT_SECRET'),
                         string(credentialsId: 'ssafyhub-aws-region', variable: 'AWS_REGION'),
-                        string(credentialsId: 'ssafyhub-s3-bucket', variable: 'AWS_S3_BUCKET')
+                        string(credentialsId: 'ssafyhub-s3-bucket', variable: 'AWS_S3_BUCKET'),
+                        // Outbox 기능(34f80e3)에서 추가된 필수 값. 기본값이 없어
+                        // 누락 시 Spring 컨텍스트 로딩 자체가 실패합니다.
+                        string(credentialsId: 'ssafyhub-secret-encryption-key', variable: 'SECRET_ENCRYPTION_KEY'),
+                        string(credentialsId: 'ssafyhub-devops-was-base-url', variable: 'DEVOPS_WAS_BASE_URL'),
+                        // 백엔드의 S3 presigned URL 발급용. EC2에 인스턴스 프로파일이
+                        // 없으므로 자격증명을 명시적으로 주입해야 합니다.
+                        [
+                            $class: 'AmazonWebServicesCredentialsBinding',
+                            credentialsId: 'ssafyhub-backend-aws-key'
+                        ]
                     ]) {
                     sh '''
                         set -eu
@@ -74,12 +84,17 @@ pipeline {
                             --name "$CONTAINER_NAME" \
                             --restart unless-stopped \
                             -p 8080:8080 \
+                            -e SPRING_PROFILES_ACTIVE=prod \
                             -e DB_URL \
                             -e DB_USERNAME \
                             -e DB_PASSWORD \
                             -e JWT_SECRET \
                             -e AWS_REGION \
                             -e AWS_S3_BUCKET \
+                            -e AWS_ACCESS_KEY_ID \
+                            -e AWS_SECRET_ACCESS_KEY \
+                            -e SECRET_ENCRYPTION_KEY \
+                            -e DEVOPS_WAS_BASE_URL \
                             "$IMAGE_NAME:$BUILD_NUMBER"
 
                         healthy=false
