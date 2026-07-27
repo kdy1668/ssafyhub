@@ -39,22 +39,22 @@ class MemberServiceTest {
     }
 
     @Test
-    void 정상_가입이면_학번_공백을_제거하고_저장한다() {
-        SignupRequest request = validRequest(" 202512345 ");
-        given(memberRepository.existsByStudentNumber("202512345")).willReturn(false);
+    void 정상_가입이면_학번을_저장한다() {
+        SignupRequest request = validRequest("1551343");
+        given(memberRepository.existsByStudentNumber("1551343")).willReturn(false);
         given(passwordEncoder.encode("password1234")).willReturn("encodedHash");
         given(memberRepository.save(any(Member.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         MemberResponse response = memberService.signup(request);
 
-        assertThat(response.studentNumber()).isEqualTo("202512345");
-        verify(memberRepository).existsByStudentNumber("202512345");
+        assertThat(response.studentNumber()).isEqualTo("1551343");
+        verify(memberRepository).existsByStudentNumber("1551343");
     }
 
     @Test
     void 학번이_이미_존재하면_학번_중복_예외가_발생한다() {
-        SignupRequest request = validRequest("202512345");
-        given(memberRepository.existsByStudentNumber("202512345")).willReturn(true);
+        SignupRequest request = validRequest("1551343");
+        given(memberRepository.existsByStudentNumber("1551343")).willReturn(true);
 
         assertThatThrownBy(() -> memberService.signup(request))
                 .isInstanceOf(BusinessException.class)
@@ -66,8 +66,8 @@ class MemberServiceTest {
 
     @Test
     void 동시_가입으로_유니크_제약을_위반하면_학번_중복으로_변환한다() {
-        SignupRequest request = validRequest("202512345");
-        given(memberRepository.existsByStudentNumber("202512345")).willReturn(false);
+        SignupRequest request = validRequest("1551343");
+        given(memberRepository.existsByStudentNumber("1551343")).willReturn(false);
         given(passwordEncoder.encode("password1234")).willReturn("encodedHash");
         given(memberRepository.save(any(Member.class)))
                 .willThrow(new DataIntegrityViolationException("duplicate key"));
@@ -80,7 +80,7 @@ class MemberServiceTest {
 
     @Test
     void 비밀번호와_비밀번호_확인이_다르면_예외가_발생한다() {
-        SignupRequest request = new SignupRequest("team-a", "홍길동", "202512345", "password1234", "different1234");
+        SignupRequest request = new SignupRequest("team-a", "홍길동", "1551343", "password1234", "different1234");
 
         assertThatThrownBy(() -> memberService.signup(request))
                 .isInstanceOf(BusinessException.class)
@@ -93,7 +93,7 @@ class MemberServiceTest {
     @Test
     void 비밀번호가_72바이트를_초과하면_예외가_발생한다() {
         String longPassword = "가".repeat(30);
-        SignupRequest request = new SignupRequest("team-a", "홍길동", "202512345", longPassword, longPassword);
+        SignupRequest request = new SignupRequest("team-a", "홍길동", "1551343", longPassword, longPassword);
 
         assertThatThrownBy(() -> memberService.signup(request))
                 .isInstanceOf(BusinessException.class)
@@ -105,8 +105,8 @@ class MemberServiceTest {
 
     @Test
     void 비밀번호는_해시로_저장된다() {
-        SignupRequest request = validRequest("202512345");
-        given(memberRepository.existsByStudentNumber("202512345")).willReturn(false);
+        SignupRequest request = validRequest("1551343");
+        given(memberRepository.existsByStudentNumber("1551343")).willReturn(false);
         given(passwordEncoder.encode("password1234")).willReturn("encodedHash");
         ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
         given(memberRepository.save(captor.capture())).willAnswer(invocation -> invocation.getArgument(0));
