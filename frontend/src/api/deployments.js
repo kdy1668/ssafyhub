@@ -1,5 +1,5 @@
 import { apiClient, USE_MOCKS, mockDelay } from "./client";
-import { mockDeployments, mockResourceUsageFor, mockLogsFor } from "./mockData";
+import { mockDeployments, mockResourceUsageFor, mockLogsFor, mockUser } from "./mockData";
 
 export async function fetchDeployments() {
   if (USE_MOCKS) {
@@ -126,21 +126,30 @@ export async function createDeployment(deployData) {
   if (USE_MOCKS) {
     await mockDelay(500);
     
+    const projectName = deployData.projectName || "demo-service";
+    const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
     const newMockDeployment = {
       id: Date.now(),
-      projectName: deployData.projectName || "demo-service",
+      projectName,
+      // 생성자(현재 로그인 사용자) — 내 배포 목록 필터에 필요
+      owner: mockUser.name,
       deployStatus: "DEPLOYING",
+      url: `https://${slug || "demo-service"}.example-deploy.com`,
       runtimeVersion: deployData.runtimeVersion || "17",
       internalPort: deployData.internalPort || "8080",
       databaseName: deployData.databaseName || "app_db",
       description: deployData.description || "",
       visibility: deployData.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE",
+      createdAt: new Date().toISOString(),
     };
 
     mockDeployments.unshift(newMockDeployment);
 
+    // 배포 완료 시뮬레이션
     setTimeout(() => {
       newMockDeployment.deployStatus = "DEPLOYED";
+      newMockDeployment.serverStatus = "RUNNING";
     }, 5000);
 
     return { success: true, data: newMockDeployment };

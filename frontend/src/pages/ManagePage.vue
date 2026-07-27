@@ -7,13 +7,15 @@ import BaseSkeleton from "../components/common/BaseSkeleton.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import AppIcon from "../components/common/AppIcon.vue";
 import BaseBadge from "../components/common/BaseBadge.vue";
+import BaseModal from "../components/common/BaseModal.vue";
+import BaseTextarea from "../components/common/BaseTextarea.vue";
 import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
 import MetricsPanel from "../components/manage/MetricsPanel.vue";
 import StatusBadge from "../components/manage/StatusBadge.vue";
-import { useDeployments, useDeleteDeployment } from "../composables/useDeployments";
+import { useDeployments, useDeleteDeployment, useUpdateDeployment } from "../composables/useDeployments";
 import { useDeploymentResources } from "../composables/useDeploymentResources";
 import { useDeploymentLogs } from "../composables/useDeploymentLogs";
 import { useCurrentUser } from "../composables/useCurrentUser";
@@ -43,6 +45,32 @@ function goDetail(dep) {
 }
 function goList() {
   router.push({ path: "/deployments" });
+}
+
+// --- 공개여부/설명 수정 모달 (목록 카드) ---
+const { mutate: updateDeployment, isPending: isSavingEdit } = useUpdateDeployment();
+const editOpen = ref(false);
+const editTarget = ref(null);
+const editForm = reactive({ description: "", visibility: "PRIVATE" });
+
+function openEdit(dep) {
+  editTarget.value = dep;
+  editForm.description = dep.description ?? "";
+  editForm.visibility = dep.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
+  editOpen.value = true;
+}
+function saveEdit() {
+  if (!editTarget.value) return;
+  updateDeployment(
+    { id: editTarget.value.id, payload: { description: editForm.description, visibility: editForm.visibility } },
+    {
+      onSuccess: () => {
+        editOpen.value = false;
+        toastStore.showToast("배포 정보가 수정되었습니다.", "success");
+      },
+      onError: (e) => toastStore.showToast(e.message || "수정에 실패했습니다.", "error"),
+    }
+  );
 }
 
 // 리소스 모달 열림 상태 관리
@@ -192,12 +220,14 @@ const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = useDeployme
 
         <!-- 프로젝트 카드 목록 -->
         <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <button
+          <div
             v-for="dep in myDeployments"
             :key="dep.id"
-            type="button"
-            class="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-cardHover"
+            role="button"
+            tabindex="0"
+            class="flex cursor-pointer flex-col gap-2 rounded-xl border border-border bg-surface p-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-cardHover"
             @click="goDetail(dep)"
+            @keydown.enter="goDetail(dep)"
           >
             <div class="flex items-center justify-between gap-2">
               <span class="font-mono text-sm font-semibold text-ink-900">{{ dep.projectName }}</span>
@@ -212,10 +242,20 @@ const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = useDeployme
             <p v-if="dep.description" class="line-clamp-2 text-xs leading-relaxed text-ink-600">
               {{ dep.description }}
             </p>
-            <span class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary">
-              상세 보기 →
-            </span>
-          </button>
+            <div class="mt-1 flex items-center justify-between">
+              <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                상세 보기 →
+              </span>
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 text-xs font-medium text-ink-500 hover:text-primary"
+                @click.stop="openEdit(dep)"
+              >
+                <AppIcon name="pencil" class="h-3.5 w-3.5" />
+                공개여부·설명 수정
+              </button>
+            </div>
+          </div>
         </div>
       </template>
 
@@ -318,6 +358,53 @@ const { data: logs, isLoading: logsLoading, refetch: refetchLogs } = useDeployme
       @confirm="confirmControl"
       @cancel="cancelControl"
     />
+
+    <!-- 공개여부/설명 수정 모달 (목록) -->
+    <BaseModal
+      :open="editOpen"
+      :title="`${editTarget?.projectName ?? ''} 배포 수정`"
+      width="max-w-md"
+      @close="editOpen = false"
+    >
+      <div class="flex flex-col gap-4">
+        <BaseTextarea
+          id="mngEditDescription"
+          label="서비스 설명"
+          placeholder="이 배포 서비스에 대한 설명"
+          v-model="editForm.description"
+          rows="3"
+        />
+        <div>
+          <span class="mb-1.5 block text-sm font-medium text-ink-700">공개 여부</span>
+          <div class="inline-flex rounded-lg bg-background p-1 ring-1 ring-border">
+            <button
+              type="button"
+              :class="[
+                'rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
+                editForm.visibility === 'PRIVATE' ? 'bg-primary text-white shadow-sm' : 'text-ink-500 hover:text-ink-900',
+              ]"
+              @click="editForm.visibility = 'PRIVATE'"
+            >
+              비공개
+            </button>
+            <button
+              type="button"
+              :class="[
+                'rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
+                editForm.visibility === 'PUBLIC' ? 'bg-primary text-white shadow-sm' : 'text-ink-500 hover:text-ink-900',
+              ]"
+              @click="editForm.visibility = 'PUBLIC'"
+            >
+              공개
+            </button>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <BaseButton variant="ghost" :disabled="isSavingEdit" @click="editOpen = false">취소</BaseButton>
+        <BaseButton :loading="isSavingEdit" :disabled="isSavingEdit" @click="saveEdit">저장</BaseButton>
+      </template>
+    </BaseModal>
   </div>
 </template>
     <!-- 기존코드
