@@ -28,7 +28,7 @@ class SignupRequestValidationTest {
     }
 
     private SignupRequest validRequest() {
-        return new SignupRequest("team-a", "홍길동", "202512345", "password1234", "password1234");
+        return new SignupRequest("team-a", "홍길동", "1551343", "password1234", "password1234");
     }
 
     @Test
@@ -40,7 +40,7 @@ class SignupRequestValidationTest {
 
     @Test
     void 팀명이_비어있으면_위반이_발생한다() {
-        SignupRequest request = new SignupRequest("", "홍길동", "202512345", "password1234", "password1234");
+        SignupRequest request = new SignupRequest("", "홍길동", "1551343", "password1234", "password1234");
 
         Set<ConstraintViolation<SignupRequest>> violations = validator.validate(request);
 
@@ -61,8 +61,41 @@ class SignupRequestValidationTest {
     }
 
     @Test
+    void 학번이_7자리가_아니면_위반이_발생한다() {
+        SignupRequest request = new SignupRequest("team-a", "홍길동", "155134", "password1234", "password1234");
+
+        Set<ConstraintViolation<SignupRequest>> violations = validator.validate(request);
+
+        assertThat(violations)
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("studentNumber");
+    }
+
+    @Test
+    void 학번에_숫자_외의_문자가_있으면_위반이_발생한다() {
+        SignupRequest request = new SignupRequest("team-a", "홍길동", "155A343", "password1234", "password1234");
+
+        Set<ConstraintViolation<SignupRequest>> violations = validator.validate(request);
+
+        assertThat(violations)
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("studentNumber");
+    }
+
+    @Test
+    void 학번에_공백이_포함되면_위반이_발생한다() {
+        SignupRequest request = new SignupRequest("team-a", "홍길동", " 1551343 ", "password1234", "password1234");
+
+        Set<ConstraintViolation<SignupRequest>> violations = validator.validate(request);
+
+        assertThat(violations)
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains("studentNumber");
+    }
+
+    @Test
     void 비밀번호가_8자_미만이면_위반이_발생한다() {
-        SignupRequest request = new SignupRequest("team-a", "홍길동", "202512345", "short1", "short1");
+        SignupRequest request = new SignupRequest("team-a", "홍길동", "1551343", "short1", "short1");
 
         Set<ConstraintViolation<SignupRequest>> violations = validator.validate(request);
 
@@ -73,7 +106,7 @@ class SignupRequestValidationTest {
 
     @Test
     void 비밀번호_확인이_8자_미만이면_위반이_발생한다() {
-        SignupRequest request = new SignupRequest("team-a", "홍길동", "202512345", "password1234", "short1");
+        SignupRequest request = new SignupRequest("team-a", "홍길동", "1551343", "password1234", "short1");
 
         Set<ConstraintViolation<SignupRequest>> violations = validator.validate(request);
 
@@ -82,12 +115,4 @@ class SignupRequestValidationTest {
                 .contains("passwordConfirm");
     }
 
-    @Test
-    void 학번의_앞뒤_공백을_제거한다() {
-        SignupRequest request = new SignupRequest(
-                "team-a", "member", " 202512345 ", "password1234", "password1234"
-        );
-
-        assertThat(request.normalizedStudentNumber()).isEqualTo("202512345");
-    }
 }
