@@ -58,7 +58,8 @@ public class AuthController {
     @PostMapping("/reissue")
     public ResponseEntity<ApiResponse<Void>> reissue(
             HttpServletRequest request,
-            HttpServletResponse response
+            HttpServletResponse response,
+            CsrfToken csrfToken
     ) {
         String refreshToken = extractRefreshToken(request);
 
@@ -66,6 +67,7 @@ public class AuthController {
 
         cookieUtil.addAccessTokenCookie(response, result.accessToken());
         cookieUtil.addRefreshTokenCookie(response, result.refreshToken());
+        csrfToken.getToken();
 
         return ResponseEntity.ok(
                 ApiResponse.success("토큰이 재발급되었습니다.", null)

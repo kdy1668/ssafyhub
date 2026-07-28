@@ -79,6 +79,7 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/reissue").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/showcase/public").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/showcase/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
