@@ -1,5 +1,5 @@
 import { apiClient, USE_MOCKS, mockDelay } from "./client";
-import { mockDeployments, mockResourceUsageFor, mockLogsFor, mockUser } from "./mockData";
+import { mockDeployments, mockResourceUsageFor } from "./mockData";
 
 export async function fetchDeployments() {
   if (USE_MOCKS) {
@@ -21,15 +21,6 @@ export async function fetchDeploymentResources(deploymentId) {
     return mockResourceUsageFor(deploymentId);
   }
   const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/resources`);
-  return data;
-}
-
-export async function fetchDeploymentLogs(deploymentId) {
-  if (USE_MOCKS) {
-    await mockDelay(400);
-    return mockLogsFor(deploymentId);
-  }
-  const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/logs`);
   return data;
 }
 
@@ -98,10 +89,14 @@ export function putFileToS3WithProgress(url, file, onProgress, opts = {}) {
   }
 
   // --- real: XHR 로 실제 진행률 추적 ---
+  // 주의: S3 presigned URL 직접 업로드이므로 공통 apiClient를 쓰지 않는다.
+  //       (인증 쿠키/CSRF 헤더를 붙이지 않고, withCredentials=false 인 순수 XHR)
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    if (file.type) xhr.setRequestHeader("Content-Type", file.type);
+    // 명세: JAR → application/java-archive, ZIP → application/zip
+    const contentType = opts.contentType || file.type;
+    if (contentType) xhr.setRequestHeader("Content-Type", contentType);
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -125,69 +120,33 @@ export function putFileToS3WithProgress(url, file, onProgress, opts = {}) {
 export async function createDeployment(deployData) {
   if (USE_MOCKS) {
     await mockDelay(500);
-    
-    const projectName = deployData.projectName || "demo-service";
-    const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
     const newMockDeployment = {
       id: Date.now(),
-      projectName,
-      // 생성자(현재 로그인 사용자) — 내 배포 목록 필터에 필요
-      owner: mockUser.name,
+      projectName: deployData.projectName || "demo-service",
       deployStatus: "DEPLOYING",
-      url: `https://${slug || "demo-service"}.example-deploy.com`,
       runtimeVersion: deployData.runtimeVersion || "17",
       internalPort: deployData.internalPort || "8080",
       databaseName: deployData.databaseName || "app_db",
-      description: deployData.description || "",
-      visibility: deployData.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE",
-      createdAt: new Date().toISOString(),
     };
 
     mockDeployments.unshift(newMockDeployment);
 
-    // 배포 완료 시뮬레이션
     setTimeout(() => {
       newMockDeployment.deployStatus = "DEPLOYED";
-      newMockDeployment.serverStatus = "RUNNING";
     }, 5000);
 
-    return { success: true, data: newMockDeployment };
+    // 실서버 응답(DeploymentCreateResponse) 형태로 반환
+    return {
+      deploymentId: newMockDeployment.id,
+      status: "PENDING",
+      displayStatus: "배포 요청 접수",
+      expectedUrl: `https://${deployData.projectName || "demo"}.ssafyhub.site`,
+      requestedAt: new Date().toISOString(),
+    };
   }
 
+  // ApiResponse { success, code, message, data } → data(DeploymentCreateResponse) 반환
   const { data } = await apiClient.post("/api/v1/deployments", deployData);
-  return data;
-}
-
-// 배포 삭제 (운영 제어)
-export async function deleteDeployment(deploymentId) {
-  if (USE_MOCKS) {
-    await mockDelay(500);
-    const idx = mockDeployments.findIndex((d) => String(d.id) === String(deploymentId));
-    if (idx === -1) {
-      throw new Error("배포를 찾을 수 없습니다.");
-    }
-    mockDeployments.splice(idx, 1);
-    return { success: true };
-  }
-  await apiClient.delete(`/api/v1/deployments/${deploymentId}`);
-  return { success: true };
-}
-
-// 배포의 설명/공개여부 수정 (마이페이지에서 사용)
-export async function updateDeployment(deploymentId, payload) {
-  if (USE_MOCKS) {
-    await mockDelay(400);
-    const dep = mockDeployments.find((d) => String(d.id) === String(deploymentId));
-    if (!dep) {
-      throw new Error("배포를 찾을 수 없습니다.");
-    }
-    if (payload.description !== undefined) dep.description = payload.description;
-    if (payload.visibility !== undefined) {
-      dep.visibility = payload.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE";
-    }
-    return { ...dep };
-  }
-  const { data } = await apiClient.patch(`/api/v1/deployments/${deploymentId}`, payload);
-  return data;
+  return data?.data;
 }

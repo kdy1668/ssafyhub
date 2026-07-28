@@ -1,11 +1,9 @@
 import { ref, reactive, computed } from "vue";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
+import { useQuery } from "@tanstack/vue-query";
 import {
   fetchDeployments,
   getPresignedUrls,
   createDeployment as apiCreateDeployment,
-  updateDeployment as apiUpdateDeployment,
-  deleteDeployment as apiDeleteDeployment,
   putFileToS3WithProgress,
 } from "../api/deployments";
 
@@ -76,7 +74,6 @@ export function useCreateDeployment() {
       backendFile, frontendFile,
       projectName, runtimeVersion, internalPort,
       databaseName, databasePassword, envList,
-      description = "", visibility = "PRIVATE",
       simulateFailure = false,
     } = args;
 
@@ -93,7 +90,7 @@ export function useCreateDeployment() {
       // [STEP 2] S3 업로드 (진행률 추적, 두 파일 병렬)
       phase.value = "uploading";
 
-      const uploadOne = async (entry, url, file, failThisOne) => {
+      const uploadOne = async (entry, url, file, contentType, failThisOne) => {
         entry.status = "uploading";
         entry.error = null;
         try {
@@ -101,7 +98,7 @@ export function useCreateDeployment() {
             url,
             file,
             (p) => { entry.progress = p; },
-            { simulateFailure: failThisOne }
+            { simulateFailure: failThisOne, contentType }
           );
           entry.status = "success";
         } catch (err) {
@@ -112,10 +109,11 @@ export function useCreateDeployment() {
       };
 
       // allSettled 로 두 파일을 모두 시도 → 부분 실패도 각 상태에 반영
+      // 명세: JAR → application/java-archive, ZIP → application/zip
       const results = await Promise.allSettled([
-        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, false),
+        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, "application/java-archive", false),
         // 테스트용 실패 시뮬레이션은 프론트엔드 파일에만 적용
-        uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, simulateFailure),
+        uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip", simulateFailure),
       ]);
 
       const rejected = results.find((r) => r.status === "rejected");
@@ -125,9 +123,9 @@ export function useCreateDeployment() {
           : new Error("파일 업로드에 실패했습니다.");
       }
 
-      // [STEP 3] 최종 배포 요청 생성
+      // [STEP 3] 최종 배포 요청 생성 (JAR/ZIP 업로드가 모두 성공한 뒤에만 호출)
       phase.value = "creating";
-      await apiCreateDeployment({
+      const deployment = await apiCreateDeployment({
         projectName,
         backendArtifactId: backendArtifact.artifactId,
         frontendArtifactId: frontendArtifact.artifactId,
@@ -135,13 +133,11 @@ export function useCreateDeployment() {
         internalPort: Number(internalPort),
         databaseName,
         databasePassword,
-        description,
-        visibility,
         env: envList,
       });
 
       phase.value = "done";
-      return true;
+      return deployment;
     } catch (error) {
       console.error("배포 프로세스 에러:", error);
       deployError.value = error.message || "배포 요청 중 알 수 없는 오류가 발생했습니다.";
@@ -173,26 +169,4 @@ export function useCreateDeployment() {
     retry,
     reset,
   };
-}
-
-// 3. 배포 설명/공개여부 수정 (마이페이지 편집용)
-export function useUpdateDeployment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, payload }) => apiUpdateDeployment(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["deployments"] });
-    },
-  });
-}
-
-// 4. 배포 삭제 (운영 제어)
-export function useDeleteDeployment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id) => apiDeleteDeployment(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["deployments"] });
-    },
-  });
 }

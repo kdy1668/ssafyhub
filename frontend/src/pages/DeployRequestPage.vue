@@ -6,7 +6,6 @@ import BaseCard from "../components/common/BaseCard.vue";
 import BaseInput from "../components/common/BaseInput.vue";
 import BaseSelect from "../components/common/BaseSelect.vue";
 import BaseButton from "../components/common/BaseButton.vue";
-import BaseTextarea from "../components/common/BaseTextarea.vue";
 import AppIcon from "../components/common/AppIcon.vue";
 import EnvVarsEditor from "../components/deploy/EnvVarsEditor.vue";
 import PreviewModal from "../components/deploy/PreviewModal.vue";
@@ -44,8 +43,6 @@ const frontendFile = ref(null);
 // 텍스트/설정 폼 상태
 const form = reactive({
   projectName: "",
-  description: "",
-  visibility: "PRIVATE", // "PUBLIC" | "PRIVATE"
   runtimeVersion: "21",
   internalPort: 8080,
   databaseName: "",
@@ -57,8 +54,15 @@ const errors = reactive({
   projectName: "",
   backendFile: "",
   frontendFile: "",
+  databaseName: "",
   databasePassword: "",
+  internalPort: "",
+  env: "",
 });
+
+// 백엔드 검증 규칙과 동일
+const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
+const DB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,99}$/;
 
 function handleBackendFileChange(e) {
   backendFile.value = e.target.files[0] || null;
@@ -72,9 +76,48 @@ function handleFrontendFileChange(e) {
 
 function validate() {
   errors.projectName = form.projectName ? "" : "프로젝트 이름은 필수입니다.";
-  errors.backendFile = backendFile.value ? "" : "백엔드 JAR 파일을 업로드하세요.";
-  errors.frontendFile = frontendFile.value ? "" : "프론트엔드 ZIP 파일을 업로드하세요.";
+
+  // 파일: 존재 + 확장자(.jar / .zip)
+  if (!backendFile.value) errors.backendFile = "백엔드 JAR 파일을 업로드하세요.";
+  else if (!backendFile.value.name.toLowerCase().endsWith(".jar"))
+    errors.backendFile = "백엔드 파일은 .jar 형식이어야 합니다.";
+  else errors.backendFile = "";
+
+  if (!frontendFile.value) errors.frontendFile = "프론트엔드 ZIP 파일을 업로드하세요.";
+  else if (!frontendFile.value.name.toLowerCase().endsWith(".zip"))
+    errors.frontendFile = "프론트엔드 파일은 .zip 형식이어야 합니다.";
+  else errors.frontendFile = "";
+
+  // DB 이름: 필수 + 패턴(영문 시작, 영문/숫자/_)
+  if (!form.databaseName) errors.databaseName = "DB 이름은 필수입니다.";
+  else if (!DB_NAME_RE.test(form.databaseName))
+    errors.databaseName = "DB 이름은 영문자로 시작하고 영문/숫자/_ 만 사용할 수 있습니다.";
+  else errors.databaseName = "";
+
   errors.databasePassword = form.databasePassword ? "" : "DB 비밀번호는 필수입니다.";
+
+  // 내부 포트: 1~65535
+  const port = Number(form.internalPort);
+  errors.internalPort =
+    Number.isInteger(port) && port >= 1 && port <= 65535
+      ? ""
+      : "내부 포트는 1~65535 사이의 숫자여야 합니다.";
+
+  // 환경변수: 최소 1개·최대 20개, KEY 규칙(대문자/숫자/_, 숫자로 시작 불가), 중복 불가
+  const list = form.envVars.filter((v) => v.key || v.value);
+  if (list.length === 0) {
+    errors.env = "환경변수를 최소 1개 이상 입력해주세요.";
+  } else if (list.length > 20) {
+    errors.env = "환경변수는 최대 20개까지 입력할 수 있습니다.";
+  } else if (list.some((v) => !v.key || !v.value)) {
+    errors.env = "환경변수의 KEY와 VALUE를 모두 입력해주세요.";
+  } else if (list.some((v) => !ENV_KEY_RE.test(v.key))) {
+    errors.env = "환경변수 KEY는 영문 대문자·숫자·_ 만 쓸 수 있고 숫자로 시작할 수 없습니다.";
+  } else if (new Set(list.map((v) => v.key)).size !== list.length) {
+    errors.env = "환경변수 KEY가 중복되었습니다.";
+  } else {
+    errors.env = "";
+  }
 
   return !Object.values(errors).some(Boolean);
 }
@@ -84,8 +127,6 @@ function buildPayload() {
     backendFile: backendFile.value,
     frontendFile: frontendFile.value,
     projectName: form.projectName,
-    description: form.description,
-    visibility: form.visibility,
     runtimeVersion: form.runtimeVersion,
     internalPort: form.internalPort,
     databaseName: form.databaseName,
@@ -95,29 +136,35 @@ function buildPayload() {
   };
 }
 
-async function onDeploySuccess() {
-  toastStore.showToast("배포 요청이 성공적으로 접수되었습니다.", "success");
-  router.push("/deployments"); // 성공 시 상태 화면으로 이동 (3초 폴링 자동 시작)
+async function onDeploySuccess(deployment) {
+  const expectedUrl = deployment?.expectedUrl;
+  toastStore.showToast(
+    expectedUrl
+      ? `배포 요청이 접수되었습니다. 예상 주소: ${expectedUrl}`
+      : "배포 요청이 접수되었습니다.",
+    "success"
+  );
+  router.push("/deployments"); // 배포 상태 화면으로 이동 (3초 폴링 자동 시작)
 }
 
 async function handleSubmit() {
   if (!validate()) return;
 
   try {
-    // 🚀 S3 업로드(진행률 추적) + 배포 엔진 실행
-    await executeDeploy(buildPayload());
-    await onDeploySuccess();
+    // 🚀 버튼 1회 클릭 → Presigned URL 발급 → S3 업로드 → 배포 생성 (순차 자동)
+    const deployment = await executeDeploy(buildPayload());
+    await onDeploySuccess(deployment);
   } catch (error) {
     // 실패 시 페이지에 머물러 진행률/재시도 UI 를 노출한다.
-    toastStore.showToast(error.message || "업로드에 실패했습니다. 다시 시도해 주세요.", "error");
+    toastStore.showToast(error.message || "배포 요청 중 오류가 발생했습니다.", "error");
   }
 }
 
 // 실패한 업로드 재시도
 async function handleRetry() {
   try {
-    await retry();
-    await onDeploySuccess();
+    const deployment = await retry();
+    await onDeploySuccess(deployment);
   } catch (error) {
     toastStore.showToast(error.message || "재시도에 실패했습니다.", "error");
   }
@@ -161,45 +208,6 @@ async function handleRetry() {
             :error="errors.projectName"
           />
 
-          <!-- 서비스 설명 -->
-          <BaseTextarea
-            id="description"
-            label="서비스 설명 (선택)"
-            placeholder="이 배포 서비스에 대한 간단한 설명을 입력하세요"
-            v-model="form.description"
-            rows="3"
-          />
-
-          <!-- 공개 여부 토글 -->
-          <div>
-            <span class="mb-1.5 block text-sm font-medium text-ink-700">공개 여부</span>
-            <div class="inline-flex rounded-lg bg-background p-1 ring-1 ring-border">
-              <button
-                type="button"
-                :class="[
-                  'rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
-                  form.visibility === 'PRIVATE' ? 'bg-primary text-white shadow-sm' : 'text-ink-500 hover:text-ink-900',
-                ]"
-                @click="form.visibility = 'PRIVATE'"
-              >
-                비공개
-              </button>
-              <button
-                type="button"
-                :class="[
-                  'rounded-md px-4 py-1.5 text-sm font-semibold transition-colors',
-                  form.visibility === 'PUBLIC' ? 'bg-primary text-white shadow-sm' : 'text-ink-500 hover:text-ink-900',
-                ]"
-                @click="form.visibility = 'PUBLIC'"
-              >
-                공개
-              </button>
-            </div>
-            <p class="mt-1.5 text-xs text-ink-500">
-              {{ form.visibility === "PUBLIC" ? "다른 팀원에게 이 배포가 공개됩니다." : "나만 볼 수 있는 비공개 배포입니다." }}
-            </p>
-          </div>
-
           <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <BaseSelect
               id="runtimeVersion"
@@ -214,6 +222,7 @@ async function handleRetry() {
               label="백엔드 내부 포트"
               placeholder="8080"
               v-model="form.internalPort"
+              :error="errors.internalPort"
             />
           </div>
 
@@ -251,6 +260,7 @@ async function handleRetry() {
               label="DB 이름"
               placeholder="app_db"
               v-model="form.databaseName"
+              :error="errors.databaseName"
             />
 
             <BaseInput
@@ -264,7 +274,10 @@ async function handleRetry() {
           </div>
 
           <!-- 환경변수 영역 -->
-          <EnvVarsEditor v-model="form.envVars" />
+          <div>
+            <EnvVarsEditor v-model="form.envVars" />
+            <p v-if="errors.env" class="mt-1 text-xs text-red-500">{{ errors.env }}</p>
+          </div>
 
           <!-- 업로드 진행률 / 실패·재시도 패널 (업로드 시작 후에만 표시) -->
           <UploadProgress

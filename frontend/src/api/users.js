@@ -1,12 +1,11 @@
-import { apiClient, USE_MOCKS, mockDelay } from "./client";
-import { mockUser } from "./mockData";
+import { USE_MOCKS, mockDelay } from "./client";
+import { useAuthStore } from "../stores/useAuthStore";
 
+// 백엔드에 별도의 "현재 사용자 조회" 엔드포인트가 없으므로,
+// 로그인 응답으로 저장된 member 정보를 현재 사용자로 사용한다. (비로그인 시 null)
 export async function fetchCurrentUser() {
   if (USE_MOCKS) {
     await mockDelay(400);
-    // 비로그인 상태에서는 사용자 정보 없음(null)
-    return localStorage.getItem("auth_token") ? mockUser : null;
   }
-  const { data } = await apiClient.get("/api/users/me");
-  return data;
+  return useAuthStore().member;
 }

@@ -19,29 +19,19 @@ const envVars = computed(() => (props.values.envVars || []).filter((v) => v.key)
         <dt class="font-medium text-ink-700">프로젝트 이름</dt>
         <dd class="text-ink-900">{{ values.projectName || "-" }}</dd>
       </div>
-      <div class="flex justify-between gap-4 border-b border-border pb-2">
-        <dt class="shrink-0 font-medium text-ink-700">설명</dt>
-        <dd class="text-right text-ink-900">{{ values.description || "-" }}</dd>
+      <div class="flex justify-between border-b border-border pb-2">
+        <dt class="font-medium text-ink-700">소스</dt>
+        <dd class="text-ink-900">
+          {{ values.sourceType === "github" ? values.githubUrl || "-" : values.sourceFileName || "-" }}
+        </dd>
       </div>
       <div class="flex justify-between border-b border-border pb-2">
-        <dt class="font-medium text-ink-700">공개 여부</dt>
-        <dd class="text-ink-900">{{ values.visibility === "PUBLIC" ? "공개" : "비공개" }}</dd>
-      </div>
-      <div class="flex justify-between border-b border-border pb-2">
-        <dt class="font-medium text-ink-700">Java 버전</dt>
-        <dd class="text-ink-900">Java {{ values.runtimeVersion || "-" }}</dd>
-      </div>
-      <div class="flex justify-between border-b border-border pb-2">
-        <dt class="font-medium text-ink-700">내부 포트</dt>
-        <dd class="text-ink-900">{{ values.internalPort || "-" }}</dd>
-      </div>
-      <div class="flex justify-between border-b border-border pb-2">
-        <dt class="font-medium text-ink-700">DB 이름</dt>
-        <dd class="text-ink-900">{{ values.databaseName || "-" }}</dd>
+        <dt class="font-medium text-ink-700">언어/프레임워크</dt>
+        <dd class="text-ink-900">{{ values.framework || "-" }}</dd>
       </div>
       <div class="flex justify-between border-b border-border pb-2">
         <dt class="font-medium text-ink-700">DB 비밀번호</dt>
-        <dd class="text-ink-900">{{ values.databasePassword ? "•".repeat(8) : "-" }}</dd>
+        <dd class="text-ink-900">{{ values.dbPassword ? "•".repeat(8) : "-" }}</dd>
       </div>
       <div>
         <dt class="mb-1 font-medium text-ink-700">환경변수</dt>

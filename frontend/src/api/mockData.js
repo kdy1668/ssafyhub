@@ -13,8 +13,6 @@ export const mockDeployments = [
     serverStatus: "RUNNING",
     deployStatus: "DEPLOYED",
     url: "https://shopping-api.example-deploy.com",
-    description: "쇼핑몰 상품/주문 백엔드 API 서버",
-    visibility: "PUBLIC",
     createdAt: "2026-07-10T09:00:00Z",
   },
   {
@@ -24,8 +22,6 @@ export const mockDeployments = [
     serverStatus: "RUNNING",
     deployStatus: "DEPLOYING",
     url: "https://internal-dashboard.example-deploy.com",
-    description: "사내 운영 대시보드",
-    visibility: "PRIVATE",
     createdAt: "2026-07-15T02:30:00Z",
   },
   {
@@ -35,54 +31,9 @@ export const mockDeployments = [
     serverStatus: "STOPPED",
     deployStatus: "FAILED",
     url: "https://batch-worker.example-deploy.com",
-    description: "정산 배치 워커",
-    visibility: "PRIVATE",
     createdAt: "2026-07-12T13:20:00Z",
   },
 ];
-
-// 배포별 목업 로그 (요청 시마다 최근 런타임 로그 몇 줄이 랜덤 추가됨)
-export function mockLogsFor(id) {
-  const now = Date.now();
-  const t = (offsetSec) => new Date(now - offsetSec * 1000).toTimeString().slice(0, 8);
-
-  const base = [
-    { off: 62, level: "INFO", message: "Deployment pipeline started (artifact: build.jar)" },
-    { off: 60, level: "INFO", message: "Pulling base image eclipse-temurin:21-jre..." },
-    { off: 55, level: "INFO", message: "Building container image... done (12.4s)" },
-    { off: 50, level: "INFO", message: "Pushing image to registry: shopping-api:latest" },
-    { off: 44, level: "INFO", message: "Applying k3s manifests (Deployment, Service, Ingress)" },
-    { off: 40, level: "DEBUG", message: "Waiting for pod readiness probe on :8080/actuator/health" },
-    { off: 33, level: "WARN", message: "Readiness probe failed once (connection refused), retrying..." },
-    { off: 30, level: "INFO", message: "Pod is Ready. Rolling update complete (1/1 available)" },
-    { off: 28, level: "INFO", message: "Ingress route registered: https://shopping-api.example-deploy.com" },
-    { off: 25, level: "INFO", message: "Spring Boot started in 6.821s (JVM running for 7.4s)" },
-    { off: 18, level: "INFO", message: 'GET /api/products 200 (14ms)' },
-    { off: 12, level: "INFO", message: 'GET /api/products/42 200 (8ms)' },
-    { off: 7, level: "WARN", message: "Slow query detected: SELECT * FROM orders (312ms)" },
-    { off: 3, level: "INFO", message: 'POST /api/orders 201 (39ms)' },
-  ];
-
-  // 요청 시점마다 최근 요청 로그 1~2줄을 랜덤으로 덧붙여 실시간 느낌
-  const samples = [
-    { level: "INFO", message: 'GET /api/products 200 (11ms)' },
-    { level: "INFO", message: 'GET /api/health 200 (2ms)' },
-    { level: "DEBUG", message: "HikariCP - pool stats (active=2, idle=8)" },
-    { level: "WARN", message: "Rate limit near threshold for client 10.0.0.7" },
-    { level: "ERROR", message: "Upstream timeout calling payment-service (2000ms)" },
-  ];
-  const extraCount = 1 + Math.floor(Math.random() * 2);
-  const extra = [];
-  for (let i = 0; i < extraCount; i++) {
-    const s = samples[Math.floor(Math.random() * samples.length)];
-    extra.push({ time: t(0), level: s.level, message: s.message });
-  }
-
-  return [
-    ...base.map((l) => ({ time: t(l.off), level: l.level, message: l.message })),
-    ...extra,
-  ];
-}
 
 export function mockResourceUsageFor(id) {
   return {
