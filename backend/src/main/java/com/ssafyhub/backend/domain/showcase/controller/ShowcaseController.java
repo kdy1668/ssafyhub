@@ -2,6 +2,7 @@ package com.ssafyhub.backend.domain.showcase.controller;
 
 import com.ssafyhub.backend.domain.auth.security.CustomUserDetails;
 import com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentListResponse;
+import com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentResponse;
 import com.ssafyhub.backend.domain.showcase.dto.ShowcaseResponse;
 import com.ssafyhub.backend.domain.showcase.dto.UpdateShowcaseRequest;
 import com.ssafyhub.backend.domain.showcase.service.ShowcaseService;
@@ -32,6 +33,13 @@ public class ShowcaseController {
         PublicDeploymentListResponse response = showcaseService.getPublicDeployments(page, size);
 
         return ResponseEntity.ok(ApiResponse.success("공개 서비스 목록을 조회했습니다.", response));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<PublicDeploymentResponse>> getPublicDeployment(@PathVariable Long id) {
+        PublicDeploymentResponse response = showcaseService.getPublicDeployment(id);
+
+        return ResponseEntity.ok(ApiResponse.success("서비스 상세 정보를 조회했습니다.", response));
     }
 
     @PatchMapping("/{id}")

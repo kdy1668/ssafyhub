@@ -28,6 +28,11 @@ public class ShowcaseService {
         return PublicDeploymentListResponse.from(result);
     }
 
+    public PublicDeploymentResponse getPublicDeployment(Long deploymentId) {
+        return deploymentRepository.findPublicDeploymentById(deploymentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.SHOWCASE_NOT_FOUND));
+    }
+
     @Transactional
     public ShowcaseResponse updateShowcase(Long memberId, Long deploymentId, UpdateShowcaseRequest request) {
         Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
