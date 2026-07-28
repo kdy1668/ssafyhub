@@ -1,11 +1,11 @@
 package com.ssafyhub.backend.domain.showcase.service;
 
+import com.ssafyhub.backend.domain.deployment.entity.Deployment;
+import com.ssafyhub.backend.domain.deployment.repository.DeploymentRepository;
 import com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentListResponse;
 import com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentResponse;
 import com.ssafyhub.backend.domain.showcase.dto.ShowcaseResponse;
 import com.ssafyhub.backend.domain.showcase.dto.UpdateShowcaseRequest;
-import com.ssafyhub.backend.domain.showcase.entity.ShowcaseDeployment;
-import com.ssafyhub.backend.domain.showcase.repository.ShowcaseDeploymentRepository;
 import com.ssafyhub.backend.global.error.BusinessException;
 import com.ssafyhub.backend.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -19,18 +19,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ShowcaseService {
 
-    private final ShowcaseDeploymentRepository showcaseDeploymentRepository;
+    private final DeploymentRepository deploymentRepository;
 
     public PublicDeploymentListResponse getPublicDeployments(int page, int size) {
         Page<PublicDeploymentResponse> result =
-                showcaseDeploymentRepository.findPublicDeployments(PageRequest.of(page, size));
+                deploymentRepository.findPublicDeployments(PageRequest.of(page, size));
 
         return PublicDeploymentListResponse.from(result);
     }
 
     @Transactional
     public ShowcaseResponse updateShowcase(Long memberId, Long deploymentId, UpdateShowcaseRequest request) {
-        ShowcaseDeployment deployment = showcaseDeploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SHOWCASE_NOT_FOUND));
 
         if (request.visibility() != null) {
