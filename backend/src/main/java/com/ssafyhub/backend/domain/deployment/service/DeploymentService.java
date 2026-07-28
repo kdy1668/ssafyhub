@@ -87,7 +87,9 @@ public class DeploymentService {
                 request.internalPort(),
                 request.databaseName(),
                 encryptedDatabasePassword,
-                requestedAt
+                requestedAt,
+                request.visibility(),
+                request.description()
         );
 
         try {

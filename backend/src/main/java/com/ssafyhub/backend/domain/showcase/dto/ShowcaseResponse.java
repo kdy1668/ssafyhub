@@ -1,7 +1,7 @@
 package com.ssafyhub.backend.domain.showcase.dto;
 
-import com.ssafyhub.backend.domain.showcase.entity.ShowcaseDeployment;
-import com.ssafyhub.backend.domain.showcase.enums.Visibility;
+import com.ssafyhub.backend.domain.deployment.entity.Deployment;
+import com.ssafyhub.backend.domain.deployment.enums.Visibility;
 import java.time.LocalDateTime;
 
 public record ShowcaseResponse(
@@ -13,7 +13,7 @@ public record ShowcaseResponse(
         LocalDateTime updatedAt
 ) {
 
-    public static ShowcaseResponse from(ShowcaseDeployment deployment) {
+    public static ShowcaseResponse from(Deployment deployment) {
         return new ShowcaseResponse(
                 deployment.getId(),
                 deployment.getProjectName(),

@@ -1,9 +1,12 @@
 package com.ssafyhub.backend.domain.deployment.entity;
 
 import com.ssafyhub.backend.domain.artifact.entity.Artifact;
+import com.ssafyhub.backend.domain.deployment.enums.Visibility;
 import com.ssafyhub.backend.domain.member.entity.Member;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
@@ -20,6 +23,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -36,7 +40,7 @@ import org.hibernate.annotations.UpdateTimestamp;
                 @Index(name = "idx_deployments_frontend_artifact_id", columnList = "frontend_artifact_id")
         }
 )
-@Check(constraints = "internal_port BETWEEN 1 AND 65535")
+@Check(constraints = "internal_port BETWEEN 1 AND 65535 AND visibility IN ('PUBLIC', 'PRIVATE')")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Deployment {
 
@@ -89,6 +93,14 @@ public class Deployment {
     @Column(name = "endpoint_url", length = 500)
     private String endpointUrl;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @ColumnDefault("'PRIVATE'")
+    private Visibility visibility;
+
     @Column(name = "requested_at", nullable = false, updatable = false)
     private LocalDateTime requestedAt;
 
@@ -110,7 +122,9 @@ public class Deployment {
             int internalPort,
             String databaseName,
             String encryptedDatabasePassword,
-            LocalDateTime requestedAt
+            LocalDateTime requestedAt,
+            Visibility visibility,
+            String description
     ) {
         this.member = member;
         this.backendArtifact = backendArtifact;
@@ -122,5 +136,15 @@ public class Deployment {
         this.databaseName = databaseName;
         this.encryptedDatabasePassword = encryptedDatabasePassword;
         this.requestedAt = requestedAt;
+        this.visibility = (visibility != null) ? visibility : Visibility.PRIVATE;
+        this.description = description;
+    }
+
+    public void changeVisibility(Visibility visibility) {
+        this.visibility = visibility;
+    }
+
+    public void changeDescription(String description) {
+        this.description = description;
     }
 }

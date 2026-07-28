@@ -1,5 +1,6 @@
 package com.ssafyhub.backend.domain.deployment.dto;
 
+import com.ssafyhub.backend.domain.deployment.enums.Visibility;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -44,6 +45,11 @@ public record DeploymentCreateRequest(
 
         @NotNull(message = "환경변수 목록은 필수입니다.")
         @Size(min = 1, max = 20, message = "환경변수는 1개 이상 20개 이하로 입력해주세요.")
-        List<@Valid DeploymentEnvRequest> env
+        List<@Valid DeploymentEnvRequest> env,
+
+        Visibility visibility,
+
+        @Size(max = 2000, message = "설명은 2000자를 초과할 수 없습니다.")
+        String description
 ) {
 }

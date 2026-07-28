@@ -161,7 +161,9 @@ class DeploymentServiceTest {
                 List.of(
                         new DeploymentEnvRequest("JWT_SECRET", "one"),
                         new DeploymentEnvRequest("JWT_SECRET", "two")
-                )
+                ),
+                null,
+                null
         );
 
         assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
@@ -203,7 +205,9 @@ class DeploymentServiceTest {
         given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, 2L, "11", 8080, "app_db", "db-password",
-                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod"))
+                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
+                null,
+                null
         );
 
         assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
@@ -237,7 +241,9 @@ class DeploymentServiceTest {
                 List.of(
                         new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod"),
                         new DeploymentEnvRequest("JWT_SECRET", "secret-value")
-                )
+                ),
+                null,
+                null
         );
     }
 }

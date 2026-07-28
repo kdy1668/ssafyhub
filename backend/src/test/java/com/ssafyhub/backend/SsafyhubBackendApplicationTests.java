@@ -13,7 +13,6 @@ import com.ssafyhub.backend.domain.deployment.repository.DeploymentEnvRepository
 import com.ssafyhub.backend.domain.deployment.repository.DeploymentLogRepository;
 import com.ssafyhub.backend.domain.deployment.repository.DeploymentRepository;
 import com.ssafyhub.backend.domain.member.repository.MemberRepository;
-import com.ssafyhub.backend.domain.showcase.repository.ShowcaseDeploymentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -56,9 +55,6 @@ class SsafyhubBackendApplicationTests {
 
     @MockitoBean
     private DeploymentOutboxRepository deploymentOutboxRepository;
-
-    @MockitoBean
-    private ShowcaseDeploymentRepository showcaseDeploymentRepository;
 
     @Test
     void contextLoads() {

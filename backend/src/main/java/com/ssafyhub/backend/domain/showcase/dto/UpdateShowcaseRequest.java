@@ -1,6 +1,6 @@
 package com.ssafyhub.backend.domain.showcase.dto;
 
-import com.ssafyhub.backend.domain.showcase.enums.Visibility;
+import com.ssafyhub.backend.domain.deployment.enums.Visibility;
 
 public record UpdateShowcaseRequest(
         Visibility visibility,
