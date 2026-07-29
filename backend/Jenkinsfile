@@ -59,11 +59,12 @@ pipeline {
         stage('Deploy') {
             when {
                 beforeAgent true
-                // main 브랜치와 develop 브랜치 모두 배포 단계를 실행하도록 수정
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
+                // 배포 대상은 main 하나로 고정한다. develop 은 develop->main 병합
+                // 시 MR 의 source branch 삭제 옵션 때문에 반복해서 사라져 배포
+                // 대상으로 신뢰할 수 없다. main 은 보호 브랜치라 MR 병합만
+                // 배포를 트리거하므로 오히려 경로가 명확해진다.
+                // (프론트엔드 Jenkinsfile 은 이미 main 전용이다)
+                branch 'main'
                 // 모노레포이므로 프론트엔드만 바뀐 푸시에는 재배포하지 않는다.
                 // 백엔드 배포는 컨테이너 교체라 짧은 다운타임이 발생하기 때문.
                 // 수동 실행(Build Now)은 변경 내역과 무관하게 항상 배포한다 —
