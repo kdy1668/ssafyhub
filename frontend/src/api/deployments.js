@@ -1,6 +1,8 @@
 import { apiClient, USE_MOCKS, mockDelay } from "./client";
-import { mockDeployments, mockResourceUsageFor } from "./mockData";
+import { mockDeployments, mockMyDeployment, mockResourceUsageFor } from "./mockData";
 
+// 관리자용 전체 배포 목록 조회 (AdminPage 전용). "내 배포 상태 1건" 조회(GET /api/v1/deployments)와
+// 경로가 겹치지 않도록 관리자용은 /api/v1/admin/deployments를 쓰기로 함 (백엔드 미구현, 경로만 예약)
 export async function fetchDeployments() {
   if (USE_MOCKS) {
     await mockDelay(500);
@@ -11,8 +13,23 @@ export async function fetchDeployments() {
       return item;
     });
   }
-  const { data } = await apiClient.get("/api/v1/deployments");
+  const { data } = await apiClient.get("/api/v1/admin/deployments");
   return data;
+}
+
+// 로그인한 사용자의 배포 상태 1건 조회 (사용자당 배포는 1개, 백엔드 GET /api/v1/deployments)
+export async function fetchMyDeployment() {
+  if (USE_MOCKS) {
+    await mockDelay(400);
+    if (mockMyDeployment.status === "DEPLOYING" && Math.random() < 0.3) {
+      mockMyDeployment.status = "RUNNING";
+      mockMyDeployment.displayStatus = "정상 기동";
+      mockMyDeployment.updatedAt = new Date().toISOString();
+    }
+    return mockMyDeployment;
+  }
+  const { data } = await apiClient.get("/api/v1/deployments");
+  return data?.data;
 }
 
 export async function fetchDeploymentResources(deploymentId) {

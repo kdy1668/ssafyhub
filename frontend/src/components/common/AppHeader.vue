@@ -11,8 +11,9 @@ const route = useRoute();
 const authStore = useAuthStore();
 const { isAdmin, isAuthenticated } = storeToRefs(authStore);
 
-// 로고 옆 목차(네비게이션) 항목
+// 로고 옆 목차(네비게이션) 항목. public: true 인 항목은 비로그인 상태에서도 바로 이동한다.
 const BASE_NAV_ITEMS = [
+  { label: "쇼케이스", to: "/showcase", icon: "eye", public: true },
   { label: "배포하기", to: "/deploy/new", icon: "upload" },
   { label: "내가 배포한 서비스", to: "/deployments", icon: "cube" },
   { label: "마이페이지", to: "/mypage", icon: "user" },
@@ -25,13 +26,13 @@ const NAV_ITEMS = computed(() =>
     : BASE_NAV_ITEMS
 );
 
-// 로그인 상태에서만 이동. 비로그인 시 로그인 화면으로 보낸다.
-function navigate(to) {
-  if (!authStore.isAuthenticated) {
-    router.push({ path: "/login", query: { from: to } });
+// public 항목은 비로그인 상태에서도 바로 이동, 그 외는 로그인 화면으로 보낸다.
+function navigate(item) {
+  if (!item.public && !authStore.isAuthenticated) {
+    router.push({ path: "/login", query: { from: item.to } });
     return;
   }
-  router.push(to);
+  router.push(item.to);
 }
 
 function isActive(to) {
@@ -68,7 +69,7 @@ function handleLogout() {
                 ? 'bg-primary-light text-primary'
                 : 'text-ink-700 hover:bg-black/5',
             ]"
-            @click="navigate(item.to)"
+            @click="navigate(item)"
           >
             <AppIcon :name="item.icon" class="h-4 w-4" />{{ item.label }}
           </button>

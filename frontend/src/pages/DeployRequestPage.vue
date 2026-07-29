@@ -21,6 +21,13 @@ const RUNTIME_OPTIONS = [
   { value: "21", label: "Java 21" },
 ];
 
+const VISIBILITY_OPTIONS = [
+  { value: "PUBLIC", label: "공개 (PUBLIC)" },
+  { value: "PRIVATE", label: "비공개 (PRIVATE)" },
+];
+
+const DESCRIPTION_MAX_LENGTH = 2000;
+
 const router = useRouter();
 const modalStore = useModalStore();
 const toastStore = useToastStore();
@@ -48,6 +55,8 @@ const form = reactive({
   databaseName: "",
   databasePassword: "",
   envVars: [],
+  visibility: "PUBLIC",
+  description: "",
 });
 
 const errors = reactive({
@@ -58,6 +67,7 @@ const errors = reactive({
   databasePassword: "",
   internalPort: "",
   env: "",
+  description: "",
 });
 
 // 백엔드 검증 규칙과 동일
@@ -119,6 +129,12 @@ function validate() {
     errors.env = "";
   }
 
+  // 설명: 선택 입력, 백엔드 제약과 동일하게 최대 2000자
+  errors.description =
+    form.description.length > DESCRIPTION_MAX_LENGTH
+      ? `설명은 ${DESCRIPTION_MAX_LENGTH}자를 초과할 수 없습니다.`
+      : "";
+
   return !Object.values(errors).some(Boolean);
 }
 
@@ -132,6 +148,8 @@ function buildPayload() {
     databaseName: form.databaseName,
     databasePassword: form.databasePassword,
     envList: form.envVars.filter((v) => v.key && v.value),
+    visibility: form.visibility,
+    description: form.description,
     simulateFailure: simulateFailure.value,
   };
 }
@@ -224,6 +242,33 @@ async function handleRetry() {
               v-model="form.internalPort"
               :error="errors.internalPort"
             />
+
+            <BaseSelect
+              id="visibility"
+              label="공개 범위"
+              :options="VISIBILITY_OPTIONS"
+              v-model="form.visibility"
+            />
+          </div>
+
+          <div class="flex flex-col gap-1">
+            <label for="description" class="text-sm font-medium text-ink-700">설명</label>
+            <textarea
+              id="description"
+              rows="3"
+              placeholder="서비스에 대한 간단한 설명을 입력하세요 (선택)"
+              v-model="form.description"
+              :class="[
+                'rounded-md border px-3 py-2 text-sm text-ink-900 outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary',
+                errors.description ? 'border-danger' : 'border-border',
+              ]"
+            ></textarea>
+            <div class="flex items-center justify-between">
+              <span v-if="errors.description" class="text-xs text-danger">{{ errors.description }}</span>
+              <span class="ml-auto text-xs text-ink-500">
+                {{ form.description.length }}/{{ DESCRIPTION_MAX_LENGTH }}
+              </span>
+            </div>
           </div>
 
           <!-- 파일 업로드 영역 -->

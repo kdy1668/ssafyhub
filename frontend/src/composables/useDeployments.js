@@ -2,13 +2,14 @@ import { ref, reactive, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import {
   fetchDeployments,
+  fetchMyDeployment,
   getPresignedUrls,
   createDeployment as apiCreateDeployment,
   putFileToS3WithProgress,
 } from "../api/deployments";
 
 // 🚀 스펙 반영: 3초마다 호출
-const POLL_INTERVAL_MS = 3000; 
+const POLL_INTERVAL_MS = 3000;
 
 // 1. 목록 조회 및 상태 폴링 (기존 로직 업데이트)
 export function useDeployments() {
@@ -17,13 +18,27 @@ export function useDeployments() {
     queryFn: fetchDeployments,
     refetchInterval: (query) => {
       const deployments = query.state.data;
-      
+
       // 🚀 스펙 반영: status가 RUNNING 또는 FAILED가 되면 polling 멈춤
-      const hasInProgress = deployments?.some((d) => 
+      const hasInProgress = deployments?.some((d) =>
         d.status !== "RUNNING" && d.status !== "FAILED"
       );
-      
+
       return hasInProgress ? POLL_INTERVAL_MS : false;
+    },
+  });
+}
+
+// 1-1. 내 배포 상태 1건 조회 및 폴링 (사용자당 배포는 1개)
+export function useMyDeployment() {
+  return useQuery({
+    queryKey: ["deployments", "me"],
+    queryFn: fetchMyDeployment,
+    retry: false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      const inProgress = status && status !== "RUNNING" && status !== "FAILED";
+      return inProgress ? POLL_INTERVAL_MS : false;
     },
   });
 }
@@ -74,6 +89,7 @@ export function useCreateDeployment() {
       backendFile, frontendFile,
       projectName, runtimeVersion, internalPort,
       databaseName, databasePassword, envList,
+      visibility, description,
       simulateFailure = false,
     } = args;
 
@@ -134,6 +150,8 @@ export function useCreateDeployment() {
         databaseName,
         databasePassword,
         env: envList,
+        visibility,
+        description,
       });
 
       phase.value = "done";

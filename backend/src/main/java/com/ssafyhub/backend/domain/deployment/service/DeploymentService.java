@@ -7,6 +7,7 @@ import com.ssafyhub.backend.domain.artifact.repository.ArtifactRepository;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentCreateRequest;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentCreateResponse;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentEnvRequest;
+import com.ssafyhub.backend.domain.deployment.dto.DeploymentStatusResponse;
 import com.ssafyhub.backend.domain.deployment.entity.Deployment;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentEnv;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentLog;
@@ -122,10 +123,20 @@ public class DeploymentService {
         return new DeploymentCreateResponse(
                 deployment.getId(),
                 DeploymentStatus.PENDING,
-                "배포 대기 중",
+                DeploymentStatus.PENDING.displayStatus(),
                 "https://%s.%s".formatted(member.getStudentNumber(), publicDomain),
                 requestedAt
         );
+    }
+
+    public DeploymentStatusResponse getMyDeployment(Long memberId) {
+        Deployment deployment = deploymentRepository.findByMember_Id(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        return DeploymentStatusResponse.of(deployment, latestLog);
     }
 
     private Artifact getArtifact(Long artifactId) {

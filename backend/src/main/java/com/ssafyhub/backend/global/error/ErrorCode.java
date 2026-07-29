@@ -46,6 +46,7 @@ public enum ErrorCode {
     DEPLOYMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "DEPLOYMENT_001", "사용자별 배포는 하나만 생성할 수 있습니다."),
     UNSUPPORTED_RUNTIME_VERSION(HttpStatus.BAD_REQUEST, "DEPLOYMENT_002", "지원하지 않는 Java 실행 버전입니다."),
     DUPLICATE_ENV_KEY(HttpStatus.BAD_REQUEST, "DEPLOYMENT_003", "중복된 환경변수 이름이 존재합니다."),
+    DEPLOYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "DEPLOYMENT_004", "조회할 배포 정보가 없습니다."),
 
     SHOWCASE_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOWCASE_001", "존재하지 않는 서비스입니다."),
     ;

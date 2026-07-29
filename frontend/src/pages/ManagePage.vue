@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, reactive } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import AppHeader from "../components/common/AppHeader.vue";
 import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
@@ -10,15 +10,18 @@ import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
-import { useDeployments } from "../composables/useDeployments";
+import { useMyDeployment } from "../composables/useDeployments";
 import { useToastStore } from "../stores/useToastStore";
 
-const route = useRoute();
 const router = useRouter();
 const toastStore = useToastStore();
 
-// 3초 폴링이 적용된 조회 엔진
-const { data: deployments, isLoading } = useDeployments();
+// 내 배포 상태 1건 조회 (3초 폴링, 사용자당 배포는 1개)
+const { data: currentDeployment, isLoading, isError, error } = useMyDeployment();
+
+// 아직 배포한 적이 없는 사용자(404)는 에러가 아니라 "배포 없음" 빈 상태로 취급
+const hasNoDeployment = computed(() => isError.value && error.value?.status === 404);
+const hasLoadError = computed(() => isError.value && error.value?.status !== 404);
 
 // 리소스 모달 열림 상태 관리
 const isResourceModalOpen = ref(false);
@@ -61,28 +64,14 @@ function handleRefreshLogs() {
   toastStore.showToast("로그 새로고침 기능은 백엔드 연동 예정입니다.", "info");
 }
 
-// 쿼리(?id=)로 지정된 배포를 표시. 없으면 첫 번째 배포를 기본 표시.
-const currentDeployment = computed(() => {
-  const list = deployments.value;
-  if (!list || list.length === 0) return null;
-  const id = route.query.id;
-  if (id != null) {
-    const found = list.find((d) => String(d.id) === String(id));
-    if (found) return found;
-  }
-  return list[0];
-});
-
 // 상태에 따른 UI(색상, 애니메이션, 아이콘) 처리
 const statusConfig = computed(() => {
   if (!currentDeployment.value) return {};
-  
-  // 백엔드 응답 키값에 따라 status 혹은 deployStatus 사용
-  const status = currentDeployment.value.status || currentDeployment.value.deployStatus;
+
+  const status = currentDeployment.value.status;
 
   switch (status) {
     case "RUNNING":
-    case "DEPLOYED":
       return { label: "실행 중", class: "bg-success-light text-success", dot: "bg-success" };
     case "FAILED":
       return { label: "배포 실패", class: "bg-danger-light text-danger", dot: "bg-danger" };
@@ -97,12 +86,8 @@ const statusConfig = computed(() => {
   }
 });
 
-// 현재 배포가 성공 상태인지 판별 (RUNNING 또는 DEPLOYED)
-const isRunningOrSuccess = computed(() => {
-  if (!currentDeployment.value) return false;
-  const status = currentDeployment.value.status || currentDeployment.value.deployStatus;
-  return status === "RUNNING" || status === "DEPLOYED";
-});
+// 현재 배포가 성공(실행 중) 상태인지 판별
+const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "RUNNING");
 </script>
 
 <template>
@@ -127,18 +112,28 @@ const isRunningOrSuccess = computed(() => {
         <BaseSkeleton class="h-20 w-full rounded-lg" />
         <BaseSkeleton class="h-40 w-full rounded-lg" />
       </div>
-      
-      <!-- 배포 내역이 없을 때 -->
-      <div v-else-if="!currentDeployment" class="flex flex-col items-center justify-center py-20">
+
+      <!-- 배포 내역이 없을 때 (404) -->
+      <div v-else-if="hasNoDeployment" class="flex flex-col items-center justify-center py-20">
         <p class="text-ink-600 mb-4">현재 등록된 배포 프로젝트가 없습니다.</p>
         <router-link to="/deploy/new" class="rounded-md bg-primary px-4 py-2 text-white hover:bg-primary-hover">
           새 프로젝트 배포하기
         </router-link>
       </div>
 
+      <!-- 조회 중 오류 -->
+      <div
+        v-else-if="hasLoadError"
+        class="flex flex-col items-center justify-center rounded-xl border border-danger/30 bg-danger-light px-4 py-10 text-center"
+      >
+        <AppIcon name="alert" class="mb-2 h-7 w-7 text-danger" />
+        <p class="text-sm font-semibold text-danger">배포 상태를 불러오지 못했습니다.</p>
+        <p class="mt-1 text-xs text-ink-500">{{ error?.message }}</p>
+      </div>
+
       <!-- 단일 배포 상태 화면 -->
-      <BaseCard v-else class="p-6 sm:p-8 shadow-card border border-border bg-surface rounded-lg">
-        
+      <BaseCard v-else-if="currentDeployment" class="p-6 sm:p-8 shadow-card border border-border bg-surface rounded-lg">
+
         <div class="flex items-center justify-between mb-6 border-b border-border pb-4">
           <h2 class="text-xl font-bold text-ink-900">
             {{ currentDeployment.projectName }}
@@ -149,7 +144,7 @@ const isRunningOrSuccess = computed(() => {
               :class="statusConfig.class"
             >
               <span class="h-1.5 w-1.5 rounded-full" :class="statusConfig.dot" />
-              {{ statusConfig.label }}
+              {{ currentDeployment.displayStatus || statusConfig.label }}
             </span>
 
             <!-- 성공/실행 중 상태일 때만 리소스 보기 버튼 노출 -->
@@ -166,16 +161,23 @@ const isRunningOrSuccess = computed(() => {
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
           <div>
-            <span class="block text-xs font-medium text-ink-500 mb-1">Java 버전</span>
-            <span class="text-sm font-semibold text-ink-900">Java {{ currentDeployment.runtimeVersion || '21' }}</span>
+            <span class="block text-xs font-medium text-ink-500 mb-1">공개 범위</span>
+            <span class="text-sm font-semibold text-ink-900">{{ currentDeployment.visibility }}</span>
           </div>
-          <div>
-            <span class="block text-xs font-medium text-ink-500 mb-1">내부 포트</span>
-            <span class="text-sm font-semibold text-ink-900">{{ currentDeployment.internalPort || '8080' }}</span>
+          <div v-if="currentDeployment.endpointUrl">
+            <span class="block text-xs font-medium text-ink-500 mb-1">접속 URL</span>
+            <a
+              :href="currentDeployment.endpointUrl"
+              target="_blank"
+              rel="noreferrer"
+              class="truncate text-sm font-semibold text-primary hover:underline"
+            >
+              {{ currentDeployment.endpointUrl }}
+            </a>
           </div>
-          <div>
-            <span class="block text-xs font-medium text-ink-500 mb-1">Database 이름</span>
-            <span class="text-sm font-semibold text-ink-900">{{ currentDeployment.databaseName || '-' }}</span>
+          <div class="sm:col-span-2">
+            <span class="block text-xs font-medium text-ink-500 mb-1">설명</span>
+            <p class="text-sm text-ink-900">{{ currentDeployment.description || "등록된 설명이 없습니다." }}</p>
           </div>
         </div>
 
@@ -183,8 +185,8 @@ const isRunningOrSuccess = computed(() => {
           <p v-if="isRunningOrSuccess">
             배포가 성공적으로 완료되었습니다. 서비스가 정상적으로 실행 중입니다.
           </p>
-          <p v-else-if="(currentDeployment.status || currentDeployment.deployStatus) === 'FAILED'">
-            배포 중 오류가 발생했습니다. 다시 시도해 주세요.
+          <p v-else-if="currentDeployment.status === 'FAILED'">
+            {{ currentDeployment.statusMessage || "배포 중 오류가 발생했습니다. 다시 시도해 주세요." }}
           </p>
           <p v-else>
             현재 배포 프로세스가 진행 중입니다. 이 화면은 3초마다 자동으로 갱신됩니다.
@@ -195,7 +197,7 @@ const isRunningOrSuccess = computed(() => {
         <div class="mt-6 flex items-center justify-between border-t border-border pt-6">
           <span class="text-sm font-bold text-ink-900">서버 제어</span>
           <ControlButtons
-            :status="currentDeployment.status || currentDeployment.deployStatus"
+            :status="currentDeployment.status"
             @start="requestControl('start')"
             @stop="requestControl('stop')"
             @restart="requestControl('restart')"
@@ -215,7 +217,7 @@ const isRunningOrSuccess = computed(() => {
     <!-- 리소스 모달 컴포넌트 (타입 경고 방지를 위해 deployment-id를 문자열로 안전하게 변환) -->
     <ResourceModal
       :open="isResourceModalOpen"
-      :deployment-id="currentDeployment?.id ? String(currentDeployment.id) : undefined"
+      :deployment-id="currentDeployment?.deploymentId ? String(currentDeployment.deploymentId) : undefined"
       :project-name="currentDeployment?.projectName"
       @close="isResourceModalOpen = false"
     />
@@ -232,13 +234,3 @@ const isRunningOrSuccess = computed(() => {
     />
   </div>
 </template>
-    <!-- 기존코드
-    <ResourceModal
-      :open="isResourceModalOpen"
-      :deployment-id="currentDeployment?.id"
-      :project-name="currentDeployment?.projectName"
-      @close="isResourceModalOpen = false"
-    />
-  </div>
-</template>
--->

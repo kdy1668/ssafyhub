@@ -3,6 +3,7 @@ package com.ssafyhub.backend.domain.deployment.controller;
 import com.ssafyhub.backend.domain.auth.security.CustomUserDetails;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentCreateRequest;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentCreateResponse;
+import com.ssafyhub.backend.domain.deployment.dto.DeploymentStatusResponse;
 import com.ssafyhub.backend.domain.deployment.service.DeploymentService;
 import com.ssafyhub.backend.global.common.ApiResponse;
 import com.ssafyhub.backend.global.config.OpenApiConfig;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,5 +60,20 @@ public class DeploymentController {
         return ResponseEntity
                 .status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("배포 요청이 접수되었습니다.", response));
+    }
+
+    @Operation(
+            summary = "내 배포 상태 조회",
+            description = "로그인한 사용자의 현재 배포 상태를 조회합니다. 사용자별 배포는 1개만 존재한다고 가정합니다."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @GetMapping
+    public ResponseEntity<ApiResponse<DeploymentStatusResponse>> getMyDeployment(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        DeploymentStatusResponse response = deploymentService.getMyDeployment(userDetails.getMemberId());
+
+        return ResponseEntity.ok(ApiResponse.success("배포 상태를 조회했습니다.", response));
     }
 }

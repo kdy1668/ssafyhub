@@ -7,9 +7,8 @@ import MyPage from "./pages/MyPage.vue";
 import DeployRequestPage from "./pages/DeployRequestPage.vue";
 import ManagePage from "./pages/ManagePage.vue";
 import AdminPage from "./pages/AdminPage.vue";
-import BoardListPage from "./pages/BoardListPage.vue";
-import BoardWritePage from "./pages/BoardWritePage.vue";
-import BoardDetailPage from "./pages/BoardDetailPage.vue";
+import ShowcaseListPage from "./pages/ShowcaseListPage.vue";
+import ShowcaseDetailPage from "./pages/ShowcaseDetailPage.vue";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -23,11 +22,9 @@ export const router = createRouter({
     { path: "/deploy/new", component: DeployRequestPage, meta: { requiresAuth: true } },
     { path: "/deployments", component: ManagePage, meta: { requiresAuth: true } },
     { path: "/admin", component: AdminPage, meta: { requiresAuth: true, requiresAdmin: true } },
-    // 게시판 조회(목록/상세)는 비로그인 접근 허용, 작성/수정은 로그인 필요
-    { path: "/board", component: BoardListPage },
-    { path: "/board/new", component: BoardWritePage, meta: { requiresAuth: true } },
-    { path: "/board/:id/edit", component: BoardWritePage, meta: { requiresAuth: true } },
-    { path: "/board/:id", component: BoardDetailPage },
+    // 쇼케이스(공개 배포 목록/상세)는 백엔드 API 자체가 인증 불필요이므로 비로그인 접근 허용
+    { path: "/showcase", component: ShowcaseListPage },
+    { path: "/showcase/:id", component: ShowcaseDetailPage },
   ],
 });
 

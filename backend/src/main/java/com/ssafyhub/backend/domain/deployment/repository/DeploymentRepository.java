@@ -15,6 +15,8 @@ public interface DeploymentRepository extends JpaRepository<Deployment, Long> {
 
     Optional<Deployment> findByIdAndMember_Id(Long id, Long memberId);
 
+    Optional<Deployment> findByMember_Id(Long memberId);
+
     @Query("""
             SELECT new com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentResponse(
                 d.id, d.member.teamName, d.projectName, d.description, d.endpointUrl, d.updatedAt

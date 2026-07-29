@@ -84,7 +84,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception exception) {
-        log.error("Unexpected exception occurred: type={}", exception.getClass().getName());
+        log.error("Unexpected exception occurred: type={}", exception.getClass().getName(), exception);
 
         ErrorCode errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
 
