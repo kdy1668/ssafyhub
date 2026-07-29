@@ -54,7 +54,6 @@ pipeline {
                 beforeAgent true
                 anyOf {
                     branch 'main'
-                    branch 'develop'
                 }
                 // 모노레포이므로 백엔드만 바뀐 푸시에는 재배포하지 않는다.
                 // 수동 실행(Build Now)은 변경 내역과 무관하게 항상 배포한다 —

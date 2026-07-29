@@ -27,4 +27,8 @@ public interface DeploymentOutboxRepository extends JpaRepository<DeploymentOutb
             Pageable pageable
     );
 
+    // deployment_id는 FK가 아닌 일반 컬럼이라 배포를 지워도 남는다. 남겨두면 스케줄러가
+    // 존재하지 않는 배포를 계속 발행 시도하므로 배포 삭제 시 함께 정리한다.
+    void deleteByDeploymentId(Long deploymentId);
+
 }

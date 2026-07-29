@@ -32,6 +32,20 @@ export async function fetchMyDeployment() {
   return data?.data;
 }
 
+// 배포 삭제 (백엔드 DELETE /api/v1/deployments/{id}).
+// 백엔드가 deploy-engine에 k8s 리소스(Deployment/Service/Ingress/Middleware) 정리를 먼저 요청하고,
+// 성공하면 배포 행과 환경변수·로그 이력까지 지운다. 되돌릴 수 없다.
+export async function deleteDeployment(deploymentId) {
+  if (USE_MOCKS) {
+    await mockDelay(500);
+    const index = mockDeployments.findIndex((item) => item.id === deploymentId);
+    if (index !== -1) mockDeployments.splice(index, 1);
+    return { deploymentId };
+  }
+  const { data } = await apiClient.delete(`/api/v1/deployments/${deploymentId}`);
+  return data?.data;
+}
+
 export async function fetchDeploymentResources(deploymentId) {
   if (USE_MOCKS) {
     await mockDelay(400);

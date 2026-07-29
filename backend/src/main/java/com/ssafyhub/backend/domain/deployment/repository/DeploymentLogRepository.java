@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface DeploymentLogRepository extends JpaRepository<DeploymentLog, Long> {
 
     Optional<DeploymentLog> findFirstByDeployment_IdOrderByIdDesc(Long deploymentId);
+
+    void deleteByDeployment_Id(Long deploymentId);
 }

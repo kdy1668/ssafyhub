@@ -12,6 +12,7 @@ import com.ssafyhub.backend.domain.deployment.entity.Deployment;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentEnv;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentLog;
 import com.ssafyhub.backend.domain.deployment.enums.DeploymentStatus;
+import com.ssafyhub.backend.domain.deployment.outbox.client.DevOpsDeploymentClient;
 import com.ssafyhub.backend.domain.deployment.outbox.entity.DeploymentOutbox;
 import com.ssafyhub.backend.domain.deployment.outbox.repository.DeploymentOutboxRepository;
 import com.ssafyhub.backend.domain.deployment.repository.DeploymentEnvRepository;
@@ -32,6 +33,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +47,7 @@ public class DeploymentService {
     private final DeploymentEnvRepository deploymentEnvRepository;
     private final DeploymentLogRepository deploymentLogRepository;
     private final DeploymentOutboxRepository deploymentOutboxRepository;
+    private final DevOpsDeploymentClient devOpsDeploymentClient;
     private final S3ObjectVerifier s3ObjectVerifier;
     private final SecretEncryptor secretEncryptor;
 
@@ -137,6 +140,35 @@ public class DeploymentService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
 
         return DeploymentStatusResponse.of(deployment, latestLog);
+    }
+
+    /**
+     * 배포를 삭제한다. 실행 중인 사용자 서버(k8s Deployment/Service/Ingress/Middleware)를 먼저
+     * 내리고, 성공한 뒤에 DB 행을 지운다.
+     *
+     * 순서가 중요하다. deploy-engine은 deploymentId로 namespace(팀)와 appName(slug)을 역추적하므로,
+     * 행을 먼저 지우면 정리 대상을 찾지 못해 k8s 리소스가 그대로 떠 있는 채로 고아가 된다.
+     * 반대로 k8s 정리 후 행 삭제가 실패하면 사용자가 다시 삭제를 시도하면 되고,
+     * deploy-engine의 정리는 멱등이므로 안전하다.
+     */
+    @Transactional
+    public void deleteDeployment(Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        try {
+            devOpsDeploymentClient.deleteDeployment(deployment.getId());
+        } catch (RestClientException exception) {
+            // k8s 리소스가 살아 있을 수 있으므로 행을 지우지 않고 중단한다.
+            throw new BusinessException(ErrorCode.DEPLOYMENT_DELETE_FAILED);
+        }
+
+        // deployment_envs / deployment_logs는 FK가 걸려 있어 먼저 지워야 하고,
+        // deployment_outbox는 FK가 없지만 남으면 스케줄러가 계속 발행을 시도한다.
+        deploymentOutboxRepository.deleteByDeploymentId(deployment.getId());
+        deploymentEnvRepository.deleteByDeployment_Id(deployment.getId());
+        deploymentLogRepository.deleteByDeployment_Id(deployment.getId());
+        deploymentRepository.delete(deployment);
     }
 
     private Artifact getArtifact(Long artifactId) {
