@@ -8,6 +8,10 @@ import axios from "axios";
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "",
   withCredentials: true,
+  // axios는 기본적으로 same-origin일 때만 XSRF 헤더를 붙인다(isURLSameOrigin 판정).
+  // 명시하면 판정에 의존하지 않는다. VITE_API_BASE_URL은 빈 문자열(=상대경로)이어야
+  // 하며, 다른 오리진을 넣으면 토큰이 cross-origin으로 전송되므로 주의한다.
+  withXSRFToken: true,
   xsrfCookieName: "XSRF-TOKEN",
   xsrfHeaderName: "X-XSRF-TOKEN",
   headers: {
@@ -65,6 +69,16 @@ apiClient.interceptors.response.use(
 
     const isReissueRequest = url.includes("/api/v1/auth/reissue");
     const isLoginRequest = url.includes("/api/v1/auth/login");
+
+    // CSRF 토큰 누락/불일치로 인한 403 → 강제 재발급 후 원래 요청 1회 재시도.
+    // 앱 시작 시의 발급 요청(main.js)은 await하지 않고 실패도 무시하므로,
+    // 백엔드 순단이나 쿠키 소실로 XSRF-TOKEN이 없는 상태가 그대로 유지될 수 있다.
+    // 이 블록이 없으면 페이지를 새로고침할 때까지 모든 상태 변경 요청이 403으로 실패한다.
+    if (status === 403 && code === "CSRF_001" && !originalRequest._csrfRetry) {
+      originalRequest._csrfRetry = true;
+      await ensureCsrfToken(true);
+      return apiClient(originalRequest);
+    }
 
     // Access Token 만료로 추정되는 401 → 재발급 API 1회 호출 후 원래 요청 재시도
     if (
