@@ -9,6 +9,14 @@ pipeline {
         timeout(time: 20, unit: 'MINUTES')
     }
 
+    // GitLab 웹훅은 잡 하나당 URL 하나이므로 등록이 누락되면 푸시해도 빌드가
+    // 생기지 않는다. 폴링은 GitLab 쪽 설정에 의존하지 않는 안전망이다.
+    // 웹훅이 정상이면 폴링 차례에는 새 커밋이 없어 빌드가 생기지 않으므로
+    // 둘을 같이 켜도 중복 빌드는 발생하지 않는다.
+    triggers {
+        pollSCM('H/3 * * * *')
+    }
+
     environment {
         IMAGE_NAME = 'ssafyhub-backend'
         CONTAINER_NAME = 'ssafyhub-backend-container'
