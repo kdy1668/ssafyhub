@@ -18,6 +18,7 @@ import com.ssafyhub.backend.domain.deployment.entity.Deployment;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentEnv;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentLog;
 import com.ssafyhub.backend.domain.deployment.enums.DeploymentStatus;
+import com.ssafyhub.backend.domain.deployment.outbox.client.DevOpsDeploymentClient;
 import com.ssafyhub.backend.domain.deployment.outbox.entity.DeploymentOutbox;
 import com.ssafyhub.backend.domain.deployment.outbox.enums.OutboxStatus;
 import com.ssafyhub.backend.domain.deployment.outbox.repository.DeploymentOutboxRepository;
@@ -58,6 +59,8 @@ class DeploymentServiceTest {
     @Mock
     private DeploymentOutboxRepository deploymentOutboxRepository;
     @Mock
+    private DevOpsDeploymentClient devOpsDeploymentClient;
+    @Mock
     private S3ObjectVerifier s3ObjectVerifier;
 
     private SecretEncryptor secretEncryptor;
@@ -76,6 +79,7 @@ class DeploymentServiceTest {
                 deploymentEnvRepository,
                 deploymentLogRepository,
                 deploymentOutboxRepository,
+                devOpsDeploymentClient,
                 s3ObjectVerifier,
                 secretEncryptor
         );

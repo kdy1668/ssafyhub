@@ -61,6 +61,13 @@ pipeline {
                 anyOf {
                     changeset 'frontend/**'
                     triggeredBy 'UserIdCause'
+                    // 변경 내역을 구할 수 없는 실행에서도 배포한다. 브랜치 최초
+                    // 인덱싱이나 첫 빌드는 changelog 가 비어 changeset 이 매칭되지
+                    // 않고, 트리거도 UserIdCause 가 아니라 BranchIndexingCause 라
+                    // 두 조건이 모두 빗나간다. 그러면 Deploy 를 건너뛴 채 빌드가
+                    // SUCCESS 로 끝나 배포된 것으로 오인된다. 백엔드에서 실제로
+                    // 이 경로 때문에 컨테이너가 생성되지 않은 적이 있다.
+                    expression { currentBuild.changeSets.isEmpty() }
                 }
             }
             steps {
