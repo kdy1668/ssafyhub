@@ -9,6 +9,7 @@ export const mockDeployments = [
   {
     id: "dep-1",
     projectName: "shopping-api",
+    owner: "김서비",
     serverStatus: "RUNNING",
     deployStatus: "DEPLOYED",
     url: "https://shopping-api.example-deploy.com",
@@ -17,6 +18,7 @@ export const mockDeployments = [
   {
     id: "dep-2",
     projectName: "internal-dashboard",
+    owner: "이도윤",
     serverStatus: "RUNNING",
     deployStatus: "DEPLOYING",
     url: "https://internal-dashboard.example-deploy.com",
@@ -25,12 +27,26 @@ export const mockDeployments = [
   {
     id: "dep-3",
     projectName: "batch-worker",
+    owner: "김서비",
     serverStatus: "STOPPED",
     deployStatus: "FAILED",
     url: "https://batch-worker.example-deploy.com",
     createdAt: "2026-07-12T13:20:00Z",
   },
 ];
+
+// 로그인한 사용자의 배포 상태 1건 (GET /api/v1/deployments 목업)
+export const mockMyDeployment = {
+  deploymentId: "dep-1",
+  projectName: "shopping-api",
+  description: "쇼핑몰 백엔드 API 서비스입니다. 상품/주문 엔드포인트를 제공합니다.",
+  visibility: "PUBLIC",
+  status: "DEPLOYING",
+  displayStatus: "배포 환경에 적용 중",
+  endpointUrl: "https://shopping-api.example-deploy.com",
+  statusMessage: null,
+  updatedAt: "2026-07-20T08:00:00Z",
+};
 
 export function mockResourceUsageFor(id) {
   return {
@@ -42,29 +58,22 @@ export function mockResourceUsageFor(id) {
   };
 }
 
-export const mockPosts = [
+// 쇼케이스: PUBLIC으로 공개 설정된 배포만 노출 (PublicDeploymentResponse 형태)
+export const mockShowcaseDeployments = [
   {
-    id: 3,
-    title: "자유게시판 오픈했습니다",
-    content: "자유롭게 의견을 나눠주세요. 잘 부탁드립니다!",
-    createdAt: "2026-07-18T10:00:00Z",
+    deploymentId: "dep-1",
+    teamName: "플랫폼팀",
+    projectName: "shopping-api",
+    description: "쇼핑몰 백엔드 API 서비스입니다. 상품/주문 엔드포인트를 제공합니다.",
+    endpointUrl: "https://shopping-api.example-deploy.com",
+    updatedAt: "2026-07-20T08:00:00Z",
   },
   {
-    id: 2,
-    title: "배포 후 502 에러 문의드립니다",
-    content: "Spring Boot 프로젝트를 배포했는데 간헐적으로 502가 발생합니다. 혹시 같은 경험 있으신 분?",
-    createdAt: "2026-07-16T05:30:00Z",
-  },
-  {
-    id: 1,
-    title: "환영합니다",
-    content: "DeployHub 커뮤니티에 오신 것을 환영합니다.",
-    createdAt: "2026-07-14T01:15:00Z",
+    deploymentId: "dep-2",
+    teamName: "프론트팀",
+    projectName: "internal-dashboard",
+    description: "사내 운영 대시보드 서비스입니다.",
+    endpointUrl: "https://internal-dashboard.example-deploy.com",
+    updatedAt: "2026-07-19T02:30:00Z",
   },
 ];
-
-let nextMockPostId = 4;
-
-export function nextPostId() {
-  return nextMockPostId++;
-}

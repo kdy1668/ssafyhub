@@ -13,7 +13,10 @@ const SERVER_STATUS_MAP = {
 
 const DEPLOY_STATUS_MAP = {
   DEPLOYED: { label: "배포 완료", tone: "success" },
+  RUNNING: { label: "정상 기동", tone: "success" },
   DEPLOYING: { label: "배포중", tone: "warning" },
+  PENDING: { label: "대기 중", tone: "warning" },
+  BUILDING: { label: "빌드 중", tone: "warning" },
   FAILED: { label: "배포 실패", tone: "danger" },
 };
 

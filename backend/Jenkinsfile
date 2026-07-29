@@ -1,0 +1,194 @@
+pipeline {
+    agent any
+
+    options {
+        skipDefaultCheckout(true)
+        // 배포는 컨테이너 rename/start 를 순차로 수행하므로 동시 실행되면
+        // 두 빌드가 같은 컨테이너 이름을 두고 경합해 서비스가 죽을 수 있다.
+        disableConcurrentBuilds()
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
+    environment {
+        IMAGE_NAME = 'ssafyhub-backend'
+        CONTAINER_NAME = 'ssafyhub-backend-container'
+        PREVIOUS_CONTAINER_NAME = 'ssafyhub-backend-container-previous'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'GitLab에서 최신 코드를 가져오는 중입니다...'
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                echo '테스트를 포함한 Gradle 빌드를 시작합니다...'
+                dir('backend') {
+                    sh 'chmod +x ./gradlew'
+                    sh './gradlew clean build'
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                echo '도커 이미지를 빌드합니다...'
+                dir('backend') {
+                    sh 'docker build -t "$IMAGE_NAME:$BUILD_NUMBER" -t "$IMAGE_NAME:latest" .'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                beforeAgent true
+                // main 브랜치와 develop 브랜치 모두 배포 단계를 실행하도록 수정
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+                // 모노레포이므로 프론트엔드만 바뀐 푸시에는 재배포하지 않는다.
+                // 백엔드 배포는 컨테이너 교체라 짧은 다운타임이 발생하기 때문.
+                // 수동 실행(Build Now)은 변경 내역과 무관하게 항상 배포한다 —
+                // 첫 빌드나 재배포 목적의 실행이 조용히 건너뛰어지지 않도록.
+                anyOf {
+                    changeset 'backend/**'
+                    triggeredBy 'UserIdCause'
+                }
+            }
+            steps {
+                echo '새 컨테이너를 실행하고 상태를 확인합니다...'
+
+                withCredentials([
+                        string(credentialsId: 'ssafyhub-db-url', variable: 'DB_URL'),
+                        usernamePassword(
+                            credentialsId: 'ssafyhub-db-credentials',
+                            usernameVariable: 'DB_USERNAME',
+                            passwordVariable: 'DB_PASSWORD'
+                        ),
+                        string(credentialsId: 'ssafyhub-jwt-secret', variable: 'JWT_SECRET'),
+                        string(credentialsId: 'ssafyhub-aws-region', variable: 'AWS_REGION'),
+                        string(credentialsId: 'ssafyhub-s3-bucket', variable: 'AWS_S3_BUCKET'),
+                        // Outbox 기능(34f80e3)에서 추가된 필수 값. 기본값이 없어
+                        // 누락 시 Spring 컨텍스트 로딩 자체가 실패합니다.
+                        string(credentialsId: 'ssafyhub-secret-encryption-key', variable: 'SECRET_ENCRYPTION_KEY'),
+                        string(credentialsId: 'ssafyhub-devops-was-base-url', variable: 'DEVOPS_WAS_BASE_URL'),
+                        // 백엔드의 S3 presigned URL 발급용. EC2에 인스턴스 프로파일이
+                        // 없으므로 자격증명을 명시적으로 주입해야 합니다.
+                        [
+                            $class: 'AmazonWebServicesCredentialsBinding',
+                            credentialsId: 'ssafyhub-backend-aws-key'
+                        ]
+                    ]) {
+                    sh '''
+                        set -eu
+
+                        docker rm -f "$PREVIOUS_CONTAINER_NAME" 2>/dev/null || true
+
+                        if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+                            docker stop "$CONTAINER_NAME"
+                            docker rename "$CONTAINER_NAME" "$PREVIOUS_CONTAINER_NAME"
+                        fi
+
+                        docker run -d \
+                            --name "$CONTAINER_NAME" \
+                            --restart unless-stopped \
+                            -p 8080:8080 \
+                            -e SPRING_PROFILES_ACTIVE=prod \
+                            -e DB_URL \
+                            -e DB_USERNAME \
+                            -e DB_PASSWORD \
+                            -e JWT_SECRET \
+                            -e AWS_REGION \
+                            -e AWS_S3_BUCKET \
+                            -e AWS_ACCESS_KEY_ID \
+                            -e AWS_SECRET_ACCESS_KEY \
+                            -e SECRET_ENCRYPTION_KEY \
+                            -e DEVOPS_WAS_BASE_URL \
+                            "$IMAGE_NAME:$BUILD_NUMBER"
+
+                        # Jenkins가 컨테이너로 구동되는 경우 이 sh 스텝의 localhost는
+                        # Jenkins 컨테이너 자신을 가리킨다. 공식 이미지는 내부에서 8080을
+                        # 리슨하므로 localhost:8080은 백엔드가 아니라 Jenkins에 닿아
+                        # 인증 없는 요청에 403을 돌려준다. 실제 백엔드를 확인하기 위해
+                        # 두 경로를 순서대로 시도한다.
+                        healthy=false
+                        for attempt in $(seq 1 30); do
+                            # 1) 같은 브리지 네트워크에 있으면 컨테이너 IP로 직접 접근
+                            backend_ip=$(docker inspect \
+                                -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+                                "$CONTAINER_NAME" 2>/dev/null || true)
+                            if [ -n "$backend_ip" ] \
+                                && curl -fsS "http://$backend_ip:8080/actuator/health" >/dev/null 2>&1; then
+                                healthy=true
+                                break
+                            fi
+
+                            # 2) 폴백: 호스트 네트워크를 쓰는 일회용 컨테이너로
+                            #    호스트에 퍼블리시된 8080을 확인한다.
+                            if docker run --rm --network host curlimages/curl:latest \
+                                -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+                                healthy=true
+                                break
+                            fi
+
+                            sleep 2
+                        done
+
+                        if [ "$healthy" != "true" ]; then
+                            echo '새 컨테이너의 헬스체크가 실패했습니다.'
+                            docker logs "$CONTAINER_NAME" || true
+                            docker rm -f "$CONTAINER_NAME" || true
+
+                            if docker container inspect "$PREVIOUS_CONTAINER_NAME" >/dev/null 2>&1; then
+                                docker rename "$PREVIOUS_CONTAINER_NAME" "$CONTAINER_NAME"
+                                docker start "$CONTAINER_NAME"
+                            fi
+
+                            exit 1
+                        fi
+
+                        docker rm -f "$PREVIOUS_CONTAINER_NAME" 2>/dev/null || true
+
+                        # 배포가 확정된 뒤에만 이미지를 정리한다.
+                        # 빌드마다 400MB짜리 태그가 쌓여 8GB 루트 디스크를 채우기 때문.
+                        # 현재 빌드와 직전 빌드는 롤백용으로 남기고 나머지 숫자 태그를
+                        # 지운다. 시간 기준(until=...)은 며칠 전 이미지를 놓치는 반면
+                        # 베이스 이미지를 지워버려서 쓰지 않는다. 정렬 기준도 쓰지 않는데,
+                        # 잡을 재생성하면 빌드 번호가 초기화되어 옛 태그가 최신으로
+                        # 잘못 판정되기 때문이다.
+                        docker images "$IMAGE_NAME" --format "{{.Tag}}" \
+                            | grep -E "^[0-9]+$" \
+                            | grep -vx "$BUILD_NUMBER" \
+                            | grep -vx "$((BUILD_NUMBER - 1))" \
+                            | xargs -r -I{} docker rmi "$IMAGE_NAME:{}" 2>/dev/null || true
+
+                        # 위 삭제로 참조를 잃은 중간 레이어 정리 (-a 없이: 태그된
+                        # 이미지는 건드리지 않으므로 베이스 이미지는 보존된다)
+                        docker image prune -f >/dev/null 2>&1 || true
+
+                        df -h / | tail -1
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                mattermostSend color: 'good',
+                message: "✅ 성공: ${env.JOB_NAME} #${env.BUILD_NUMBER} 빌드와 배포가 성공했습니다! (<${env.BUILD_URL}|빌드 결과 보기>)"
+            }
+        }
+        failure {
+            script {
+                mattermostSend color: 'danger',
+                message: "❌ 실패: ${env.JOB_NAME} #${env.BUILD_NUMBER} 빌드 또는 배포가 실패했습니다. 로그를 확인해주세요! (<${env.BUILD_URL}|빌드 결과 보기>)"
+            }
+        }
+    }
+}

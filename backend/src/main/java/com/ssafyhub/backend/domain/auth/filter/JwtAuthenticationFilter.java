@@ -1,0 +1,85 @@
+package com.ssafyhub.backend.domain.auth.filter;
+
+import com.ssafyhub.backend.domain.auth.security.CustomUserDetails;
+import com.ssafyhub.backend.domain.auth.support.JwtConstants;
+import com.ssafyhub.backend.domain.auth.support.TokenProvider;
+import com.ssafyhub.backend.domain.member.entity.Member;
+import com.ssafyhub.backend.domain.member.repository.MemberRepository;
+import com.ssafyhub.backend.global.error.BusinessException;
+import com.ssafyhub.backend.global.error.ErrorCode;
+import io.jsonwebtoken.Claims;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+@Component
+@RequiredArgsConstructor
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final TokenProvider tokenProvider;
+    private final MemberRepository memberRepository;
+
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
+        String accessToken = extractAccessToken(request);
+
+        if (accessToken == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        try {
+            Claims claims = tokenProvider.parseClaims(accessToken);
+
+            if (!JwtConstants.ACCESS_TOKEN_TYPE.equals(tokenProvider.getTokenType(claims))) {
+                throw new BusinessException(ErrorCode.INVALID_TOKEN);
+            }
+
+            Long memberId = tokenProvider.getMemberId(claims);
+
+            Member member = memberRepository.findById(memberId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_TOKEN));
+
+            CustomUserDetails userDetails = CustomUserDetails.from(member);
+
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        } catch (BusinessException e) {
+            SecurityContextHolder.clearContext();
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    private String extractAccessToken(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+
+        if (cookies == null) {
+            return null;
+        }
+
+        for (Cookie cookie : cookies) {
+            if (JwtConstants.ACCESS_TOKEN_COOKIE_NAME.equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+
+        return null;
+    }
+}

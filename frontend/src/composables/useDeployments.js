@@ -1,13 +1,15 @@
-import { ref } from "vue";
+import { ref, reactive, computed } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { 
-  fetchDeployments, 
-  getPresignedUrls, 
-  createDeployment as apiCreateDeployment 
+import {
+  fetchDeployments,
+  fetchMyDeployment,
+  getPresignedUrls,
+  createDeployment as apiCreateDeployment,
+  putFileToS3WithProgress,
 } from "../api/deployments";
 
 // 🚀 스펙 반영: 3초마다 호출
-const POLL_INTERVAL_MS = 3000; 
+const POLL_INTERVAL_MS = 3000;
 
 // 1. 목록 조회 및 상태 폴링 (기존 로직 업데이트)
 export function useDeployments() {
@@ -16,64 +18,130 @@ export function useDeployments() {
     queryFn: fetchDeployments,
     refetchInterval: (query) => {
       const deployments = query.state.data;
-      
+
       // 🚀 스펙 반영: status가 RUNNING 또는 FAILED가 되면 polling 멈춤
-      const hasInProgress = deployments?.some((d) => 
+      const hasInProgress = deployments?.some((d) =>
         d.status !== "RUNNING" && d.status !== "FAILED"
       );
-      
+
       return hasInProgress ? POLL_INTERVAL_MS : false;
     },
   });
 }
 
-// 2. 신규 추가: S3 직접 업로드 및 배포 실행 엔진
+// 1-1. 내 배포 상태 1건 조회 및 폴링 (사용자당 배포는 1개)
+export function useMyDeployment() {
+  return useQuery({
+    queryKey: ["deployments", "me"],
+    queryFn: fetchMyDeployment,
+    retry: false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      const inProgress = status && status !== "RUNNING" && status !== "FAILED";
+      return inProgress ? POLL_INTERVAL_MS : false;
+    },
+  });
+}
+
+// 2. S3 직접 업로드 + 진행률/재시도 지원 배포 실행 엔진
 export function useCreateDeployment() {
-  const isDeploying = ref(false);
+  // phase: idle | preparing | uploading | creating | done | error
+  const phase = ref("idle");
   const deployError = ref(null);
 
-  const executeDeploy = async ({
-    backendFile, frontendFile,
-    projectName, runtimeVersion, internalPort,
-    databaseName, databasePassword, envList
-  }) => {
-    isDeploying.value = true;
+  // 파일별 업로드 상태 (진행률 UI / 재시도 UI 의 데이터 소스)
+  const uploads = reactive({
+    backend: { label: "백엔드 JAR", name: "", progress: 0, status: "idle", error: null },
+    frontend: { label: "프론트엔드 ZIP", name: "", progress: 0, status: "idle", error: null },
+  });
+
+  // 재시도를 위해 마지막 요청 인자를 보관
+  let lastArgs = null;
+
+  const isDeploying = computed(() =>
+    ["preparing", "uploading", "creating"].includes(phase.value)
+  );
+  const hasError = computed(() => phase.value === "error");
+  // 업로드 단계에서 실패한 파일 목록
+  const failedUploads = computed(() =>
+    Object.entries(uploads)
+      .filter(([, u]) => u.status === "error")
+      .map(([key]) => key)
+  );
+
+  function resetUpload(entry, name) {
+    entry.name = name;
+    entry.progress = 0;
+    entry.status = "idle";
+    entry.error = null;
+  }
+
+  function reset() {
+    phase.value = "idle";
     deployError.value = null;
+    resetUpload(uploads.backend, "");
+    resetUpload(uploads.frontend, "");
+    lastArgs = null;
+  }
+
+  async function runDeploy(args) {
+    const {
+      backendFile, frontendFile,
+      projectName, runtimeVersion, internalPort,
+      databaseName, databasePassword, envList,
+      visibility, description,
+      simulateFailure = false,
+    } = args;
+
+    deployError.value = null;
+    resetUpload(uploads.backend, backendFile.name);
+    resetUpload(uploads.frontend, frontendFile.name);
 
     try {
-      // [STEP 1] Presigned URL 발급 (apiClient 사용)
+      // [STEP 1] Presigned URL 발급
+      phase.value = "preparing";
       const presignedRes = await getPresignedUrls(backendFile.name, frontendFile.name);
-      
-      // 백엔드 응답 구조(data.data)에 맞춰 꺼내기
       const { backendArtifact, frontendArtifact } = presignedRes.data;
 
-      // [STEP 2 & 3] S3 직접 업로드 (Mock 환경 대응 추가)
-      const uploadToS3 = async (url, file) => {
-        // 🌟 Mock URL일 경우 실제 fetch를 타지 않고 가상 업로드 성공 처리
-        if (url && url.includes("mock")) {
-          await new Promise((resolve) => setTimeout(resolve, 500)); // 0.5초 대기 흉내
-          return;
-        }
+      // [STEP 2] S3 업로드 (진행률 추적, 두 파일 병렬)
+      phase.value = "uploading";
 
-        const response = await fetch(url, {
-          method: "PUT",
-          body: file
-        });
-        
-        if (!response.ok) {
-          throw new Error(`[${file.name}] S3 업로드 실패`);
+      const uploadOne = async (entry, url, file, contentType, failThisOne) => {
+        entry.status = "uploading";
+        entry.error = null;
+        try {
+          await putFileToS3WithProgress(
+            url,
+            file,
+            (p) => { entry.progress = p; },
+            { simulateFailure: failThisOne, contentType }
+          );
+          entry.status = "success";
+        } catch (err) {
+          entry.status = "error";
+          entry.error = err.message || "업로드 실패";
+          throw err;
         }
-        return response;
       };
 
-      // Promise.all로 두 파일 동시 업로드 진행
-      await Promise.all([
-        uploadToS3(backendArtifact.uploadUrl, backendFile),
-        uploadToS3(frontendArtifact.uploadUrl, frontendFile)
+      // allSettled 로 두 파일을 모두 시도 → 부분 실패도 각 상태에 반영
+      // 명세: JAR → application/java-archive, ZIP → application/zip
+      const results = await Promise.allSettled([
+        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, "application/java-archive", false),
+        // 테스트용 실패 시뮬레이션은 프론트엔드 파일에만 적용
+        uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip", simulateFailure),
       ]);
 
-      // [STEP 4] 최종 배포 요청 생성
-      await apiCreateDeployment({
+      const rejected = results.find((r) => r.status === "rejected");
+      if (rejected) {
+        throw rejected.reason instanceof Error
+          ? rejected.reason
+          : new Error("파일 업로드에 실패했습니다.");
+      }
+
+      // [STEP 3] 최종 배포 요청 생성 (JAR/ZIP 업로드가 모두 성공한 뒤에만 호출)
+      phase.value = "creating";
+      const deployment = await apiCreateDeployment({
         projectName,
         backendArtifactId: backendArtifact.artifactId,
         frontendArtifactId: frontendArtifact.artifactId,
@@ -81,23 +149,42 @@ export function useCreateDeployment() {
         internalPort: Number(internalPort),
         databaseName,
         databasePassword,
-        env: envList
+        env: envList,
+        visibility,
+        description,
       });
 
-      return true;
-
+      phase.value = "done";
+      return deployment;
     } catch (error) {
       console.error("배포 프로세스 에러:", error);
       deployError.value = error.message || "배포 요청 중 알 수 없는 오류가 발생했습니다.";
+      phase.value = "error";
       throw error;
-    } finally {
-      isDeploying.value = false;
     }
+  }
+
+  // 최초 실행: 인자를 보관하고 실행
+  const executeDeploy = (args) => {
+    lastArgs = args;
+    return runDeploy(args);
+  };
+
+  // 재시도: 보관된 인자로 다시 실행 (없으면 무시)
+  const retry = () => {
+    if (!lastArgs) return Promise.resolve(false);
+    return runDeploy(lastArgs);
   };
 
   return {
+    phase,
+    uploads,
     isDeploying,
+    hasError,
+    failedUploads,
     deployError,
-    executeDeploy
+    executeDeploy,
+    retry,
+    reset,
   };
 }

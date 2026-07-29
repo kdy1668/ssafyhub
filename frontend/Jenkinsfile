@@ -1,0 +1,112 @@
+pipeline {
+    agent any
+
+    options {
+        skipDefaultCheckout(true)
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        // 동시 실행되면 두 빌드가 같은 S3 버킷에 --delete 로 sync 하면서
+        // 서로의 산출물을 지울 수 있다.
+        disableConcurrentBuilds()
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
+    tools {
+        nodejs 'NodeJS-20'
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = 'ap-northeast-2'
+        S3_BUCKET          = 'ssafyhub-frontend'
+        CLOUDFRONT_ID      = 'EPQDBF5RPG26E'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'GitLab에서 최신 코드를 가져오는 중입니다...'
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            environment {
+                // Vite는 빌드 시점에 값을 정적 치환하므로 반드시 여기서 주입해야 합니다.
+                // 배포 후에는 S3의 파일을 바꿔도 API 주소가 변경되지 않습니다.
+                //
+                // 빈 문자열 = 상대경로(same-origin). CloudFront의 /api/* behavior가
+                // ALB(api.ssafyhub.site)로 프록시하므로 브라우저에는 ssafyhub.site
+                // 한 오리진으로만 보입니다. 덕분에 CORS 설정이 필요 없습니다.
+                VITE_API_BASE_URL = ''
+                VITE_USE_MOCKS    = 'false'
+            }
+            steps {
+                echo 'Vite 프로덕션 빌드를 시작합니다...'
+                dir('frontend') {
+                    sh 'npm ci'
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                beforeAgent true
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+                // 모노레포이므로 백엔드만 바뀐 푸시에는 재배포하지 않는다.
+                // 수동 실행(Build Now)은 변경 내역과 무관하게 항상 배포한다 —
+                // 첫 빌드나 재배포 목적의 실행이 조용히 건너뛰어지지 않도록.
+                anyOf {
+                    changeset 'frontend/**'
+                    triggeredBy 'UserIdCause'
+                }
+            }
+            steps {
+                echo 'S3에 업로드하고 CloudFront 캐시를 무효화합니다...'
+                dir('frontend') {
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'ssafyhub-aws-deploy-key'
+                    ]]) {
+                        sh '''
+                            set -eu
+
+                            # 해시 파일명이 붙는 에셋 → 장기 캐시
+                            aws s3 sync ./dist "s3://$S3_BUCKET" --delete \
+                                --cache-control 'public,max-age=31536000,immutable' \
+                                --exclude 'index.html'
+
+                            # index.html → 캐시 금지 (안 하면 배포 후에도 옛 화면이 뜸)
+                            aws s3 cp ./dist/index.html "s3://$S3_BUCKET/index.html" \
+                                --cache-control 'no-cache,no-store,must-revalidate'
+
+                            aws cloudfront create-invalidation \
+                                --distribution-id "$CLOUDFRONT_ID" --paths '/*'
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                mattermostSend color: 'good',
+                message: "✅ 성공: ${env.JOB_NAME} #${env.BUILD_NUMBER} 프론트엔드 빌드와 배포가 성공했습니다! (<${env.BUILD_URL}|빌드 결과 보기>)"
+            }
+        }
+        failure {
+            script {
+                mattermostSend color: 'danger',
+                message: "❌ 실패: ${env.JOB_NAME} #${env.BUILD_NUMBER} 프론트엔드 빌드 또는 배포가 실패했습니다. 로그를 확인해주세요! (<${env.BUILD_URL}|빌드 결과 보기>)"
+            }
+        }
+        cleanup {
+            cleanWs()
+        }
+    }
+}

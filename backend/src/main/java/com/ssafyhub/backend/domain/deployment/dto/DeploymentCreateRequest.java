@@ -1,0 +1,67 @@
+package com.ssafyhub.backend.domain.deployment.dto;
+
+import com.ssafyhub.backend.domain.deployment.enums.Visibility;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import java.util.List;
+
+@Schema(description = "배포 생성 요청")
+public record DeploymentCreateRequest(
+        @Schema(description = "프로젝트 이름", example = "ssafyhub-showcase")
+        @NotBlank(message = "프로젝트 이름은 필수입니다.")
+        @Size(max = 100, message = "프로젝트 이름은 100자를 초과할 수 없습니다.")
+        String projectName,
+
+        @Schema(description = "사전에 발급받은 백엔드 산출물 Artifact ID", example = "1")
+        @NotNull(message = "백엔드 Artifact ID는 필수입니다.")
+        @Positive(message = "백엔드 Artifact ID는 양수여야 합니다.")
+        Long backendArtifactId,
+
+        @Schema(description = "사전에 발급받은 프론트엔드 산출물 Artifact ID", example = "2")
+        @NotNull(message = "프론트엔드 Artifact ID는 필수입니다.")
+        @Positive(message = "프론트엔드 Artifact ID는 양수여야 합니다.")
+        Long frontendArtifactId,
+
+        @Schema(description = "Java 실행 버전 (지원 버전: 17, 21)", example = "21")
+        @NotBlank(message = "Java 실행 버전은 필수입니다.")
+        String runtimeVersion,
+
+        @Schema(description = "애플리케이션 내부 포트", example = "8080")
+        @Min(value = 1, message = "내부 포트는 1 이상이어야 합니다.")
+        @Max(value = 65535, message = "내부 포트는 65535 이하여야 합니다.")
+        int internalPort,
+
+        @Schema(description = "데이터베이스 이름 (영문 시작, 영문/숫자/언더스코어)", example = "ssafyhub_db")
+        @NotBlank(message = "데이터베이스 이름은 필수입니다.")
+        @Size(max = 100, message = "데이터베이스 이름은 100자를 초과할 수 없습니다.")
+        @Pattern(
+                regexp = "^[A-Za-z][A-Za-z0-9_]{0,99}$",
+                message = "데이터베이스 이름은 영문자로 시작하고 영문, 숫자, 언더스코어만 사용할 수 있습니다."
+        )
+        String databaseName,
+
+        @Schema(description = "데이터베이스 비밀번호", example = "dbPassword123")
+        @NotBlank(message = "데이터베이스 비밀번호는 필수입니다.")
+        @Size(max = 200, message = "데이터베이스 비밀번호는 200자를 초과할 수 없습니다.")
+        String databasePassword,
+
+        @Schema(description = "환경변수 목록 (1개 이상 20개 이하)")
+        @NotNull(message = "환경변수 목록은 필수입니다.")
+        @Size(min = 1, max = 20, message = "환경변수는 1개 이상 20개 이하로 입력해주세요.")
+        List<@Valid DeploymentEnvRequest> env,
+
+        @Schema(description = "공개 여부. 미입력 시 서비스 기본값 적용", example = "PUBLIC")
+        Visibility visibility,
+
+        @Schema(description = "서비스 설명", example = "SSAFYHUB 쇼케이스 데모 서비스입니다.")
+        @Size(max = 2000, message = "설명은 2000자를 초과할 수 없습니다.")
+        String description
+) {
+}

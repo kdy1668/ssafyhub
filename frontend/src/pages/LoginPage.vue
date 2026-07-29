@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, ref } from "vue";
 import { RouterLink, useRoute, useRouter } from "vue-router";
+import BrandBar from "../components/common/BrandBar.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import BaseInput from "../components/common/BaseInput.vue";
 import BaseButton from "../components/common/BaseButton.vue";
@@ -47,7 +48,9 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-background px-4">
+  <div class="min-h-screen bg-background font-sans antialiased">
+    <BrandBar />
+    <div class="flex items-center justify-center px-4 py-16">
     <BaseCard class="w-full max-w-sm p-6">
       <h1 class="mb-6 text-center text-lg font-semibold text-ink-900">로그인</h1>
       <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
@@ -82,5 +85,6 @@ async function handleSubmit() {
         </RouterLink>
       </p>
     </BaseCard>
+    </div>
   </div>
 </template>

@@ -20,18 +20,12 @@ const envVars = computed(() => (props.values.envVars || []).filter((v) => v.key)
         <dd class="text-ink-900">{{ values.projectName || "-" }}</dd>
       </div>
       <div class="flex justify-between border-b border-border pb-2">
-        <dt class="font-medium text-ink-700">소스</dt>
-        <dd class="text-ink-900">
-          {{ values.sourceType === "github" ? values.githubUrl || "-" : values.sourceFileName || "-" }}
-        </dd>
+        <dt class="font-medium text-ink-700">공개 범위</dt>
+        <dd class="text-ink-900">{{ values.visibility || "-" }}</dd>
       </div>
       <div class="flex justify-between border-b border-border pb-2">
-        <dt class="font-medium text-ink-700">언어/프레임워크</dt>
-        <dd class="text-ink-900">{{ values.framework || "-" }}</dd>
-      </div>
-      <div class="flex justify-between border-b border-border pb-2">
-        <dt class="font-medium text-ink-700">DB 비밀번호</dt>
-        <dd class="text-ink-900">{{ values.dbPassword ? "•".repeat(8) : "-" }}</dd>
+        <dt class="font-medium text-ink-700">설명</dt>
+        <dd class="text-ink-900 text-right whitespace-pre-wrap">{{ values.description || "-" }}</dd>
       </div>
       <div>
         <dt class="mb-1 font-medium text-ink-700">환경변수</dt>
