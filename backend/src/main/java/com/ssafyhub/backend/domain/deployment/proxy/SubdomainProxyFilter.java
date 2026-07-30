@@ -1,0 +1,145 @@
+package com.ssafyhub.backend.domain.deployment.proxy;
+
+import com.ssafyhub.backend.domain.deployment.entity.Deployment;
+import com.ssafyhub.backend.domain.deployment.repository.DeploymentRepository;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.Collections;
+import java.util.Optional;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.util.StreamUtils;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+/**
+ * {slug}.ssafyhub.site 로 들어온 요청을 그 배포의 endpoint_url(E206 Traefik)로 리버스 프록시한다.
+ * (slug = 학번. 예: 1559989.ssafyhub.site → http://13.124.149.32:443/team-{해시}/1559989/...)
+ *
+ * - Host가 학번 서브도메인이 아니면(apex/www/api/미지 서브도메인) 그대로 통과시켜 메인 API가 처리한다.
+ * - Spring Security보다 먼저 실행되도록 등록한다(SubdomainProxyConfig). 배포된 사용자 앱에 ssafyhub의
+ *   인증/CSRF를 강제하지 않기 위함.
+ *
+ * 한계(단순 API 프록시 전제): WebSocket 미지원, 요청 바디는 메모리에 버퍼링, 요청당 스레드 1개 점유(블로킹).
+ * 스트리밍/WS/부하가 필요해지면 Spring Cloud Gateway로 대체할 것.
+ */
+public class SubdomainProxyFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(SubdomainProxyFilter.class);
+
+    // 업스트림으로 넘기면 안 되는 요청 헤더(hop-by-hop) + 압축 유발 방지(accept-encoding).
+    private static final Set<String> REQUEST_SKIP = Set.of(
+            "host", "connection", "content-length", "transfer-encoding", "keep-alive",
+            "upgrade", "te", "trailer", "proxy-authenticate", "proxy-authorization",
+            "expect", "accept-encoding");
+    // 클라이언트로 되돌리면 안 되는 응답 헤더(컨테이너가 관리).
+    private static final Set<String> RESPONSE_SKIP = Set.of(
+            "connection", "content-length", "transfer-encoding", "keep-alive",
+            "upgrade", "trailer");
+    // www 등 예약 서브도메인은 프록시 대상에서 제외(메인이 처리).
+    private static final Set<String> RESERVED_LABELS = Set.of("www", "api", "admin");
+
+    private final DeploymentRepository deploymentRepository;
+    private final String publicDomain;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .build();
+
+    public SubdomainProxyFilter(DeploymentRepository deploymentRepository, String publicDomain) {
+        this.deploymentRepository = deploymentRepository;
+        this.publicDomain = publicDomain;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
+        String slug = extractSubdomainSlug(request.getServerName());
+        if (slug == null) {
+            chain.doFilter(request, response); // 서브도메인 아님 → 메인 API 정상 처리
+            return;
+        }
+
+        Optional<Deployment> deployment = deploymentRepository.findBySlug(slug);
+        if (deployment.isEmpty()) {
+            chain.doFilter(request, response); // 알 수 없는 서브도메인 → 메인으로 넘김
+            return;
+        }
+
+        String endpointUrl = deployment.get().getEndpointUrl();
+        if (endpointUrl == null || endpointUrl.isBlank()) {
+            response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "아직 배포가 준비되지 않았습니다.");
+            return;
+        }
+
+        proxy(request, response, endpointUrl);
+    }
+
+    /** host가 "{label}.{publicDomain}" 이고 label이 예약어가 아니면 label(slug)을 돌려준다. 아니면 null. */
+    private String extractSubdomainSlug(String host) {
+        if (host == null) {
+            return null;
+        }
+        String suffix = "." + publicDomain; // .ssafyhub.site
+        if (!host.endsWith(suffix) || host.length() == suffix.length()) {
+            return null; // apex(ssafyhub.site) 또는 다른 도메인
+        }
+        String label = host.substring(0, host.length() - suffix.length());
+        if (label.isEmpty() || label.contains(".") || RESERVED_LABELS.contains(label)) {
+            return null; // 다중 라벨(a.b.ssafyhub.site)/예약 서브도메인 제외
+        }
+        return label;
+    }
+
+    private void proxy(HttpServletRequest request, HttpServletResponse response, String base) throws IOException {
+        String query = request.getQueryString();
+        String target = base + request.getRequestURI() + (query != null ? "?" + query : "");
+        try {
+            byte[] body = StreamUtils.copyToByteArray(request.getInputStream());
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(target))
+                    .timeout(Duration.ofSeconds(30))
+                    .method(request.getMethod(), body.length == 0
+                            ? HttpRequest.BodyPublishers.noBody()
+                            : HttpRequest.BodyPublishers.ofByteArray(body));
+
+            Collections.list(request.getHeaderNames()).forEach(name -> {
+                if (!REQUEST_SKIP.contains(name.toLowerCase())) {
+                    // JDK HttpClient가 일부 헤더 설정을 막을 수 있어(제한 헤더) 방어적으로 무시.
+                    try {
+                        builder.header(name, request.getHeader(name));
+                    } catch (IllegalArgumentException ignored) {
+                        // 설정 불가 헤더는 건너뜀
+                    }
+                }
+            });
+
+            HttpResponse<InputStream> upstream = httpClient.send(builder.build(),
+                    HttpResponse.BodyHandlers.ofInputStream());
+
+            response.setStatus(upstream.statusCode());
+            upstream.headers().map().forEach((key, values) -> {
+                if (!RESPONSE_SKIP.contains(key.toLowerCase())) {
+                    values.forEach(value -> response.addHeader(key, value));
+                }
+            });
+            try (InputStream in = upstream.body()) {
+                StreamUtils.copy(in, response.getOutputStream());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            response.sendError(HttpServletResponse.SC_BAD_GATEWAY, "업스트림 연결 중단");
+        } catch (IOException e) {
+            log.warn("서브도메인 프록시 실패 target={} : {}", target, e.getMessage());
+            response.sendError(HttpServletResponse.SC_BAD_GATEWAY, "업스트림 연결 실패");
+        }
+    }
+}
