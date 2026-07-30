@@ -78,6 +78,9 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/members/signup").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/reissue").permitAll()
+                        // 로그아웃은 accessToken이 만료된 상태에서도 쿠키를 정리할 수 있어야 하므로 permitAll.
+                        // (인증을 요구하면 401 → 재발급 실패 → 재로그아웃 시도가 반복될 수 있다)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/showcase/public").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/showcase/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()

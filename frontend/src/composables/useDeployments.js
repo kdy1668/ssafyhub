@@ -90,7 +90,6 @@ export function useCreateDeployment() {
       projectName, runtimeVersion, internalPort,
       databaseName, databasePassword, envList,
       visibility, description,
-      simulateFailure = false,
     } = args;
 
     deployError.value = null;
@@ -106,7 +105,7 @@ export function useCreateDeployment() {
       // [STEP 2] S3 업로드 (진행률 추적, 두 파일 병렬)
       phase.value = "uploading";
 
-      const uploadOne = async (entry, url, file, contentType, failThisOne) => {
+      const uploadOne = async (entry, url, file, contentType) => {
         entry.status = "uploading";
         entry.error = null;
         try {
@@ -114,7 +113,7 @@ export function useCreateDeployment() {
             url,
             file,
             (p) => { entry.progress = p; },
-            { simulateFailure: failThisOne, contentType }
+            { contentType }
           );
           entry.status = "success";
         } catch (err) {
@@ -127,9 +126,8 @@ export function useCreateDeployment() {
       // allSettled 로 두 파일을 모두 시도 → 부분 실패도 각 상태에 반영
       // 명세: JAR → application/java-archive, ZIP → application/zip
       const results = await Promise.allSettled([
-        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, "application/java-archive", false),
-        // 테스트용 실패 시뮬레이션은 프론트엔드 파일에만 적용
-        uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip", simulateFailure),
+        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, "application/java-archive"),
+        uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip"),
       ]);
 
       const rejected = results.find((r) => r.status === "rejected");

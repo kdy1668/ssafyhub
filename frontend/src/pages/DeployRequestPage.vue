@@ -40,9 +40,6 @@ const {
   hasError,
 } = useCreateDeployment();
 
-// 테스트용: 업로드 실패/재시도 화면을 확인하기 위한 실패 시뮬레이션 토글
-const simulateFailure = ref(false);
-
 // S3에 직접 올릴 파일 상태
 const backendFile = ref(null);
 const frontendFile = ref(null);
@@ -150,7 +147,6 @@ function buildPayload() {
     envList: form.envVars.filter((v) => v.key && v.value),
     visibility: form.visibility,
     description: form.description,
-    simulateFailure: simulateFailure.value,
   };
 }
 
@@ -331,12 +327,6 @@ async function handleRetry() {
             :phase="phase"
             @retry="handleRetry"
           />
-
-          <!-- 테스트용: 업로드 실패 시뮬레이션 토글 -->
-          <label class="flex cursor-pointer items-center gap-2 text-xs text-ink-500">
-            <input type="checkbox" v-model="simulateFailure" class="accent-danger" />
-            업로드 실패 시뮬레이션 (테스트용 — 체크 시 프론트엔드 업로드가 실패합니다)
-          </label>
 
           <!-- 하단 버튼 액션 영역 -->
           <div class="mt-2 flex items-center justify-end gap-3 border-t border-border pt-6">
