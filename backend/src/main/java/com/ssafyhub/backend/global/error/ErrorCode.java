@@ -50,7 +50,7 @@ public enum ErrorCode {
     DEPLOYMENT_DELETE_FAILED(HttpStatus.BAD_GATEWAY, "DEPLOYMENT_005", "배포 리소스 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요."),
     DATABASE_PASSWORD_REQUIRED(HttpStatus.BAD_REQUEST, "DEPLOYMENT_006", "데이터베이스 이름을 입력했다면 비밀번호도 함께 입력해야 합니다."),
     UNSUPPORTED_NEEDED_SERVICE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_007", "지원하지 않는 백킹서비스입니다. (지원: REDIS, MONGODB)"),
-    UNSUPPORTED_DATABASE_ENGINE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_008", "지원하지 않는 데이터베이스 엔진입니다. (지원: MYSQL, POSTGRES)"),
+    UNSUPPORTED_DATABASE_ENGINE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_008", "지원하지 않는 데이터베이스 엔진입니다. (지원: MYSQL)"),
     SCHEMA_REQUIRES_DATABASE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_009", "DB 초기화 SQL 파일은 데이터베이스를 선택했을 때만 사용할 수 있습니다."),
     UNSUPPORTED_STACK(HttpStatus.BAD_REQUEST, "DEPLOYMENT_010",
             "지원하지 않는 언어/프레임워크입니다. (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, EXPRESS)"),
