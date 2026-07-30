@@ -40,8 +40,12 @@ public class ArtifactService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
 
-        String backendFileName = validateFileName(request.backendFileName(), ".jar", ErrorCode.INVALID_BACKEND_FILE);
-        String frontendFileName = validateFileName(request.frontendFileName(), ".zip", ErrorCode.INVALID_FRONTEND_FILE);
+        // 백엔드 아티팩트: .jar(플랫폼이 표준 Dockerfile 자동 생성) 또는 .zip(사용자 Dockerfile 포함,
+        // 언어 무관 BYO 빌드) 둘 다 허용.
+        String backendFileName = validateFileName(
+                request.backendFileName(), List.of(".jar", ".zip"), ErrorCode.INVALID_BACKEND_FILE);
+        String frontendFileName = validateFileName(
+                request.frontendFileName(), List.of(".zip"), ErrorCode.INVALID_FRONTEND_FILE);
 
         String requestId = UUID.randomUUID().toString();
         String backendObjectKey = createObjectKey(memberId, requestId, "backend", backendFileName);
@@ -78,14 +82,16 @@ public class ArtifactService {
         );
     }
 
-    private String validateFileName(String rawFileName, String requiredExtension, ErrorCode extensionError) {
+    private String validateFileName(String rawFileName, List<String> allowedExtensions, ErrorCode extensionError) {
         String fileName = rawFileName.trim();
 
         if (fileName.contains("/") || fileName.contains("\\") || fileName.indexOf('\0') >= 0) {
             throw new BusinessException(ErrorCode.INVALID_FILE_NAME);
         }
 
-        if (!fileName.toLowerCase(Locale.ROOT).endsWith(requiredExtension)) {
+        String lowerFileName = fileName.toLowerCase(Locale.ROOT);
+        boolean matchesAny = allowedExtensions.stream().anyMatch(lowerFileName::endsWith);
+        if (!matchesAny) {
             throw new BusinessException(extensionError);
         }
 

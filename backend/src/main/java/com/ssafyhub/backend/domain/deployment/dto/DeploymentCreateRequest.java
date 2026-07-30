@@ -38,19 +38,23 @@ public record DeploymentCreateRequest(
         @Max(value = 65535, message = "내부 포트는 65535 이하여야 합니다.")
         int internalPort,
 
-        @Schema(description = "데이터베이스 이름 (영문 시작, 영문/숫자/언더스코어)", example = "ssafyhub_db")
-        @NotBlank(message = "데이터베이스 이름은 필수입니다.")
+        @Schema(description = "데이터베이스 이름 (영문 시작, 영문/숫자/언더스코어). DB가 필요 없는 앱이면 비워두세요.",
+                example = "ssafyhub_db", nullable = true)
         @Size(max = 100, message = "데이터베이스 이름은 100자를 초과할 수 없습니다.")
         @Pattern(
-                regexp = "^[A-Za-z][A-Za-z0-9_]{0,99}$",
+                regexp = "^$|^[A-Za-z][A-Za-z0-9_]{0,99}$",
                 message = "데이터베이스 이름은 영문자로 시작하고 영문, 숫자, 언더스코어만 사용할 수 있습니다."
         )
         String databaseName,
 
-        @Schema(description = "데이터베이스 비밀번호", example = "dbPassword123")
-        @NotBlank(message = "데이터베이스 비밀번호는 필수입니다.")
+        @Schema(description = "데이터베이스 비밀번호. databaseName을 입력한 경우에만 필수입니다.",
+                example = "dbPassword123", nullable = true)
         @Size(max = 200, message = "데이터베이스 비밀번호는 200자를 초과할 수 없습니다.")
         String databasePassword,
+
+        @Schema(description = "MySQL 외에 추가로 필요한 백킹서비스 목록 (현재 지원: REDIS). 필요 없으면 비워두세요.",
+                example = "[\"REDIS\"]", nullable = true)
+        List<String> neededServices,
 
         @Schema(description = "환경변수 목록 (1개 이상 20개 이하)")
         @NotNull(message = "환경변수 목록은 필수입니다.")

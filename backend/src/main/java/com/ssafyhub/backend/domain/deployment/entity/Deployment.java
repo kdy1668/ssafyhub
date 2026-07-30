@@ -84,11 +84,16 @@ public class Deployment {
     @Column(name = "internal_port", nullable = false)
     private int internalPort;
 
-    @Column(name = "database_name", nullable = false, length = 100)
+    // DB가 필요 없는 앱(SQLite 내장형 등)도 있어서 nullable - null이면 "DB 프로비저닝 안 함"을 뜻한다.
+    @Column(name = "database_name", length = 100)
     private String databaseName;
 
-    @Column(name = "encrypted_database_password", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "encrypted_database_password", columnDefinition = "TEXT")
     private String encryptedDatabasePassword;
+
+    // MySQL 외에 추가로 필요한 백킹서비스, 콤마 구분 문자열(예: "REDIS"). 없으면 null.
+    @Column(name = "needed_services", length = 200)
+    private String neededServices;
 
     @Column(name = "endpoint_url", length = 500)
     private String endpointUrl;
@@ -122,6 +127,7 @@ public class Deployment {
             int internalPort,
             String databaseName,
             String encryptedDatabasePassword,
+            String neededServices,
             LocalDateTime requestedAt,
             Visibility visibility,
             String description
@@ -135,6 +141,7 @@ public class Deployment {
         this.internalPort = internalPort;
         this.databaseName = databaseName;
         this.encryptedDatabasePassword = encryptedDatabasePassword;
+        this.neededServices = neededServices;
         this.requestedAt = requestedAt;
         this.visibility = (visibility != null) ? visibility : Visibility.PRIVATE;
         this.description = description;

@@ -30,7 +30,7 @@ public class ArtifactController {
 
     @Operation(
             summary = "산출물 업로드용 Presigned URL 발급",
-            description = "백엔드(.jar)/프론트엔드(.zip) 산출물을 S3에 직접 업로드할 수 있는 Presigned URL을 발급합니다."
+            description = "백엔드(.jar 또는 Dockerfile 포함 .zip)/프론트엔드(.zip) 산출물을 S3에 직접 업로드할 수 있는 Presigned URL을 발급합니다."
     )
     @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
     @SecurityRequirement(name = OpenApiConfig.CSRF_TOKEN_AUTH)
