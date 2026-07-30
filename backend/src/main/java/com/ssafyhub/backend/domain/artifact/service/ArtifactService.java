@@ -40,9 +40,9 @@ public class ArtifactService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
 
-        // 백엔드/프론트엔드 아티팩트 모두 .zip(Dockerfile 포함, 언어/프레임워크 무관 BYO 빌드)만 허용.
+        // 백엔드: .jar(플랫폼이 표준 Dockerfile 자동 생성) 또는 .zip(Dockerfile 포함 BYO 빌드) 둘 다 허용.
         String backendFileName = validateFileName(
-                request.backendFileName(), List.of(".zip"), ErrorCode.INVALID_BACKEND_FILE);
+                request.backendFileName(), List.of(".jar", ".zip"), ErrorCode.INVALID_BACKEND_FILE);
         String frontendFileName = validateFileName(
                 request.frontendFileName(), List.of(".zip"), ErrorCode.INVALID_FRONTEND_FILE);
 
@@ -69,14 +69,40 @@ public class ArtifactService {
                 expiresAt
         );
 
-        artifactRepository.saveAll(List.of(backendArtifact, frontendArtifact));
+        // DB 초기화 SQL은 선택 사항 - MyBatis 등 자동 테이블 생성이 안 되는 프레임워크를 쓸 때만 보낸다.
+        boolean needsSchema = request.schemaFileName() != null && !request.schemaFileName().isBlank();
+        Artifact schemaArtifact = null;
+        if (needsSchema) {
+            String schemaFileName = validateFileName(
+                    request.schemaFileName(), List.of(".sql"), ErrorCode.INVALID_SCHEMA_FILE);
+            String schemaObjectKey = createObjectKey(memberId, requestId, "schema", schemaFileName);
+            schemaArtifact = new Artifact(
+                    member,
+                    ArtifactType.SCHEMA_SQL,
+                    schemaFileName,
+                    bucket,
+                    schemaObjectKey,
+                    expiresAt
+            );
+        }
+
+        List<Artifact> artifacts = needsSchema
+                ? List.of(backendArtifact, frontendArtifact, schemaArtifact)
+                : List.of(backendArtifact, frontendArtifact);
+        artifactRepository.saveAll(artifacts);
 
         String backendUploadUrl = createUploadUrl(backendObjectKey, signatureDuration);
         String frontendUploadUrl = createUploadUrl(frontendObjectKey, signatureDuration);
+        ArtifactUploadResponse schemaUploadResponse = null;
+        if (needsSchema) {
+            String schemaUploadUrl = createUploadUrl(schemaArtifact.getObjectKey(), signatureDuration);
+            schemaUploadResponse = new ArtifactUploadResponse(schemaArtifact.getId(), schemaUploadUrl);
+        }
 
         return new PresignedUrlResponse(
                 new ArtifactUploadResponse(backendArtifact.getId(), backendUploadUrl),
                 new ArtifactUploadResponse(frontendArtifact.getId(), frontendUploadUrl),
+                schemaUploadResponse,
                 expiresAt
         );
     }

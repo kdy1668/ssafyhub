@@ -51,10 +51,12 @@ export async function fetchDeploymentLogs(deploymentId) {
 }
 
 // presignedRes.data 구조에 맞게 { data: { ... } } 형태를 그대로 반환한다.
-export async function getPresignedUrls(backendFileName, frontendFileName) {
+// schemaFileName은 선택 - MyBatis 등 자동 테이블 생성이 안 되는 프레임워크를 쓸 때만 넘긴다.
+export async function getPresignedUrls(backendFileName, frontendFileName, schemaFileName) {
   const { data } = await apiClient.post("/api/v1/artifacts/presigned-urls", {
     backendFileName,
     frontendFileName,
+    schemaFileName: schemaFileName || undefined,
   });
   return data;
 }

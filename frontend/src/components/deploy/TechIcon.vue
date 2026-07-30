@@ -1,0 +1,56 @@
+<script setup>
+// 배포 신청 화면의 DB/백킹서비스 선택 카드용 아이콘.
+// 실제 제품 로고 대신 색상 + 추상 아이콘으로 기술을 구분한다(상표 문제 회피 + 유지보수 단순화).
+const props = defineProps({
+  kind: { type: String, required: true }, // none | mysql | postgres | redis | mongodb
+});
+
+const PALETTE = {
+  none: { bg: "#F1F5F9", fg: "#94A3B8" },
+  mysql: { bg: "#E7F3FE", fg: "#00618A" },
+  postgres: { bg: "#EAF0FF", fg: "#336791" },
+  redis: { bg: "#FCE8E6", fg: "#C5221F" },
+  mongodb: { bg: "#E6F4EA", fg: "#12924F" },
+};
+
+const colors = PALETTE[props.kind] || PALETTE.none;
+</script>
+
+<template>
+  <span
+    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+    :style="{ backgroundColor: colors.bg }"
+  >
+    <!-- 사용 안 함 -->
+    <svg v-if="kind === 'none'" viewBox="0 0 24 24" class="h-5 w-5" fill="none" :stroke="colors.fg" stroke-width="2">
+      <circle cx="12" cy="12" r="9" />
+      <line x1="7" y1="7" x2="17" y2="17" />
+    </svg>
+
+    <!-- MySQL / PostgreSQL: 원통형 DB 아이콘(색상으로 구분) -->
+    <svg
+      v-else-if="kind === 'mysql' || kind === 'postgres'"
+      viewBox="0 0 24 24" class="h-5 w-5" fill="none" :stroke="colors.fg" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round"
+    >
+      <ellipse cx="12" cy="6" rx="7" ry="3" />
+      <path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6" />
+      <path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6" />
+    </svg>
+
+    <!-- Redis: 번개(캐시/속도) -->
+    <svg v-else-if="kind === 'redis'" viewBox="0 0 24 24" class="h-5 w-5" :fill="colors.fg">
+      <path d="M13 2 3 14h7l-1 8 11-14h-8z" />
+    </svg>
+
+    <!-- MongoDB: 잎사귀(문서형 DB) -->
+    <svg
+      v-else-if="kind === 'mongodb'"
+      viewBox="0 0 24 24" class="h-5 w-5" fill="none" :stroke="colors.fg" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round"
+    >
+      <path d="M12 3c4 3 6 7 6 11a6 6 0 0 1-12 0c0-4 2-8 6-11z" />
+      <line x1="12" y1="14" x2="12" y2="21" />
+    </svg>
+  </span>
+</template>

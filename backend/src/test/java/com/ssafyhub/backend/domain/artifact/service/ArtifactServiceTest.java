@@ -68,7 +68,7 @@ class ArtifactServiceTest {
 
         PresignedUrlResponse response = artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest(" app.ZIP ", " dist.ZIP ")
+                new PresignedUrlRequest(" app.ZIP ", " dist.ZIP ", null)
         );
 
         assertThat(response.backendArtifact().artifactId()).isEqualTo(10L);
@@ -95,13 +95,13 @@ class ArtifactServiceTest {
     }
 
     @Test
-    void 백엔드_파일이_ZIP이_아니면_거부한다() {
+    void 백엔드_파일이_JAR도_ZIP도_아니면_거부한다() {
         given(memberRepository.findById(1L))
                 .willReturn(Optional.of(new Member("1551343", "hash", "홍길동", "E206")));
 
         assertThatThrownBy(() -> artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest("app.jar", "dist.zip")
+                new PresignedUrlRequest("app.exe", "dist.zip", null)
         ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
@@ -117,11 +117,25 @@ class ArtifactServiceTest {
 
         assertThatThrownBy(() -> artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest("app.zip", "dist.jar")
+                new PresignedUrlRequest("app.zip", "dist.jar", null)
         ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_FRONTEND_FILE);
+    }
+
+    @Test
+    void 스키마_SQL_파일이_sql이_아니면_거부한다() {
+        given(memberRepository.findById(1L))
+                .willReturn(Optional.of(new Member("1551343", "hash", "홍길동", "E206")));
+
+        assertThatThrownBy(() -> artifactService.issuePresignedUrls(
+                1L,
+                new PresignedUrlRequest("app.jar", "dist.zip", "schema.txt")
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_SCHEMA_FILE);
     }
 
     @Test
@@ -131,7 +145,7 @@ class ArtifactServiceTest {
 
         assertThatThrownBy(() -> artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest("../app.jar", "dist.zip")
+                new PresignedUrlRequest("../app.jar", "dist.zip", null)
         ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
@@ -144,7 +158,7 @@ class ArtifactServiceTest {
 
         assertThatThrownBy(() -> artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest("app.jar", "dist.zip")
+                new PresignedUrlRequest("app.jar", "dist.zip", null)
         ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())

@@ -91,7 +91,20 @@ public class Deployment {
     @Column(name = "encrypted_database_password", columnDefinition = "TEXT")
     private String encryptedDatabasePassword;
 
-    // MySQL 외에 추가로 필요한 백킹서비스, 콤마 구분 문자열(예: "REDIS"). 없으면 null.
+    // 관계형 DB 엔진("MYSQL"/"POSTGRES"). databaseName이 있는데 이 값이 없는 과거 데이터는
+    // "MYSQL"로 간주한다(getEffectiveDatabaseEngine 참고).
+    @Column(name = "database_engine", length = 20)
+    private String databaseEngine;
+
+    // DB 초기화(테이블 생성) SQL - MyBatis 등 자동 생성이 안 되는 프레임워크를 쓸 때만 선택 업로드.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "schema_artifact_id",
+            foreignKey = @ForeignKey(name = "fk_deployments_schema_artifact")
+    )
+    private Artifact schemaArtifact;
+
+    // MySQL/PostgreSQL 외에 추가로 필요한 백킹서비스, 콤마 구분 문자열(예: "REDIS,MONGODB"). 없으면 null.
     @Column(name = "needed_services", length = 200)
     private String neededServices;
 
@@ -127,6 +140,8 @@ public class Deployment {
             int internalPort,
             String databaseName,
             String encryptedDatabasePassword,
+            String databaseEngine,
+            Artifact schemaArtifact,
             String neededServices,
             LocalDateTime requestedAt,
             Visibility visibility,
@@ -141,10 +156,20 @@ public class Deployment {
         this.internalPort = internalPort;
         this.databaseName = databaseName;
         this.encryptedDatabasePassword = encryptedDatabasePassword;
+        this.databaseEngine = databaseEngine;
+        this.schemaArtifact = schemaArtifact;
         this.neededServices = neededServices;
         this.requestedAt = requestedAt;
         this.visibility = (visibility != null) ? visibility : Visibility.PRIVATE;
         this.description = description;
+    }
+
+    /** databaseName이 있는데 엔진이 비어 있는 과거 데이터는 MYSQL로 간주한다. */
+    public String getEffectiveDatabaseEngine() {
+        if (databaseName == null || databaseName.isBlank()) {
+            return null;
+        }
+        return (databaseEngine == null || databaseEngine.isBlank()) ? "MYSQL" : databaseEngine;
     }
 
     public void changeVisibility(Visibility visibility) {
