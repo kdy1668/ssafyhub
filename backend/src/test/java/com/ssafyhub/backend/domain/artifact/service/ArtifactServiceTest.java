@@ -54,7 +54,7 @@ class ArtifactServiceTest {
     }
 
     @Test
-    void JAR과_ZIP의_업로드_URL을_발급하고_메타데이터를_저장한다() {
+    void 백엔드와_프론트엔드_ZIP의_업로드_URL을_발급하고_메타데이터를_저장한다() {
         Member member = new Member("1551343", "hash", "홍길동", "E206");
         given(memberRepository.findById(1L)).willReturn(Optional.of(member));
         given(artifactRepository.saveAll(any())).willAnswer(invocation -> {
@@ -68,7 +68,7 @@ class ArtifactServiceTest {
 
         PresignedUrlResponse response = artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest(" app.JAR ", " dist.ZIP ")
+                new PresignedUrlRequest(" app.ZIP ", " dist.ZIP ")
         );
 
         assertThat(response.backendArtifact().artifactId()).isEqualTo(10L);
@@ -89,19 +89,19 @@ class ArtifactServiceTest {
         assertThat(artifacts)
                 .extracting(Artifact::getBucket)
                 .containsOnly("test-bucket");
-        assertThat(artifacts.get(0).getObjectKey()).contains("artifacts/1/").endsWith("/backend/app.JAR");
+        assertThat(artifacts.get(0).getObjectKey()).contains("artifacts/1/").endsWith("/backend/app.ZIP");
         assertThat(artifacts.get(1).getObjectKey()).contains("artifacts/1/").endsWith("/frontend/dist.ZIP");
         assertThat(artifacts.get(0).getExpiresAt()).isEqualTo(artifacts.get(1).getExpiresAt());
     }
 
     @Test
-    void 백엔드_파일이_JAR이_아니면_거부한다() {
+    void 백엔드_파일이_ZIP이_아니면_거부한다() {
         given(memberRepository.findById(1L))
                 .willReturn(Optional.of(new Member("1551343", "hash", "홍길동", "E206")));
 
         assertThatThrownBy(() -> artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest("app.zip", "dist.zip")
+                new PresignedUrlRequest("app.jar", "dist.zip")
         ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
@@ -117,7 +117,7 @@ class ArtifactServiceTest {
 
         assertThatThrownBy(() -> artifactService.issuePresignedUrls(
                 1L,
-                new PresignedUrlRequest("app.jar", "dist.jar")
+                new PresignedUrlRequest("app.zip", "dist.jar")
         ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())

@@ -32,7 +32,6 @@ aws:
     presigned-url-expiration-minutes: ${AWS_S3_PRESIGNED_URL_EXPIRATION_MINUTES:10}
 
 deployment:
-  supported-runtime-versions: ${SUPPORTED_RUNTIME_VERSIONS:17,21}
   public-domain: ${DEPLOYMENT_PUBLIC_DOMAIN:ssafyhub.site}
   outbox:
     polling-delay-ms: ${DEPLOYMENT_OUTBOX_POLLING_DELAY_MS:5000}

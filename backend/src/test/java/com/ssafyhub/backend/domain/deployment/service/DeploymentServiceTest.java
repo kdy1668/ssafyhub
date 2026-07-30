@@ -58,6 +58,8 @@ class DeploymentServiceTest {
     @Mock
     private DeploymentOutboxRepository deploymentOutboxRepository;
     @Mock
+    private com.ssafyhub.backend.domain.deployment.outbox.client.DevOpsDeploymentClient devOpsDeploymentClient;
+    @Mock
     private S3ObjectVerifier s3ObjectVerifier;
 
     private SecretEncryptor secretEncryptor;
@@ -76,10 +78,10 @@ class DeploymentServiceTest {
                 deploymentEnvRepository,
                 deploymentLogRepository,
                 deploymentOutboxRepository,
+                devOpsDeploymentClient,
                 s3ObjectVerifier,
                 secretEncryptor
         );
-        ReflectionTestUtils.setField(deploymentService, "supportedRuntimeVersions", List.of("17", "21"));
         ReflectionTestUtils.setField(deploymentService, "publicDomain", "ssafyhub.site");
 
         member = new Member("1551343", "hash", "홍길동", "E206");
@@ -156,8 +158,11 @@ class DeploymentServiceTest {
     void 중복된_환경변수_이름은_거부한다() {
         given(memberRepository.findById(11L)).willReturn(Optional.of(member));
         given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, 2L, "21", 8080, "app_db", "db-password",
+                null,
                 List.of(
                         new DeploymentEnvRequest("JWT_SECRET", "one"),
                         new DeploymentEnvRequest("JWT_SECRET", "two")
@@ -199,23 +204,6 @@ class DeploymentServiceTest {
                 .isEqualTo(ErrorCode.ARTIFACT_ACCESS_DENIED);
     }
 
-    @Test
-    void 지원하지_않는_Java_버전은_거부한다() {
-        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
-        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
-        DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "11", 8080, "app_db", "db-password",
-                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
-                null,
-                null
-        );
-
-        assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.UNSUPPORTED_RUNTIME_VERSION);
-    }
-
     private Artifact artifact(Long id, ArtifactType type, String objectKey) {
         Artifact artifact = new Artifact(
                 member,
@@ -238,6 +226,7 @@ class DeploymentServiceTest {
                 8080,
                 "app_db",
                 "db-password",
+                null,
                 List.of(
                         new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod"),
                         new DeploymentEnvRequest("JWT_SECRET", "secret-value")
