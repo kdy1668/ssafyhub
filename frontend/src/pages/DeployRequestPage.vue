@@ -307,7 +307,7 @@ async function handleRetry() {
                 </summary>
                 <div class="mt-2 flex flex-col gap-2 text-xs text-ink-700">
                   <p>zip 안에는 아래처럼 Dockerfile과 소스가 최상위(또는 폴더 한 겹 안)에 있어야 합니다.</p>
-                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-ink-50"><code>backend.zip
+                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code>backend.zip
 ├── Dockerfile
 ├── build.gradle
 ├── settings.gradle
@@ -316,7 +316,7 @@ async function handleRetry() {
 └── src/
     └── main/...</code></pre>
                   <p>Dockerfile 예시 (멀티스테이지: 소스를 컨테이너 안에서 직접 빌드):</p>
-                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-ink-50"><code>FROM eclipse-temurin:17-jdk AS build
+                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code>FROM eclipse-temurin:17-jdk AS build
 WORKDIR /app
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle ./gradle
@@ -335,6 +335,72 @@ ENTRYPOINT ["java", "-jar", "app.jar"]</code></pre>
                   </p>
                 </div>
               </details>
+
+              <details class="mt-2 rounded-md border border-border bg-background p-3">
+                <summary class="cursor-pointer text-xs font-semibold text-primary">
+                  예시 보기: DB 테이블은 누가 만드나요? (JPA vs MyBatis 등)
+                </summary>
+                <div class="mt-2 flex flex-col gap-3 text-xs text-ink-700">
+                  <p>
+                    DB 접속 정보는
+                    <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_HOST</code>,
+                    <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_PORT</code>,
+                    <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_NAME</code>,
+                    <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_USERNAME</code>,
+                    <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_PASSWORD</code>
+                    환경변수로 컨테이너에 주입됩니다. 플랫폼은 <strong>빈 데이터베이스</strong>만 만들어
+                    드리고, 그 안에 테이블을 만드는 방식은 쓰신 프레임워크에 따라 다릅니다.
+                  </p>
+
+                  <div>
+                    <p class="font-semibold text-ink-900">① Spring + JPA/Hibernate - 별도 작업 불필요</p>
+                    <p>
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">ddl-auto: update</code>(또는
+                      create)를 쓰면 엔티티 클래스 기준으로 앱이 뜰 때 테이블을 자동으로 만들어줍니다.
+                      DB 접속 정보를 아래처럼 환경변수로 읽게만 해주면 끝입니다.
+                    </p>
+                    <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code># application.yml
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=false&amp;serverTimezone=Asia/Seoul
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update</code></pre>
+                  </div>
+
+                  <div>
+                    <p class="font-semibold text-ink-900">② MyBatis 등 자동 생성이 안 되는 경우 - 직접 마이그레이션</p>
+                    <p>
+                      MyBatis는 SQL을 매핑만 할 뿐 테이블을 만들어주지 않습니다. zip에 스키마 파일
+                      (schema.sql)을 같이 담고, 앱을 실행하기 직전에 그 SQL을 직접 실행하는 entrypoint
+                      스크립트를 두면 됩니다.
+                    </p>
+                    <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code># entrypoint.sh
+#!/bin/sh
+set -e
+mysql -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_NAME" &lt; schema.sql
+exec java -jar app.jar</code></pre>
+                    <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code># Dockerfile (런타임 스테이지에 mysql client / 스키마 / entrypoint 추가)
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+RUN apt-get update &amp;&amp; apt-get install -y default-mysql-client &amp;&amp; rm -rf /var/lib/apt/lists/*
+COPY --from=build /app/build/libs/*.jar app.jar
+COPY schema.sql schema.sql
+COPY entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+EXPOSE 8080
+ENTRYPOINT ["./entrypoint.sh"]</code></pre>
+                    <p>
+                      같은 원리로 Flyway/Liquibase(Java), Prisma/Sequelize/TypeORM(Node.js), Django의
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">manage.py migrate</code> 처럼
+                      언어/프레임워크가 제공하는 마이그레이션 도구를 그대로 써도 됩니다 - 핵심은 "컨테이너가
+                      시작될 때 스스로 초기화를 끝낸다"는 점뿐입니다.
+                    </p>
+                  </div>
+                </div>
+              </details>
             </div>
 
             <div>
@@ -349,7 +415,7 @@ ENTRYPOINT ["java", "-jar", "app.jar"]</code></pre>
               <p class="mt-1 text-xs text-ink-500">
                 프론트도 백엔드와 동일하게 <strong>Dockerfile을 포함한 zip</strong>으로 올립니다. 단, 프론트는
                 컨테이너를 계속 실행하는 게 아니라 <strong>정적 빌드 결과물만</strong> 뽑아서 배포하므로,
-                Dockerfile의 마지막 단계에서 빌드 결과물을 <code class="rounded bg-ink-900 px-1 py-0.5 text-ink-50">/output</code>
+                Dockerfile의 마지막 단계에서 빌드 결과물을 <code class="rounded bg-ink-900 px-1 py-0.5 text-white">/output</code>
                 경로에 복사해두어야 합니다.
               </p>
               <details class="mt-2 rounded-md border border-border bg-background p-3">
@@ -357,13 +423,13 @@ ENTRYPOINT ["java", "-jar", "app.jar"]</code></pre>
                   예시 보기: zip 구성 &amp; Dockerfile (React/Vite 기준)
                 </summary>
                 <div class="mt-2 flex flex-col gap-2 text-xs text-ink-700">
-                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-ink-50"><code>frontend.zip
+                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code>frontend.zip
 ├── Dockerfile
 ├── package.json
 ├── vite.config.js
 └── src/...</code></pre>
                   <p>Dockerfile 예시 (빌드 후 결과물을 /output에 복사):</p>
-                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-ink-50"><code>FROM node:20-alpine AS build
+                  <pre class="overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code>FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -375,7 +441,7 @@ COPY --from=build /app/dist /output</code></pre>
                   <p>
                     Vue/Vite도 기본 빌드 출력 폴더(dist)만 다를 뿐 동일한 형태입니다. React·Vue·Svelte 등
                     빌드 결과가 정적 파일(HTML/JS/CSS)로 나오는 프레임워크라면 전부 이 방식으로 올릴 수
-                    있습니다. 반드시 <code class="rounded bg-ink-900 px-1 py-0.5 text-ink-50">/output</code>
+                    있습니다. 반드시 <code class="rounded bg-ink-900 px-1 py-0.5 text-white">/output</code>
                     경로에 최종 정적 파일(index.html 포함)을 두어야 합니다.
                   </p>
                 </div>
