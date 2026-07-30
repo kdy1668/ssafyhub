@@ -52,8 +52,17 @@ public record DeploymentCreateRequest(
         @Size(max = 200, message = "데이터베이스 비밀번호는 200자를 초과할 수 없습니다.")
         String databasePassword,
 
-        @Schema(description = "MySQL 외에 추가로 필요한 백킹서비스 목록 (현재 지원: REDIS). 필요 없으면 비워두세요.",
-                example = "[\"REDIS\"]", nullable = true)
+        @Schema(description = "관계형 DB 엔진 (지원: MYSQL, POSTGRES). databaseName을 입력했는데 비워두면 MYSQL로 간주합니다.",
+                example = "MYSQL", nullable = true)
+        String databaseEngine,
+
+        @Schema(description = "사전에 발급받은 DB 초기화 SQL Artifact ID (선택 - MyBatis 등 자동 테이블 생성이 안 되는 " +
+                "경우에만). databaseName을 입력했을 때만 사용할 수 있습니다.", example = "3", nullable = true)
+        @Positive(message = "스키마 SQL Artifact ID는 양수여야 합니다.")
+        Long schemaArtifactId,
+
+        @Schema(description = "MySQL/PostgreSQL 외에 추가로 필요한 백킹서비스 목록 (현재 지원: REDIS, MONGODB). " +
+                "필요 없으면 비워두세요.", example = "[\"REDIS\"]", nullable = true)
         List<String> neededServices,
 
         @Schema(description = "환경변수 목록 (1개 이상 20개 이하)")

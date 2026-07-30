@@ -49,10 +49,11 @@ export function useCreateDeployment() {
   const phase = ref("idle");
   const deployError = ref(null);
 
-  // 파일별 업로드 상태 (진행률 UI / 재시도 UI 의 데이터 소스)
+  // 파일별 업로드 상태 (진행률 UI / 재시도 UI 의 데이터 소스). schema는 SQL 파일을 올릴 때만 채워진다.
   const uploads = reactive({
-    backend: { label: "백엔드 JAR", name: "", progress: 0, status: "idle", error: null },
-    frontend: { label: "프론트엔드 ZIP", name: "", progress: 0, status: "idle", error: null },
+    backend: { label: "백엔드 아티팩트", name: "", progress: 0, status: "idle", error: null },
+    frontend: { label: "프론트엔드 아티팩트", name: "", progress: 0, status: "idle", error: null },
+    schema: { label: "DB 초기화 SQL", name: "", progress: 0, status: "idle", error: null },
   });
 
   // 재시도를 위해 마지막 요청 인자를 보관
@@ -81,28 +82,32 @@ export function useCreateDeployment() {
     deployError.value = null;
     resetUpload(uploads.backend, "");
     resetUpload(uploads.frontend, "");
+    resetUpload(uploads.schema, "");
     lastArgs = null;
   }
 
   async function runDeploy(args) {
     const {
-      backendFile, frontendFile,
+      backendFile, frontendFile, schemaFile,
       projectName, runtimeVersion, internalPort,
-      databaseName, databasePassword, neededServices, envList,
+      databaseName, databasePassword, databaseEngine, neededServices, envList,
       visibility, description,
     } = args;
 
     deployError.value = null;
     resetUpload(uploads.backend, backendFile.name);
     resetUpload(uploads.frontend, frontendFile.name);
+    resetUpload(uploads.schema, schemaFile ? schemaFile.name : "");
 
     try {
-      // [STEP 1] Presigned URL 발급
+      // [STEP 1] Presigned URL 발급 (schemaFile은 선택 - DB 초기화 SQL을 올릴 때만)
       phase.value = "preparing";
-      const presignedRes = await getPresignedUrls(backendFile.name, frontendFile.name);
-      const { backendArtifact, frontendArtifact } = presignedRes.data;
+      const presignedRes = await getPresignedUrls(
+        backendFile.name, frontendFile.name, schemaFile ? schemaFile.name : undefined
+      );
+      const { backendArtifact, frontendArtifact, schemaArtifact } = presignedRes.data;
 
-      // [STEP 2] S3 업로드 (진행률 추적, 두 파일 병렬)
+      // [STEP 2] S3 업로드 (진행률 추적, 병렬)
       phase.value = "uploading";
 
       const uploadOne = async (entry, url, file, contentType) => {
@@ -123,12 +128,19 @@ export function useCreateDeployment() {
         }
       };
 
-      // allSettled 로 두 파일을 모두 시도 → 부분 실패도 각 상태에 반영
-      // 백엔드/프론트엔드 모두 Dockerfile을 포함한 .zip만 받으므로 Content-Type은 항상 zip.
-      const results = await Promise.allSettled([
-        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, "application/zip"),
+      // allSettled 로 모든 파일을 시도 → 부분 실패도 각 상태에 반영
+      // 백엔드는 .jar 또는 .zip(Dockerfile 포함), 프론트엔드는 항상 .zip(Dockerfile 포함).
+      const backendContentType = backendFile.name.toLowerCase().endsWith(".zip")
+        ? "application/zip"
+        : "application/java-archive";
+      const uploadTasks = [
+        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, backendContentType),
         uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip"),
-      ]);
+      ];
+      if (schemaFile && schemaArtifact) {
+        uploadTasks.push(uploadOne(uploads.schema, schemaArtifact.uploadUrl, schemaFile, "application/sql"));
+      }
+      const results = await Promise.allSettled(uploadTasks);
 
       const rejected = results.find((r) => r.status === "rejected");
       if (rejected) {
@@ -137,7 +149,7 @@ export function useCreateDeployment() {
           : new Error("파일 업로드에 실패했습니다.");
       }
 
-      // [STEP 3] 최종 배포 요청 생성 (JAR/ZIP 업로드가 모두 성공한 뒤에만 호출)
+      // [STEP 3] 최종 배포 요청 생성 (아티팩트 업로드가 모두 성공한 뒤에만 호출)
       phase.value = "creating";
       const deployment = await apiCreateDeployment({
         projectName,
@@ -147,6 +159,8 @@ export function useCreateDeployment() {
         internalPort: Number(internalPort),
         databaseName,
         databasePassword,
+        databaseEngine,
+        schemaArtifactId: schemaFile ? schemaArtifact?.artifactId : undefined,
         neededServices,
         env: envList,
         visibility,

@@ -41,7 +41,8 @@ import org.springframework.web.client.RestClientException;
 public class DeploymentService {
 
     private static final String PENDING_MESSAGE = "배포 요청이 접수되었습니다.";
-    private static final Set<String> SUPPORTED_NEEDED_SERVICES = Set.of("REDIS");
+    private static final Set<String> SUPPORTED_NEEDED_SERVICES = Set.of("REDIS", "MONGODB");
+    private static final Set<String> SUPPORTED_DATABASE_ENGINES = Set.of("MYSQL", "POSTGRES");
 
     private final MemberRepository memberRepository;
     private final ArtifactRepository artifactRepository;
@@ -78,10 +79,23 @@ public class DeploymentService {
             throw new BusinessException(ErrorCode.DATABASE_PASSWORD_REQUIRED);
         }
         String encryptedDatabasePassword = databasePassword != null ? secretEncryptor.encrypt(databasePassword) : null;
+        String databaseEngine = validateDatabaseEngine(databaseName, request.databaseEngine());
         String neededServices = validateAndJoinNeededServices(request.neededServices());
+
+        Artifact schemaArtifact = null;
+        if (request.schemaArtifactId() != null) {
+            if (databaseName == null) {
+                throw new BusinessException(ErrorCode.SCHEMA_REQUIRES_DATABASE);
+            }
+            schemaArtifact = getArtifact(request.schemaArtifactId());
+            validateArtifact(schemaArtifact, memberId, ArtifactType.SCHEMA_SQL);
+        }
 
         s3ObjectVerifier.verifyExists(backendArtifact.getBucket(), backendArtifact.getObjectKey());
         s3ObjectVerifier.verifyExists(frontendArtifact.getBucket(), frontendArtifact.getObjectKey());
+        if (schemaArtifact != null) {
+            s3ObjectVerifier.verifyExists(schemaArtifact.getBucket(), schemaArtifact.getObjectKey());
+        }
 
         LocalDateTime requestedAt = LocalDateTime.now();
 
@@ -95,6 +109,8 @@ public class DeploymentService {
                 request.internalPort(),
                 databaseName,
                 encryptedDatabasePassword,
+                databaseEngine,
+                schemaArtifact,
                 neededServices,
                 requestedAt,
                 request.visibility(),
@@ -124,7 +140,12 @@ public class DeploymentService {
 
         backendArtifact.markUsed();
         frontendArtifact.markUsed();
-        artifactRepository.saveAll(List.of(backendArtifact, frontendArtifact));
+        List<Artifact> usedArtifacts = new java.util.ArrayList<>(List.of(backendArtifact, frontendArtifact));
+        if (schemaArtifact != null) {
+            schemaArtifact.markUsed();
+            usedArtifacts.add(schemaArtifact);
+        }
+        artifactRepository.saveAll(usedArtifacts);
 
         deploymentOutboxRepository.save(DeploymentOutbox.deploymentRequested(deployment.getId(), requestedAt));
 
@@ -284,6 +305,22 @@ public class DeploymentService {
 
     private String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /** databaseName이 없으면 엔진도 의미 없으니 null. 있는데 엔진이 비어 있으면 MYSQL 기본값. */
+    private String validateDatabaseEngine(String databaseName, String rawEngine) {
+        if (databaseName == null) {
+            return null;
+        }
+        String engine = blankToNull(rawEngine);
+        if (engine == null) {
+            return "MYSQL";
+        }
+        String upper = engine.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_DATABASE_ENGINES.contains(upper)) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_DATABASE_ENGINE);
+        }
+        return upper;
     }
 
     private String validateAndJoinNeededServices(List<String> neededServices) {

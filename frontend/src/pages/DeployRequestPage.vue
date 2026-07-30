@@ -10,6 +10,7 @@ import AppIcon from "../components/common/AppIcon.vue";
 import EnvVarsEditor from "../components/deploy/EnvVarsEditor.vue";
 import PreviewModal from "../components/deploy/PreviewModal.vue";
 import UploadProgress from "../components/deploy/UploadProgress.vue";
+import TechIcon from "../components/deploy/TechIcon.vue";
 import { useModalStore } from "../stores/useModalStore";
 import { useToastStore } from "../stores/useToastStore";
 
@@ -43,29 +44,38 @@ const {
 // S3에 직접 올릴 파일 상태
 const backendFile = ref(null);
 const frontendFile = ref(null);
+const schemaFile = ref(null);
 
 // 텍스트/설정 폼 상태
 const form = reactive({
   projectName: "",
   runtimeVersion: "21",
   internalPort: 8080,
-  needDatabase: true,
+  databaseEngine: "NONE", // NONE | MYSQL | POSTGRES
   databaseName: "",
   databasePassword: "",
-  neededServices: [], // 예: ["REDIS"] - MySQL 외 추가 백킹서비스
+  neededServices: [], // 예: ["REDIS", "MONGODB"] - 관계형 DB 외 추가 백킹서비스
   envVars: [],
   visibility: "PUBLIC",
   description: "",
 });
 
+const DB_ENGINE_OPTIONS = [
+  { value: "NONE", icon: "none", label: "사용 안 함", description: "DB가 필요 없는 앱" },
+  { value: "MYSQL", icon: "mysql", label: "MySQL", description: "관계형 DB" },
+  { value: "POSTGRES", icon: "postgres", label: "PostgreSQL", description: "관계형 DB" },
+];
+
 const BACKING_SERVICE_OPTIONS = [
-  { value: "REDIS", label: "Redis" },
+  { value: "REDIS", icon: "redis", label: "Redis", description: "캐시 / 세션 저장소" },
+  { value: "MONGODB", icon: "mongodb", label: "MongoDB", description: "문서형 NoSQL" },
 ];
 
 const errors = reactive({
   projectName: "",
   backendFile: "",
   frontendFile: "",
+  schemaFile: "",
   databaseName: "",
   databasePassword: "",
   internalPort: "",
@@ -87,14 +97,33 @@ function handleFrontendFileChange(e) {
   if (frontendFile.value) errors.frontendFile = "";
 }
 
+function handleSchemaFileChange(e) {
+  schemaFile.value = e.target.files[0] || null;
+  if (schemaFile.value) errors.schemaFile = "";
+}
+
+function selectDatabaseEngine(value) {
+  form.databaseEngine = value;
+  if (value === "NONE") {
+    schemaFile.value = null;
+    errors.schemaFile = "";
+  }
+}
+
+function toggleNeededService(value) {
+  const idx = form.neededServices.indexOf(value);
+  if (idx === -1) form.neededServices.push(value);
+  else form.neededServices.splice(idx, 1);
+}
+
 function validate() {
   errors.projectName = form.projectName ? "" : "프로젝트 이름은 필수입니다.";
 
-  // 파일: 존재 + 확장자(.zip - Dockerfile을 포함한 BYO 빌드만 허용)
+  // 백엔드 파일: 존재 + 확장자(.jar 또는 Dockerfile 포함 .zip)
   const backendName = backendFile.value?.name.toLowerCase() ?? "";
   if (!backendFile.value) errors.backendFile = "백엔드 아티팩트를 업로드하세요.";
-  else if (!backendName.endsWith(".zip"))
-    errors.backendFile = "백엔드 파일은 Dockerfile을 포함한 .zip 형식이어야 합니다.";
+  else if (!backendName.endsWith(".jar") && !backendName.endsWith(".zip"))
+    errors.backendFile = "백엔드 파일은 .jar 또는 .zip 형식이어야 합니다.";
   else errors.backendFile = "";
 
   if (!frontendFile.value) errors.frontendFile = "프론트엔드 ZIP 파일을 업로드하세요.";
@@ -102,8 +131,15 @@ function validate() {
     errors.frontendFile = "프론트엔드 파일은 .zip 형식이어야 합니다.";
   else errors.frontendFile = "";
 
-  // DB는 선택 - "DB 필요" 체크했을 때만 이름/비밀번호를 검증한다.
-  if (form.needDatabase) {
+  // DB 초기화 SQL은 선택이지만, 올렸다면 확장자는 지켜야 한다.
+  if (schemaFile.value && !schemaFile.value.name.toLowerCase().endsWith(".sql")) {
+    errors.schemaFile = "DB 초기화 SQL 파일은 .sql 형식이어야 합니다.";
+  } else {
+    errors.schemaFile = "";
+  }
+
+  // DB는 선택 - "사용 안 함"이 아닐 때만 이름/비밀번호를 검증한다.
+  if (form.databaseEngine !== "NONE") {
     if (!form.databaseName) errors.databaseName = "DB 이름은 필수입니다.";
     else if (!DB_NAME_RE.test(form.databaseName))
       errors.databaseName = "DB 이름은 영문자로 시작하고 영문/숫자/_ 만 사용할 수 있습니다.";
@@ -148,15 +184,19 @@ function validate() {
 }
 
 function buildPayload() {
+  const needDatabase = form.databaseEngine !== "NONE";
   return {
     backendFile: backendFile.value,
     frontendFile: frontendFile.value,
+    // DB를 쓸 때만, 그리고 실제로 파일을 고른 경우에만 올린다.
+    schemaFile: needDatabase ? schemaFile.value : null,
     projectName: form.projectName,
     runtimeVersion: form.runtimeVersion,
     internalPort: form.internalPort,
-    // DB 필요 없음 체크 시 빈 값으로 보내 백엔드가 "DB 프로비저닝 안 함"으로 처리하게 한다.
-    databaseName: form.needDatabase ? form.databaseName : "",
-    databasePassword: form.needDatabase ? form.databasePassword : "",
+    // "사용 안 함"이면 빈 값으로 보내 백엔드가 "DB 프로비저닝 안 함"으로 처리하게 한다.
+    databaseName: needDatabase ? form.databaseName : "",
+    databasePassword: needDatabase ? form.databasePassword : "",
+    databaseEngine: needDatabase ? form.databaseEngine : undefined,
     neededServices: form.neededServices,
     envList: form.envVars.filter((v) => v.key && v.value),
     visibility: form.visibility,
@@ -219,7 +259,7 @@ async function handleRetry() {
         </div>
         <h1 class="mt-1 text-2xl font-bold text-ink-900">배포 신청</h1>
         <p class="text-xs text-ink-500">
-          Dockerfile을 포함한 ZIP 파일을 업로드하고 환경 변수를 설정하여 클라우드 환경에 배포를 요청합니다.
+          빌드 산출물을 업로드하고 데이터베이스/환경 변수를 설정하여 클라우드 환경에 배포를 요청합니다.
         </p>
       </div>
 
@@ -286,20 +326,21 @@ async function handleRetry() {
             <h3 class="text-sm font-bold text-ink-900">빌드 파일 업로드</h3>
 
             <div>
-              <label class="mb-1 block text-sm font-medium text-ink-700">백엔드 아티팩트 (.zip, Dockerfile 필수)</label>
+              <label class="mb-1 block text-sm font-medium text-ink-700">백엔드 아티팩트 (.jar 또는 .zip)</label>
               <input
                 type="file"
-                accept=".zip"
+                accept=".jar,.zip"
                 @change="handleBackendFileChange"
                 class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
               />
               <p v-if="errors.backendFile" class="mt-1 text-xs text-red-500">{{ errors.backendFile }}</p>
               <p class="mt-1 text-xs text-ink-500">
-                프로젝트 소스(또는 빌드 산출물)와 <strong>Dockerfile을 함께</strong> zip으로 묶어 올려주세요.
-                언어/프레임워크는 무관하며, 앱을 어떻게 빌드/실행할지는 이 Dockerfile이 전부 결정합니다.
-                DB 테이블/마이그레이션이 필요한 프레임워크(MyBatis 등 자동 생성이 안 되는 경우)라면, 앱
-                컨테이너가 시작될 때 마이그레이션을 직접 실행하도록 Dockerfile(또는 시작 스크립트)에
-                포함해주세요 - 플랫폼은 빈 데이터베이스만 준비해 드립니다.
+                .jar: Java로 빌드된 실행 파일 하나만 올리면 됩니다 (실행 환경은 플랫폼이 자동 구성).<br />
+                .zip: Java가 아닌 다른 언어/프레임워크를 쓴다면, 프로젝트 소스(또는 빌드 산출물)와
+                <strong>Dockerfile을 함께</strong> 담아 올려주세요. 앱을 어떻게 빌드/실행할지는 이 Dockerfile이
+                전부 결정합니다. DB 테이블/마이그레이션이 필요한 프레임워크(MyBatis 등 자동 생성이 안 되는
+                경우)라면 아래 예시를 참고하거나, 앱 컨테이너가 시작될 때 마이그레이션을 직접 실행하도록
+                Dockerfile(또는 시작 스크립트)에 포함해주세요 - 플랫폼은 빈 데이터베이스만 준비해 드립니다.
               </p>
               <details class="mt-2 rounded-md border border-border bg-background p-3">
                 <summary class="cursor-pointer text-xs font-semibold text-primary">
@@ -450,43 +491,97 @@ COPY --from=build /app/dist /output</code></pre>
           </div>
 
           <!-- DB / 백킹서비스 설정 영역 -->
-          <div class="flex flex-col gap-4 border-b border-border pb-6">
-            <h3 class="text-sm font-bold text-ink-900">데이터베이스 / 백킹서비스</h3>
-
-            <label class="flex items-center gap-2 text-sm text-ink-700">
-              <input type="checkbox" v-model="form.needDatabase" />
-              MySQL 데이터베이스가 필요합니다
-            </label>
-
-            <div v-if="form.needDatabase" class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <BaseInput
-                id="databaseName"
-                label="DB 이름"
-                placeholder="app_db"
-                v-model="form.databaseName"
-                :error="errors.databaseName"
-              />
-
-              <BaseInput
-                id="databasePassword"
-                type="password"
-                label="DB 비밀번호 (필수)"
-                placeholder="비밀번호를 입력하세요"
-                v-model="form.databasePassword"
-                :error="errors.databasePassword"
-              />
+          <div class="flex flex-col gap-5 border-b border-border pb-6">
+            <div class="flex flex-col gap-3">
+              <span class="text-sm font-bold text-ink-900">데이터베이스</span>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <button
+                  v-for="opt in DB_ENGINE_OPTIONS"
+                  :key="opt.value"
+                  type="button"
+                  @click="selectDatabaseEngine(opt.value)"
+                  :class="[
+                    'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                    form.databaseEngine === opt.value
+                      ? 'border-primary bg-primary-light ring-1 ring-primary'
+                      : 'border-border bg-background hover:border-primary/50',
+                  ]"
+                >
+                  <TechIcon :kind="opt.icon" />
+                  <span class="flex flex-col">
+                    <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
+                    <span class="text-xs text-ink-500">{{ opt.description }}</span>
+                  </span>
+                </button>
+              </div>
             </div>
 
-            <div class="flex flex-col gap-1">
-              <span class="text-sm font-medium text-ink-700">추가 백킹서비스</span>
-              <label
-                v-for="opt in BACKING_SERVICE_OPTIONS"
-                :key="opt.value"
-                class="flex items-center gap-2 text-sm text-ink-700"
-              >
-                <input type="checkbox" :value="opt.value" v-model="form.neededServices" />
-                {{ opt.label }}
-              </label>
+            <div v-if="form.databaseEngine !== 'NONE'" class="flex flex-col gap-4">
+              <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <BaseInput
+                  id="databaseName"
+                  label="DB 이름"
+                  placeholder="app_db"
+                  v-model="form.databaseName"
+                  :error="errors.databaseName"
+                />
+
+                <BaseInput
+                  id="databasePassword"
+                  type="password"
+                  label="DB 비밀번호 (필수)"
+                  placeholder="비밀번호를 입력하세요"
+                  v-model="form.databasePassword"
+                  :error="errors.databasePassword"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-medium text-ink-700">
+                  DB 초기화 SQL (선택 - .sql)
+                </label>
+                <input
+                  type="file"
+                  accept=".sql"
+                  @change="handleSchemaFileChange"
+                  class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
+                />
+                <p v-if="errors.schemaFile" class="mt-1 text-xs text-red-500">{{ errors.schemaFile }}</p>
+                <p class="mt-1 text-xs text-ink-500">
+                  JPA/Hibernate처럼 앱이 스스로 테이블을 만들어준다면 비워두세요. MyBatis 등 자동 생성이
+                  안 되는 프레임워크를 쓴다면, <code class="rounded bg-ink-900 px-1 py-0.5 text-white">CREATE TABLE</code>
+                  구문이 담긴 .sql 파일을 올려주세요 - 배포 시 DB에 한 번 실행해 드립니다.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+              <span class="text-sm font-bold text-ink-900">추가 백킹서비스</span>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button
+                  v-for="opt in BACKING_SERVICE_OPTIONS"
+                  :key="opt.value"
+                  type="button"
+                  @click="toggleNeededService(opt.value)"
+                  :class="[
+                    'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                    form.neededServices.includes(opt.value)
+                      ? 'border-primary bg-primary-light ring-1 ring-primary'
+                      : 'border-border bg-background hover:border-primary/50',
+                  ]"
+                >
+                  <TechIcon :kind="opt.icon" />
+                  <span class="flex flex-col">
+                    <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
+                    <span class="text-xs text-ink-500">{{ opt.description }}</span>
+                  </span>
+                  <AppIcon
+                    v-if="form.neededServices.includes(opt.value)"
+                    name="check"
+                    class="ml-auto h-4 w-4 shrink-0 text-primary"
+                  />
+                </button>
+              </div>
             </div>
           </div>
 

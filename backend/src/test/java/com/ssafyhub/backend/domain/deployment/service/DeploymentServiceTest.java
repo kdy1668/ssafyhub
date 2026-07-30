@@ -164,6 +164,8 @@ class DeploymentServiceTest {
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, 2L, "21", 8080, "app_db", "db-password",
                 null,
+                null,
+                null,
                 List.of(
                         new DeploymentEnvRequest("JWT_SECRET", "one"),
                         new DeploymentEnvRequest("JWT_SECRET", "two")
@@ -227,6 +229,8 @@ class DeploymentServiceTest {
                 8080,
                 "app_db",
                 "db-password",
+                null,
+                null,
                 null,
                 List.of(
                         new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod"),

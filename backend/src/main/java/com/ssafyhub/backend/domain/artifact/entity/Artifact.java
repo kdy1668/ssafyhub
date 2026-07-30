@@ -26,7 +26,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 @Getter
 @Entity
 @Table(name = "artifacts")
-@Check(constraints = "artifact_type IN ('BACKEND_JAR', 'FRONTEND_ZIP') AND status IN ('URL_ISSUED', 'USED')")
+@Check(constraints = "artifact_type IN ('BACKEND_JAR', 'FRONTEND_ZIP', 'SCHEMA_SQL') AND status IN ('URL_ISSUED', 'USED')")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Artifact {
 

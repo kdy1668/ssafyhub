@@ -12,7 +12,14 @@ const props = defineProps({
 
 defineEmits(["retry"]);
 
-const items = computed(() => [props.uploads.backend, props.uploads.frontend]);
+// schema(DB 초기화 SQL)는 선택 업로드라서 실제로 파일을 고른 경우에만 진행률 목록에 보여준다.
+const items = computed(() => {
+  const list = [props.uploads.backend, props.uploads.frontend];
+  if (props.uploads.schema?.name) {
+    list.push(props.uploads.schema);
+  }
+  return list;
+});
 
 const hasError = computed(() => props.phase === "error");
 const isDone = computed(() => props.phase === "done");
