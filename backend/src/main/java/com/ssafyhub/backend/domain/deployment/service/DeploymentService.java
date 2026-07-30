@@ -132,6 +132,40 @@ public class DeploymentService {
         );
     }
 
+    /**
+     * 배포된 서비스의 리소스 사용량(현재 스냅샷) - deploy-engine 메트릭을 프론트 형태로 매핑.
+     * deploy-engine이 값이 없으면(미배포/스크레이프 전) null → 0으로 처리해 500 대신 정상 응답한다.
+     * deploy-engine 자체 호출 실패 시에도 0으로 응답(리소스 확인이 화면을 깨지 않도록).
+     */
+    public com.ssafyhub.backend.domain.deployment.dto.ResourceUsageResponse getResourceUsage(
+            Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        com.ssafyhub.backend.domain.deployment.dto.DevOpsMetricsResponse metrics;
+        try {
+            metrics = devOpsDeploymentClient.getMetrics(deployment.getId());
+        } catch (RestClientException exception) {
+            metrics = null; // deploy-engine 순단 등 - 0으로 채워 응답
+        }
+
+        int cpuPercent = 0;
+        long memoryUsedMb = 0;
+        if (metrics != null) {
+            if (metrics.cpuCores() != null) {
+                cpuPercent = (int) Math.round(metrics.cpuCores() * 100); // 코어 사용량 → % (1코어=100%)
+            }
+            if (metrics.memoryBytes() != null) {
+                memoryUsedMb = metrics.memoryBytes() / (1024 * 1024);
+            }
+        }
+        // deploy-engine이 컨테이너 메모리 상한을 512Mi 고정으로 배포하므로 총량은 512로 본다.
+        long memoryTotalMb = 512;
+
+        return new com.ssafyhub.backend.domain.deployment.dto.ResourceUsageResponse(
+                deployment.getId(), cpuPercent, memoryUsedMb, memoryTotalMb, LocalDateTime.now());
+    }
+
     /** 배포 진행 로그(깃헙 액션식 단계별) - 본인 배포만 조회 가능. */
     public java.util.List<com.ssafyhub.backend.domain.deployment.dto.DeploymentLogResponse> getDeploymentLogs(
             Long memberId, Long deploymentId) {

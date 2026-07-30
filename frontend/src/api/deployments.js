@@ -51,8 +51,9 @@ export async function fetchDeploymentResources(deploymentId) {
     await mockDelay(400);
     return mockResourceUsageFor(deploymentId);
   }
+  // 백엔드: ApiResponse { data: { id, cpuPercent, memoryUsedMb, memoryTotalMb, sampledAt } }
   const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/resources`);
-  return data;
+  return data?.data;
 }
 
 // 배포 진행 로그(깃헙 액션식 단계별). LogViewer가 쓰는 { time, status, message } 형태로 정규화.
