@@ -38,7 +38,6 @@ pipeline {
                 // ALB(api.ssafyhub.site)로 프록시하므로 브라우저에는 ssafyhub.site
                 // 한 오리진으로만 보입니다. 덕분에 CORS 설정이 필요 없습니다.
                 VITE_API_BASE_URL = ''
-                VITE_USE_MOCKS    = 'false'
             }
             steps {
                 echo 'Vite 프로덕션 빌드를 시작합니다...'

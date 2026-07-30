@@ -6,9 +6,9 @@ import { useAuthStore } from "../../stores/useAuthStore";
 const router = useRouter();
 const authStore = useAuthStore();
 
-function handleLogout() {
-  authStore.logout();
-  router.push("/");
+async function handleLogout() {
+  await authStore.logout();
+  router.push("/login");
 }
 </script>
 

@@ -39,9 +39,10 @@ function isActive(to) {
   return route.path === to || route.path.startsWith(to + "/");
 }
 
-function handleLogout() {
-  authStore.logout();
-  router.push("/");
+// 쿠키 삭제까지 끝난 뒤 이동해야 다음 화면의 요청이 만료된 쿠키를 보내지 않는다.
+async function handleLogout() {
+  await authStore.logout();
+  router.push("/login");
 }
 </script>
 

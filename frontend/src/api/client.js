@@ -19,12 +19,6 @@ export const apiClient = axios.create({
   },
 });
 
-export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== "false";
-
-export function mockDelay(ms = 500) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 // 세션 만료(재발급 실패) 시 실행할 콜백. main.js에서 등록 (스토어/라우터 순환 참조 방지).
 let onSessionExpired = null;
 export function setOnSessionExpired(fn) {
@@ -38,7 +32,6 @@ function hasXsrfCookie() {
 // 앱 시작 시(또는 XSRF 쿠키가 없을 때) CSRF 토큰을 발급받는다.
 // 이후 상태 변경 요청은 발급된 쿠키를 계속 사용하므로 매 요청마다 호출할 필요는 없다.
 export async function ensureCsrfToken(force = false) {
-  if (USE_MOCKS) return;
   if (!force && hasXsrfCookie()) return;
   try {
     await apiClient.get("/api/v1/auth/csrf");

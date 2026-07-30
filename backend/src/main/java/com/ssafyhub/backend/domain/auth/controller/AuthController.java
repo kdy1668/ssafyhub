@@ -102,11 +102,45 @@ public class AuthController {
         );
     }
 
+    @Operation(
+            summary = "로그아웃",
+            description = "refreshToken을 폐기하고 accessToken/refreshToken 쿠키를 삭제합니다. "
+                    + "쿠키가 없거나 이미 만료·폐기된 상태에서도 항상 성공(200)으로 응답합니다. "
+                    + "accessToken은 stateless JWT이므로 남은 유효기간 동안 토큰 자체는 무효화되지 않습니다."
+    )
+    @SecurityRequirement(name = OpenApiConfig.REFRESH_TOKEN_COOKIE_AUTH)
+    @SecurityRequirement(name = OpenApiConfig.CSRF_TOKEN_AUTH)
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        authService.logout(findRefreshToken(request));
+
+        // 폐기 결과와 무관하게 쿠키는 항상 삭제한다.
+        cookieUtil.deleteAccessTokenCookie(response);
+        cookieUtil.deleteRefreshTokenCookie(response);
+
+        return ResponseEntity.ok(
+                ApiResponse.success("로그아웃되었습니다.", null)
+        );
+    }
+
     private String extractRefreshToken(HttpServletRequest request) {
+        String refreshToken = findRefreshToken(request);
+
+        if (refreshToken == null) {
+            throw new BusinessException(ErrorCode.MISSING_REFRESH_TOKEN);
+        }
+
+        return refreshToken;
+    }
+
+    private String findRefreshToken(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
 
         if (cookies == null) {
-            throw new BusinessException(ErrorCode.MISSING_REFRESH_TOKEN);
+            return null;
         }
 
         for (Cookie cookie : cookies) {
@@ -115,6 +149,6 @@ public class AuthController {
             }
         }
 
-        throw new BusinessException(ErrorCode.MISSING_REFRESH_TOKEN);
+        return null;
     }
 }

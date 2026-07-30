@@ -14,8 +14,9 @@ app.use(pinia);
 app.use(router);
 
 // 재발급 실패(세션 만료) 시: 인증 상태 초기화 → 안내 → 로그인 페이지 이동
+// 이미 Refresh Token이 폐기·만료된 상태이므로 로그아웃 API는 호출하지 않고 로컬 상태만 정리한다.
 setOnSessionExpired(() => {
-  useAuthStore().logout();
+  useAuthStore().clearAuth();
   useToastStore().showToast("로그인이 만료되었습니다. 다시 로그인해 주세요.", "error");
   router.push("/login");
 });
