@@ -53,9 +53,6 @@ public class DeploymentService {
     private final S3ObjectVerifier s3ObjectVerifier;
     private final SecretEncryptor secretEncryptor;
 
-    @Value("${deployment.supported-runtime-versions}")
-    private List<String> supportedRuntimeVersions;
-
     @Value("${deployment.public-domain}")
     private String publicDomain;
 
@@ -73,12 +70,6 @@ public class DeploymentService {
 
         validateArtifact(backendArtifact, memberId, ArtifactType.BACKEND_JAR);
         validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
-
-        // .jar(플랫폼이 표준 Dockerfile 생성)만 Java 버전 검증 대상 - .zip(사용자 Dockerfile,
-        // 언어 무관)은 실제 런타임이 사용자 Dockerfile에 달려 있어 검증하지 않는다.
-        if (isJarArtifact(backendArtifact)) {
-            validateRuntimeVersion(request.runtimeVersion());
-        }
         validateUniqueEnvKeys(request.env());
 
         String databaseName = blankToNull(request.databaseName());
@@ -289,16 +280,6 @@ public class DeploymentService {
         if (artifact.getStatus() != ArtifactStatus.URL_ISSUED) {
             throw new BusinessException(ErrorCode.ARTIFACT_ALREADY_USED);
         }
-    }
-
-    private void validateRuntimeVersion(String runtimeVersion) {
-        if (!supportedRuntimeVersions.contains(runtimeVersion.trim())) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_RUNTIME_VERSION);
-        }
-    }
-
-    private boolean isJarArtifact(Artifact backendArtifact) {
-        return backendArtifact.getOriginalFileName().toLowerCase(Locale.ROOT).endsWith(".jar");
     }
 
     private String blankToNull(String value) {

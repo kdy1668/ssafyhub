@@ -24,7 +24,7 @@ public enum ErrorCode {
 
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_004", "회원을 찾을 수 없습니다."),
 
-    INVALID_BACKEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_001", "백엔드 파일은 .jar 또는 .zip(Dockerfile 포함) 형식이어야 합니다."),
+    INVALID_BACKEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_001", "백엔드 파일은 Dockerfile을 포함한 .zip 형식이어야 합니다."),
     INVALID_FRONTEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_002", "프론트엔드 파일은 .zip 형식이어야 합니다."),
     INVALID_FILE_NAME(HttpStatus.BAD_REQUEST, "ARTIFACT_003", "올바르지 않은 파일 이름입니다."),
     PRESIGNED_URL_GENERATION_FAILED(
@@ -44,7 +44,6 @@ public enum ErrorCode {
     ),
 
     DEPLOYMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "DEPLOYMENT_001", "사용자별 배포는 하나만 생성할 수 있습니다."),
-    UNSUPPORTED_RUNTIME_VERSION(HttpStatus.BAD_REQUEST, "DEPLOYMENT_002", "지원하지 않는 Java 실행 버전입니다."),
     DUPLICATE_ENV_KEY(HttpStatus.BAD_REQUEST, "DEPLOYMENT_003", "중복된 환경변수 이름이 존재합니다."),
     DEPLOYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "DEPLOYMENT_004", "조회할 배포 정보가 없습니다."),
     DEPLOYMENT_DELETE_FAILED(HttpStatus.BAD_GATEWAY, "DEPLOYMENT_005", "배포 리소스 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요."),

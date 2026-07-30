@@ -44,7 +44,6 @@ public class DeploymentController {
     @ApiErrorCodeExample(ErrorCode.VALIDATION_FAILED)
     @ApiErrorCodeExample(ErrorCode.MEMBER_NOT_FOUND)
     @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_ALREADY_EXISTS)
-    @ApiErrorCodeExample(ErrorCode.UNSUPPORTED_RUNTIME_VERSION)
     @ApiErrorCodeExample(ErrorCode.DUPLICATE_ENV_KEY)
     @ApiErrorCodeExample(ErrorCode.ARTIFACT_NOT_FOUND)
     @ApiErrorCodeExample(ErrorCode.ARTIFACT_ACCESS_DENIED)

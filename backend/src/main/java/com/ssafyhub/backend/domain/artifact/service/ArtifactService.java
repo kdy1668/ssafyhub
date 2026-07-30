@@ -40,10 +40,9 @@ public class ArtifactService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
 
-        // 백엔드 아티팩트: .jar(플랫폼이 표준 Dockerfile 자동 생성) 또는 .zip(사용자 Dockerfile 포함,
-        // 언어 무관 BYO 빌드) 둘 다 허용.
+        // 백엔드/프론트엔드 아티팩트 모두 .zip(Dockerfile 포함, 언어/프레임워크 무관 BYO 빌드)만 허용.
         String backendFileName = validateFileName(
-                request.backendFileName(), List.of(".jar", ".zip"), ErrorCode.INVALID_BACKEND_FILE);
+                request.backendFileName(), List.of(".zip"), ErrorCode.INVALID_BACKEND_FILE);
         String frontendFileName = validateFileName(
                 request.frontendFileName(), List.of(".zip"), ErrorCode.INVALID_FRONTEND_FILE);
 

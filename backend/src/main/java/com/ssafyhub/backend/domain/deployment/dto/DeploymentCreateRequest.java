@@ -29,8 +29,8 @@ public record DeploymentCreateRequest(
         @Positive(message = "프론트엔드 Artifact ID는 양수여야 합니다.")
         Long frontendArtifactId,
 
-        @Schema(description = "Java 실행 버전 (지원 버전: 17, 21)", example = "21")
-        @NotBlank(message = "Java 실행 버전은 필수입니다.")
+        @Schema(description = "런타임 표기용 메타 정보(실제 실행 환경은 업로드한 Dockerfile이 결정합니다)", example = "21")
+        @NotBlank(message = "runtimeVersion은 필수입니다.")
         String runtimeVersion,
 
         @Schema(description = "애플리케이션 내부 포트", example = "8080")
