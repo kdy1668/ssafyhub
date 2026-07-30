@@ -162,7 +162,7 @@ class DeploymentServiceTest {
         given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
         given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "21", 8080, "app_db", "db-password",
+                "demo-service", 1L, 2L, "SPRING_JPA", "21", 8080, "app_db", "db-password",
                 null,
                 null,
                 null,
@@ -225,6 +225,7 @@ class DeploymentServiceTest {
                 "demo-service",
                 1L,
                 2L,
+                "SPRING_JPA",
                 "21",
                 8080,
                 "app_db",

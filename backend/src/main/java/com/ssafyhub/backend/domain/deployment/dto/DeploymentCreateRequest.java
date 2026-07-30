@@ -29,7 +29,13 @@ public record DeploymentCreateRequest(
         @Positive(message = "프론트엔드 Artifact ID는 양수여야 합니다.")
         Long frontendArtifactId,
 
-        @Schema(description = "런타임 표기용 메타 정보(실제 실행 환경은 업로드한 Dockerfile이 결정합니다)", example = "21")
+        @Schema(description = "언어/프레임워크 스택 (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, EXPRESS). " +
+                "이 값에 맞춰 플랫폼이 Dockerfile을 자동 생성합니다 - 사용자는 Dockerfile을 올릴 필요가 없습니다.",
+                example = "SPRING_JPA")
+        @NotBlank(message = "stack은 필수입니다.")
+        String stack,
+
+        @Schema(description = "런타임 버전 (Java: 17/21, Python: 3.11/3.12, Node.js: 18/20 등)", example = "21")
         @NotBlank(message = "runtimeVersion은 필수입니다.")
         String runtimeVersion,
 

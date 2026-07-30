@@ -81,6 +81,11 @@ public class Deployment {
     @Column(name = "runtime_version", nullable = false, length = 20)
     private String runtimeVersion;
 
+    // 언어+프레임워크 조합("SPRING_JPA"/"SPRING_MYBATIS"/"DJANGO"/"EXPRESS"). 플랫폼이 이 값에 맞는
+    // Dockerfile을 자동 생성하므로 사용자는 Dockerfile을 올릴 필요가 없다. 과거 데이터는 SPRING_JPA로 간주.
+    @Column(name = "tech_stack", length = 30)
+    private String techStack;
+
     @Column(name = "internal_port", nullable = false)
     private int internalPort;
 
@@ -137,6 +142,7 @@ public class Deployment {
             String projectName,
             String slug,
             String runtimeVersion,
+            String techStack,
             int internalPort,
             String databaseName,
             String encryptedDatabasePassword,
@@ -153,6 +159,7 @@ public class Deployment {
         this.projectName = projectName;
         this.slug = slug;
         this.runtimeVersion = runtimeVersion;
+        this.techStack = techStack;
         this.internalPort = internalPort;
         this.databaseName = databaseName;
         this.encryptedDatabasePassword = encryptedDatabasePassword;
@@ -162,6 +169,11 @@ public class Deployment {
         this.requestedAt = requestedAt;
         this.visibility = (visibility != null) ? visibility : Visibility.PRIVATE;
         this.description = description;
+    }
+
+    /** 과거 데이터(techStack 컬럼이 없던 시절, .jar+JPA만 지원)는 SPRING_JPA로 간주한다. */
+    public String getEffectiveTechStack() {
+        return (techStack == null || techStack.isBlank()) ? "SPRING_JPA" : techStack;
     }
 
     /** databaseName이 있는데 엔진이 비어 있는 과거 데이터는 MYSQL로 간주한다. */

@@ -89,7 +89,7 @@ export function useCreateDeployment() {
   async function runDeploy(args) {
     const {
       backendFile, frontendFile, schemaFile,
-      projectName, runtimeVersion, internalPort,
+      projectName, stack, runtimeVersion, internalPort,
       databaseName, databasePassword, databaseEngine, neededServices, envList,
       visibility, description,
     } = args;
@@ -129,7 +129,7 @@ export function useCreateDeployment() {
       };
 
       // allSettled 로 모든 파일을 시도 → 부분 실패도 각 상태에 반영
-      // 백엔드는 .jar 또는 .zip(Dockerfile 포함), 프론트엔드는 항상 .zip(Dockerfile 포함).
+      // 백엔드는 스택에 따라 .jar(Java) 또는 .zip(Python/Node 소스), 프론트엔드는 항상 정적 빌드 .zip.
       const backendContentType = backendFile.name.toLowerCase().endsWith(".zip")
         ? "application/zip"
         : "application/java-archive";
@@ -155,6 +155,7 @@ export function useCreateDeployment() {
         projectName,
         backendArtifactId: backendArtifact.artifactId,
         frontendArtifactId: frontendArtifact.artifactId,
+        stack,
         runtimeVersion,
         internalPort: Number(internalPort),
         databaseName,

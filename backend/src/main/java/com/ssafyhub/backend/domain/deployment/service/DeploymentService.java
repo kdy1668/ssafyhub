@@ -43,6 +43,11 @@ public class DeploymentService {
     private static final String PENDING_MESSAGE = "배포 요청이 접수되었습니다.";
     private static final Set<String> SUPPORTED_NEEDED_SERVICES = Set.of("REDIS", "MONGODB");
     private static final Set<String> SUPPORTED_DATABASE_ENGINES = Set.of("MYSQL", "POSTGRES");
+    // Java 계열(.jar 아티팩트)과 Python/Node.js 계열(.zip 소스 아티팩트)을 구분해야 파일 확장자를 검증할 수 있다.
+    private static final Set<String> JAR_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS");
+    private static final Set<String> SUPPORTED_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS", "DJANGO", "EXPRESS");
+    // 테이블을 스스로 만들어주지 않는 스택만 DB 초기화 SQL 업로드를 허용한다.
+    private static final Set<String> MANUAL_MIGRATION_STACKS = Set.of("SPRING_MYBATIS", "EXPRESS");
 
     private final MemberRepository memberRepository;
     private final ArtifactRepository artifactRepository;
@@ -73,6 +78,8 @@ public class DeploymentService {
         validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
         validateUniqueEnvKeys(request.env());
 
+        String stack = validateStack(request.stack(), backendArtifact);
+
         String databaseName = blankToNull(request.databaseName());
         String databasePassword = blankToNull(request.databasePassword());
         if (databaseName != null && databasePassword == null) {
@@ -86,6 +93,9 @@ public class DeploymentService {
         if (request.schemaArtifactId() != null) {
             if (databaseName == null) {
                 throw new BusinessException(ErrorCode.SCHEMA_REQUIRES_DATABASE);
+            }
+            if (!MANUAL_MIGRATION_STACKS.contains(stack)) {
+                throw new BusinessException(ErrorCode.STACK_DOES_NOT_SUPPORT_SCHEMA_SQL);
             }
             schemaArtifact = getArtifact(request.schemaArtifactId());
             validateArtifact(schemaArtifact, memberId, ArtifactType.SCHEMA_SQL);
@@ -106,6 +116,7 @@ public class DeploymentService {
                 request.projectName().trim(),
                 member.getStudentNumber(),
                 request.runtimeVersion().trim(),
+                stack,
                 request.internalPort(),
                 databaseName,
                 encryptedDatabasePassword,
@@ -305,6 +316,26 @@ public class DeploymentService {
 
     private String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /**
+     * stack이 지원 목록에 있는지, 그리고 백엔드 아티팩트 확장자가 그 스택과 맞는지 검증한다.
+     * Java 계열(.jar 자동 Dockerfile)과 Python/Node.js 계열(.zip 소스 + 자동 Dockerfile)은
+     * 업로드 형식 자체가 다르므로, 잘못 짝지어지면 배포 단계에서야 실패하지 않도록 여기서 막는다.
+     */
+    private String validateStack(String rawStack, Artifact backendArtifact) {
+        String stack = rawStack == null ? "" : rawStack.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_STACKS.contains(stack)) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_STACK);
+        }
+
+        String fileName = backendArtifact.getOriginalFileName().toLowerCase(Locale.ROOT);
+        boolean isJavaStack = JAR_STACKS.contains(stack);
+        boolean isJarFile = fileName.endsWith(".jar");
+        if (isJavaStack != isJarFile) {
+            throw new BusinessException(ErrorCode.STACK_ARTIFACT_MISMATCH);
+        }
+        return stack;
     }
 
     /** databaseName이 없으면 엔진도 의미 없으니 null. 있는데 엔진이 비어 있으면 MYSQL 기본값. */
