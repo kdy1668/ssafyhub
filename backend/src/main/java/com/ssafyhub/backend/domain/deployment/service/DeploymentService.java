@@ -166,6 +166,41 @@ public class DeploymentService {
                 deployment.getId(), cpuPercent, memoryUsedMb, memoryTotalMb, LocalDateTime.now());
     }
 
+    /**
+     * 배포 리소스 사용량 시계열(그래프용) - deploy-engine /metrics/range를 CPU%(코어*100)/메모리MB로 변환.
+     * deploy-engine 순단/무데이터 시 빈 시계열로 응답(화면이 깨지지 않도록).
+     */
+    public com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse getResourceHistory(
+            Long memberId, Long deploymentId, int minutes) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        com.ssafyhub.backend.domain.deployment.dto.DevOpsMetricsRangeResponse range;
+        try {
+            range = devOpsDeploymentClient.getMetricsRange(deployment.getId(), minutes, 60);
+        } catch (RestClientException exception) {
+            range = null;
+        }
+
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> cpu =
+                new java.util.ArrayList<>();
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> memory =
+                new java.util.ArrayList<>();
+        if (range != null) {
+            if (range.cpuCores() != null) {
+                range.cpuCores().forEach(p -> cpu.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() * 100 : 0)));
+            }
+            if (range.memoryBytes() != null) {
+                range.memoryBytes().forEach(p -> memory.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
+            }
+        }
+        return new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse(cpu, memory);
+    }
+
     /** 배포 진행 로그(깃헙 액션식 단계별) - 본인 배포만 조회 가능. */
     public java.util.List<com.ssafyhub.backend.domain.deployment.dto.DeploymentLogResponse> getDeploymentLogs(
             Long memberId, Long deploymentId) {
