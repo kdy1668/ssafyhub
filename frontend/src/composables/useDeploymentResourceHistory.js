@@ -14,6 +14,6 @@ export function useDeploymentResourceHistory(deploymentId, enabled, minutes = 30
     ]),
     queryFn: () => fetchDeploymentResourceHistory(unref(deploymentId), unref(minutes)),
     enabled: computed(() => Boolean(unref(deploymentId)) && Boolean(unref(enabled))),
-    refetchInterval: () => (unref(enabled) ? 30000 : false),
+    refetchInterval: () => (unref(enabled) ? 10000 : false), // 10초마다 그래프 갱신
   });
 }
