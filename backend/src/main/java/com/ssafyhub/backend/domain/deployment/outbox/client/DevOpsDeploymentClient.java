@@ -1,5 +1,6 @@
 package com.ssafyhub.backend.domain.deployment.outbox.client;
 
+import com.ssafyhub.backend.domain.deployment.dto.DevOpsMetricsResponse;
 import com.ssafyhub.backend.domain.deployment.outbox.dto.DevOpsDeploymentRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,14 @@ public class DevOpsDeploymentClient {
 
     public DevOpsDeploymentClient(@Qualifier("devOpsRestClient") RestClient restClient) {
         this.restClient = restClient;
+    }
+
+    /** deploy-engine에서 배포의 현재 리소스 사용량(CPU/메모리 등) 스냅샷을 가져온다. */
+    public DevOpsMetricsResponse getMetrics(Long deploymentId) {
+        return restClient.get()
+                .uri("/api/deployments/{deploymentId}/metrics", deploymentId)
+                .retrieve()
+                .body(DevOpsMetricsResponse.class);
     }
 
     public void requestDeployment(Long deploymentId) {
