@@ -55,6 +55,30 @@ export async function fetchDeploymentResources(deploymentId) {
   return data;
 }
 
+// 배포 진행 로그(깃헙 액션식 단계별). LogViewer가 쓰는 { time, status, message } 형태로 정규화.
+export async function fetchDeploymentLogs(deploymentId) {
+  if (USE_MOCKS) {
+    await mockDelay(300);
+    return [
+      { time: "10:00:01", status: "PENDING", message: "배포 요청이 접수되었습니다." },
+      { time: "10:00:03", status: "BUILDING", message: "상태 변경: BUILDING" },
+      { time: "10:00:20", status: "BUILDING", message: "#5 transferring context: 52.38MB done" },
+      { time: "10:00:31", status: "DEPLOYING", message: "상태 변경: DEPLOYING" },
+      { time: "10:01:10", status: "RUNNING", message: "상태 변경: RUNNING" },
+    ];
+  }
+  // 백엔드: ApiResponse.data = [{ logMessage, status, createdAt }, ...] (시간순)
+  const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/logs`);
+  const list = data?.data ?? [];
+  return list.map((log) => ({
+    time: log.createdAt
+      ? new Date(log.createdAt).toLocaleTimeString("ko-KR", { hour12: false })
+      : "",
+    status: log.status,
+    message: log.logMessage,
+  }));
+}
+
 // 🚀 수정된 부분: presignedRes.data 구조에 맞게 { data: { ... } } 형태로 감싸줌
 export async function getPresignedUrls(backendFileName, frontendFileName) {
   if (USE_MOCKS) {
