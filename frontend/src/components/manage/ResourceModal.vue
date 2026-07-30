@@ -2,7 +2,9 @@
 import { toRef } from "vue";
 import BaseModal from "../common/BaseModal.vue";
 import BaseSkeleton from "../common/BaseSkeleton.vue";
+import MetricChart from "./MetricChart.vue";
 import { useDeploymentResources } from "../../composables/useDeploymentResources";
+import { useDeploymentResourceHistory } from "../../composables/useDeploymentResourceHistory";
 
 const props = defineProps({
   open: Boolean,
@@ -12,6 +14,12 @@ const props = defineProps({
 defineEmits(["close"]);
 
 const { data, isLoading } = useDeploymentResources(
+  toRef(props, "deploymentId"),
+  toRef(props, "open")
+);
+
+// 시계열 그래프 데이터 (열려 있을 때 30초마다 갱신)
+const { data: history } = useDeploymentResourceHistory(
   toRef(props, "deploymentId"),
   toRef(props, "open")
 );
@@ -52,6 +60,25 @@ function clampPercent(percent) {
           />
         </div>
       </div>
+      <!-- 시간 그래프 (시계열) -->
+      <div class="mt-2 flex flex-col gap-3 border-t border-border pt-4">
+        <span class="text-xs font-semibold text-ink-500">최근 사용량 추이</span>
+        <MetricChart
+          :points="history?.cpu || []"
+          label="CPU 사용률"
+          unit="%"
+          color="#3b82f6"
+          :max="100"
+        />
+        <MetricChart
+          :points="history?.memory || []"
+          label="메모리 사용량"
+          unit="MB"
+          color="#10b981"
+          :max="data.memoryTotalMb"
+        />
+      </div>
+
       <p class="text-xs text-ink-500">측정 시각: {{ new Date(data.sampledAt).toLocaleString() }}</p>
     </div>
   </BaseModal>

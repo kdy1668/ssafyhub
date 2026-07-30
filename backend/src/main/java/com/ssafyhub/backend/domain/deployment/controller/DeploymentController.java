@@ -95,6 +95,22 @@ public class DeploymentController {
     }
 
     @Operation(
+            summary = "배포 리소스 사용량 시계열 조회",
+            description = "그래프용 CPU%/메모리MB 시계열을 반환합니다(deploy-engine /metrics/range 중계). 본인 배포만 조회 가능."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @GetMapping("/{deploymentId}/resources/history")
+    public ResponseEntity<ApiResponse<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse>> getResourceHistory(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long deploymentId,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "30") int minutes
+    ) {
+        var history = deploymentService.getResourceHistory(userDetails.getMemberId(), deploymentId, minutes);
+        return ResponseEntity.ok(ApiResponse.success("리소스 시계열을 조회했습니다.", history));
+    }
+
+    @Operation(
             summary = "배포 진행 로그 조회",
             description = "배포의 단계별 진행 로그(PENDING→BUILDING→DEPLOYING→RUNNING/FAILED)를 시간순으로 반환합니다. 본인 배포만 조회 가능."
     )

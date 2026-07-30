@@ -56,6 +56,25 @@ export async function fetchDeploymentResources(deploymentId) {
   return data?.data;
 }
 
+// 배포 리소스 사용량 시계열(그래프용). { cpu: [{time,value%}], memory: [{time,valueMB}] }
+export async function fetchDeploymentResourceHistory(deploymentId, minutes = 30) {
+  if (USE_MOCKS) {
+    await mockDelay(300);
+    const now = Math.floor(Date.now() / 1000);
+    const cpu = [];
+    const memory = [];
+    for (let i = 20; i >= 0; i--) {
+      cpu.push({ time: now - i * 60, value: Math.round((10 + Math.random() * 40) * 10) / 10 });
+      memory.push({ time: now - i * 60, value: Math.round(150 + Math.random() * 120) });
+    }
+    return { cpu, memory };
+  }
+  const { data } = await apiClient.get(
+    `/api/v1/deployments/${deploymentId}/resources/history?minutes=${minutes}`
+  );
+  return data?.data ?? { cpu: [], memory: [] };
+}
+
 // 배포 진행 로그(깃헙 액션식 단계별). LogViewer가 쓰는 { time, status, message } 형태로 정규화.
 export async function fetchDeploymentLogs(deploymentId) {
   if (USE_MOCKS) {

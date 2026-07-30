@@ -1,5 +1,6 @@
 package com.ssafyhub.backend.domain.deployment.outbox.client;
 
+import com.ssafyhub.backend.domain.deployment.dto.DevOpsMetricsRangeResponse;
 import com.ssafyhub.backend.domain.deployment.dto.DevOpsMetricsResponse;
 import com.ssafyhub.backend.domain.deployment.outbox.dto.DevOpsDeploymentRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -21,6 +22,15 @@ public class DevOpsDeploymentClient {
                 .uri("/api/deployments/{deploymentId}/metrics", deploymentId)
                 .retrieve()
                 .body(DevOpsMetricsResponse.class);
+    }
+
+    /** deploy-engine에서 리소스 사용량 시계열(그래프용)을 가져온다. */
+    public DevOpsMetricsRangeResponse getMetricsRange(Long deploymentId, int minutes, int stepSeconds) {
+        return restClient.get()
+                .uri("/api/deployments/{deploymentId}/metrics/range?minutes={minutes}&stepSeconds={step}",
+                        deploymentId, minutes, stepSeconds)
+                .retrieve()
+                .body(DevOpsMetricsRangeResponse.class);
     }
 
     public void requestDeployment(Long deploymentId) {
