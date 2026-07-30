@@ -24,7 +24,7 @@ public enum ErrorCode {
 
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_004", "회원을 찾을 수 없습니다."),
 
-    INVALID_BACKEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_001", "백엔드 파일은 .jar 형식이어야 합니다."),
+    INVALID_BACKEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_001", "백엔드 파일은 .jar 또는 .zip(Dockerfile 포함) 형식이어야 합니다."),
     INVALID_FRONTEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_002", "프론트엔드 파일은 .zip 형식이어야 합니다."),
     INVALID_FILE_NAME(HttpStatus.BAD_REQUEST, "ARTIFACT_003", "올바르지 않은 파일 이름입니다."),
     PRESIGNED_URL_GENERATION_FAILED(
@@ -48,6 +48,8 @@ public enum ErrorCode {
     DUPLICATE_ENV_KEY(HttpStatus.BAD_REQUEST, "DEPLOYMENT_003", "중복된 환경변수 이름이 존재합니다."),
     DEPLOYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "DEPLOYMENT_004", "조회할 배포 정보가 없습니다."),
     DEPLOYMENT_DELETE_FAILED(HttpStatus.BAD_GATEWAY, "DEPLOYMENT_005", "배포 리소스 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    DATABASE_PASSWORD_REQUIRED(HttpStatus.BAD_REQUEST, "DEPLOYMENT_006", "데이터베이스 이름을 입력했다면 비밀번호도 함께 입력해야 합니다."),
+    UNSUPPORTED_NEEDED_SERVICE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_007", "지원하지 않는 백킹서비스입니다. (지원: REDIS)"),
 
     SHOWCASE_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOWCASE_001", "존재하지 않는 서비스입니다."),
     ;

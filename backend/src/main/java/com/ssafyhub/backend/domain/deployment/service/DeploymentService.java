@@ -27,6 +27,7 @@ import com.ssafyhub.backend.global.security.SecretEncryptor;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +41,7 @@ import org.springframework.web.client.RestClientException;
 public class DeploymentService {
 
     private static final String PENDING_MESSAGE = "배포 요청이 접수되었습니다.";
+    private static final Set<String> SUPPORTED_NEEDED_SERVICES = Set.of("REDIS");
 
     private final MemberRepository memberRepository;
     private final ArtifactRepository artifactRepository;
@@ -66,20 +68,31 @@ public class DeploymentService {
             throw new BusinessException(ErrorCode.DEPLOYMENT_ALREADY_EXISTS);
         }
 
-        validateRuntimeVersion(request.runtimeVersion());
-        validateUniqueEnvKeys(request.env());
-
         Artifact backendArtifact = getArtifact(request.backendArtifactId());
         Artifact frontendArtifact = getArtifact(request.frontendArtifactId());
 
         validateArtifact(backendArtifact, memberId, ArtifactType.BACKEND_JAR);
         validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
 
+        // .jar(플랫폼이 표준 Dockerfile 생성)만 Java 버전 검증 대상 - .zip(사용자 Dockerfile,
+        // 언어 무관)은 실제 런타임이 사용자 Dockerfile에 달려 있어 검증하지 않는다.
+        if (isJarArtifact(backendArtifact)) {
+            validateRuntimeVersion(request.runtimeVersion());
+        }
+        validateUniqueEnvKeys(request.env());
+
+        String databaseName = blankToNull(request.databaseName());
+        String databasePassword = blankToNull(request.databasePassword());
+        if (databaseName != null && databasePassword == null) {
+            throw new BusinessException(ErrorCode.DATABASE_PASSWORD_REQUIRED);
+        }
+        String encryptedDatabasePassword = databasePassword != null ? secretEncryptor.encrypt(databasePassword) : null;
+        String neededServices = validateAndJoinNeededServices(request.neededServices());
+
         s3ObjectVerifier.verifyExists(backendArtifact.getBucket(), backendArtifact.getObjectKey());
         s3ObjectVerifier.verifyExists(frontendArtifact.getBucket(), frontendArtifact.getObjectKey());
 
         LocalDateTime requestedAt = LocalDateTime.now();
-        String encryptedDatabasePassword = secretEncryptor.encrypt(request.databasePassword());
 
         Deployment deployment = new Deployment(
                 member,
@@ -89,8 +102,9 @@ public class DeploymentService {
                 member.getStudentNumber(),
                 request.runtimeVersion().trim(),
                 request.internalPort(),
-                request.databaseName(),
+                databaseName,
                 encryptedDatabasePassword,
+                neededServices,
                 requestedAt,
                 request.visibility(),
                 request.description()
@@ -281,6 +295,29 @@ public class DeploymentService {
         if (!supportedRuntimeVersions.contains(runtimeVersion.trim())) {
             throw new BusinessException(ErrorCode.UNSUPPORTED_RUNTIME_VERSION);
         }
+    }
+
+    private boolean isJarArtifact(Artifact backendArtifact) {
+        return backendArtifact.getOriginalFileName().toLowerCase(Locale.ROOT).endsWith(".jar");
+    }
+
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    private String validateAndJoinNeededServices(List<String> neededServices) {
+        if (neededServices == null || neededServices.isEmpty()) {
+            return null;
+        }
+        Set<String> normalized = new HashSet<>();
+        for (String service : neededServices) {
+            String upper = service == null ? "" : service.trim().toUpperCase(Locale.ROOT);
+            if (!SUPPORTED_NEEDED_SERVICES.contains(upper)) {
+                throw new BusinessException(ErrorCode.UNSUPPORTED_NEEDED_SERVICE);
+            }
+            normalized.add(upper);
+        }
+        return String.join(",", normalized);
     }
 
     private void validateUniqueEnvKeys(List<DeploymentEnvRequest> envs) {

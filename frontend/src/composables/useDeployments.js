@@ -88,7 +88,7 @@ export function useCreateDeployment() {
     const {
       backendFile, frontendFile,
       projectName, runtimeVersion, internalPort,
-      databaseName, databasePassword, envList,
+      databaseName, databasePassword, neededServices, envList,
       visibility, description,
     } = args;
 
@@ -124,9 +124,12 @@ export function useCreateDeployment() {
       };
 
       // allSettled 로 두 파일을 모두 시도 → 부분 실패도 각 상태에 반영
-      // 명세: JAR → application/java-archive, ZIP → application/zip
+      // 백엔드 아티팩트는 .jar 또는 .zip(Dockerfile 포함) 둘 다 가능하므로 실제 확장자로 결정한다.
+      const backendContentType = backendFile.name.toLowerCase().endsWith(".zip")
+        ? "application/zip"
+        : "application/java-archive";
       const results = await Promise.allSettled([
-        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, "application/java-archive"),
+        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, backendContentType),
         uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip"),
       ]);
 
@@ -147,6 +150,7 @@ export function useCreateDeployment() {
         internalPort: Number(internalPort),
         databaseName,
         databasePassword,
+        neededServices,
         env: envList,
         visibility,
         description,

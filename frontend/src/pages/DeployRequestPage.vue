@@ -49,12 +49,18 @@ const form = reactive({
   projectName: "",
   runtimeVersion: "21",
   internalPort: 8080,
+  needDatabase: true,
   databaseName: "",
   databasePassword: "",
+  neededServices: [], // 예: ["REDIS"] - MySQL 외 추가 백킹서비스
   envVars: [],
   visibility: "PUBLIC",
   description: "",
 });
+
+const BACKING_SERVICE_OPTIONS = [
+  { value: "REDIS", label: "Redis" },
+];
 
 const errors = reactive({
   projectName: "",
@@ -84,10 +90,11 @@ function handleFrontendFileChange(e) {
 function validate() {
   errors.projectName = form.projectName ? "" : "프로젝트 이름은 필수입니다.";
 
-  // 파일: 존재 + 확장자(.jar / .zip)
-  if (!backendFile.value) errors.backendFile = "백엔드 JAR 파일을 업로드하세요.";
-  else if (!backendFile.value.name.toLowerCase().endsWith(".jar"))
-    errors.backendFile = "백엔드 파일은 .jar 형식이어야 합니다.";
+  // 파일: 존재 + 확장자(.jar 또는 .zip - .zip은 Dockerfile을 포함한 BYO 빌드)
+  const backendName = backendFile.value?.name.toLowerCase() ?? "";
+  if (!backendFile.value) errors.backendFile = "백엔드 아티팩트를 업로드하세요.";
+  else if (!backendName.endsWith(".jar") && !backendName.endsWith(".zip"))
+    errors.backendFile = "백엔드 파일은 .jar 또는 .zip 형식이어야 합니다.";
   else errors.backendFile = "";
 
   if (!frontendFile.value) errors.frontendFile = "프론트엔드 ZIP 파일을 업로드하세요.";
@@ -95,13 +102,18 @@ function validate() {
     errors.frontendFile = "프론트엔드 파일은 .zip 형식이어야 합니다.";
   else errors.frontendFile = "";
 
-  // DB 이름: 필수 + 패턴(영문 시작, 영문/숫자/_)
-  if (!form.databaseName) errors.databaseName = "DB 이름은 필수입니다.";
-  else if (!DB_NAME_RE.test(form.databaseName))
-    errors.databaseName = "DB 이름은 영문자로 시작하고 영문/숫자/_ 만 사용할 수 있습니다.";
-  else errors.databaseName = "";
+  // DB는 선택 - "DB 필요" 체크했을 때만 이름/비밀번호를 검증한다.
+  if (form.needDatabase) {
+    if (!form.databaseName) errors.databaseName = "DB 이름은 필수입니다.";
+    else if (!DB_NAME_RE.test(form.databaseName))
+      errors.databaseName = "DB 이름은 영문자로 시작하고 영문/숫자/_ 만 사용할 수 있습니다.";
+    else errors.databaseName = "";
 
-  errors.databasePassword = form.databasePassword ? "" : "DB 비밀번호는 필수입니다.";
+    errors.databasePassword = form.databasePassword ? "" : "DB 비밀번호는 필수입니다.";
+  } else {
+    errors.databaseName = "";
+    errors.databasePassword = "";
+  }
 
   // 내부 포트: 1~65535
   const port = Number(form.internalPort);
@@ -142,8 +154,10 @@ function buildPayload() {
     projectName: form.projectName,
     runtimeVersion: form.runtimeVersion,
     internalPort: form.internalPort,
-    databaseName: form.databaseName,
-    databasePassword: form.databasePassword,
+    // DB 필요 없음 체크 시 빈 값으로 보내 백엔드가 "DB 프로비저닝 안 함"으로 처리하게 한다.
+    databaseName: form.needDatabase ? form.databaseName : "",
+    databasePassword: form.needDatabase ? form.databasePassword : "",
+    neededServices: form.neededServices,
     envList: form.envVars.filter((v) => v.key && v.value),
     visibility: form.visibility,
     description: form.description,
@@ -270,16 +284,24 @@ async function handleRetry() {
           <!-- 파일 업로드 영역 -->
           <div class="flex flex-col gap-4 border-y border-border py-6">
             <h3 class="text-sm font-bold text-ink-900">빌드 파일 업로드</h3>
-            
+
             <div>
-              <label class="mb-1 block text-sm font-medium text-ink-700">백엔드 JAR 파일</label>
-              <input 
-                type="file" 
-                accept=".jar" 
-                @change="handleBackendFileChange" 
+              <label class="mb-1 block text-sm font-medium text-ink-700">백엔드 아티팩트 (.jar 또는 .zip)</label>
+              <input
+                type="file"
+                accept=".jar,.zip"
+                @change="handleBackendFileChange"
                 class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
               />
               <p v-if="errors.backendFile" class="mt-1 text-xs text-red-500">{{ errors.backendFile }}</p>
+              <p class="mt-1 text-xs text-ink-500">
+                .jar: Java로 빌드된 실행 파일 하나만 올리면 됩니다 (실행 환경은 플랫폼이 자동 구성).<br />
+                .zip: Java가 아닌 다른 언어/프레임워크를 쓴다면, 프로젝트 소스(또는 빌드 산출물)와
+                <strong>Dockerfile을 함께</strong> 담아 올려주세요. 앱을 어떻게 빌드/실행할지는 이 Dockerfile이
+                전부 결정합니다. DB 테이블/마이그레이션이 필요한 프레임워크(MyBatis 등 자동 생성이 안 되는
+                경우)라면, 앱 컨테이너가 시작될 때 마이그레이션을 직접 실행하도록 Dockerfile(또는 시작
+                스크립트)에 포함해주세요 - 플랫폼은 빈 데이터베이스만 준비해 드립니다.
+              </p>
             </div>
 
             <div>
@@ -294,24 +316,45 @@ async function handleRetry() {
             </div>
           </div>
 
-          <!-- DB 설정 영역 -->
-          <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <BaseInput
-              id="databaseName"
-              label="DB 이름"
-              placeholder="app_db"
-              v-model="form.databaseName"
-              :error="errors.databaseName"
-            />
+          <!-- DB / 백킹서비스 설정 영역 -->
+          <div class="flex flex-col gap-4 border-b border-border pb-6">
+            <h3 class="text-sm font-bold text-ink-900">데이터베이스 / 백킹서비스</h3>
 
-            <BaseInput
-              id="databasePassword"
-              type="password"
-              label="DB 비밀번호 (필수)"
-              placeholder="비밀번호를 입력하세요"
-              v-model="form.databasePassword"
-              :error="errors.databasePassword"
-            />
+            <label class="flex items-center gap-2 text-sm text-ink-700">
+              <input type="checkbox" v-model="form.needDatabase" />
+              MySQL 데이터베이스가 필요합니다
+            </label>
+
+            <div v-if="form.needDatabase" class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <BaseInput
+                id="databaseName"
+                label="DB 이름"
+                placeholder="app_db"
+                v-model="form.databaseName"
+                :error="errors.databaseName"
+              />
+
+              <BaseInput
+                id="databasePassword"
+                type="password"
+                label="DB 비밀번호 (필수)"
+                placeholder="비밀번호를 입력하세요"
+                v-model="form.databasePassword"
+                :error="errors.databasePassword"
+              />
+            </div>
+
+            <div class="flex flex-col gap-1">
+              <span class="text-sm font-medium text-ink-700">추가 백킹서비스</span>
+              <label
+                v-for="opt in BACKING_SERVICE_OPTIONS"
+                :key="opt.value"
+                class="flex items-center gap-2 text-sm text-ink-700"
+              >
+                <input type="checkbox" :value="opt.value" v-model="form.neededServices" />
+                {{ opt.label }}
+              </label>
+            </div>
           </div>
 
           <!-- 환경변수 영역 -->
