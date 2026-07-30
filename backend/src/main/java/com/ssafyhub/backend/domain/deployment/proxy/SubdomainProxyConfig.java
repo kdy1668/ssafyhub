@@ -18,9 +18,11 @@ public class SubdomainProxyConfig {
     @Bean
     public FilterRegistrationBean<SubdomainProxyFilter> subdomainProxyFilter(
             DeploymentRepository deploymentRepository,
-            @Value("${deployment.public-domain}") String publicDomain) {
+            @Value("${deployment.public-domain}") String publicDomain,
+            @Value("${deployment.frontend-website-base:http://ssafy-deploy-frontend.s3-website.ap-northeast-2.amazonaws.com}")
+            String frontendWebsiteBase) {
         FilterRegistrationBean<SubdomainProxyFilter> registration = new FilterRegistrationBean<>();
-        registration.setFilter(new SubdomainProxyFilter(deploymentRepository, publicDomain));
+        registration.setFilter(new SubdomainProxyFilter(deploymentRepository, publicDomain, frontendWebsiteBase));
         registration.addUrlPatterns("/*");
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         registration.setName("subdomainProxyFilter");

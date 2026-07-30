@@ -37,7 +37,9 @@ public record DeploymentStatusResponse(
         LocalDateTime updatedAt
 ) {
 
-    public static DeploymentStatusResponse of(Deployment deployment, DeploymentLog latestLog) {
+    // accessUrl: 사용자에게 보여줄 접속 주소(서브도메인). deployment.endpoint_url(IP+경로)은 내부
+    // 프록시 타깃이라 그대로 두고, 표시용으로는 {학번}.ssafyhub.site 를 내려준다.
+    public static DeploymentStatusResponse of(Deployment deployment, DeploymentLog latestLog, String accessUrl) {
         return new DeploymentStatusResponse(
                 deployment.getId(),
                 deployment.getProjectName(),
@@ -45,7 +47,7 @@ public record DeploymentStatusResponse(
                 deployment.getVisibility(),
                 latestLog.getStatus(),
                 latestLog.getStatus().displayStatus(),
-                deployment.getEndpointUrl(),
+                accessUrl,
                 latestLog.getLogMessage(),
                 latestLog.getCreatedAt()
         );
