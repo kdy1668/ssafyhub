@@ -17,15 +17,22 @@ import { useToastStore } from "../stores/useToastStore";
 // 새로 만든 엔진(로직) import (경로를 프로젝트에 맞게 확인해주세요)
 import { useCreateDeployment } from "../composables/useDeployments";
 
-// 언어/프레임워크 스택 - 선택에 따라 백엔드 아티팩트 형식, 런타임 버전 목록,
-// DB 초기화 SQL 업로드 노출 여부(자동 마이그레이션 vs 수동)가 전부 바뀐다.
+// 언어 선택 - 고르면 그 언어에 속한 프레임워크 카드들이 아래에 나타난다.
+const LANGUAGE_OPTIONS = [
+  { value: "JAVA", icon: "java", label: "Java", sublabel: "Spring Boot" },
+  { value: "PYTHON", icon: "python", label: "Python", sublabel: "Django" },
+  { value: "NODE", icon: "node", label: "Node.js", sublabel: "Express" },
+];
+
+// 언어 안에서 고를 프레임워크/마이그레이션 방식 - 선택에 따라 백엔드 아티팩트 형식,
+// 런타임 버전 목록, DB 초기화 SQL 업로드 노출 여부(자동 마이그레이션 vs 수동)가 전부 바뀐다.
 // 실제 Dockerfile은 플랫폼이 스택에 맞춰 자동 생성하므로 사용자는 올릴 필요가 없다.
 const STACK_OPTIONS = [
   {
     value: "SPRING_JPA",
-    icon: "java",
-    label: "Java · Spring Boot",
-    sublabel: "JPA / Hibernate",
+    language: "JAVA",
+    label: "JPA / Hibernate",
+    description: "자동 마이그레이션",
     artifactAccept: ".jar",
     artifactLabel: "백엔드 아티팩트 (.jar)",
     artifactHint: "빌드된 실행 파일(.jar) 하나만 올리면 됩니다. 실행 환경은 플랫폼이 자동으로 구성합니다.",
@@ -37,9 +44,9 @@ const STACK_OPTIONS = [
   },
   {
     value: "SPRING_MYBATIS",
-    icon: "java",
-    label: "Java · Spring Boot",
-    sublabel: "MyBatis",
+    language: "JAVA",
+    label: "MyBatis",
+    description: "직접 마이그레이션",
     artifactAccept: ".jar",
     artifactLabel: "백엔드 아티팩트 (.jar)",
     artifactHint: "빌드된 실행 파일(.jar) 하나만 올리면 됩니다. 테이블은 아래 'DB 초기화 SQL'로 생성합니다.",
@@ -51,9 +58,9 @@ const STACK_OPTIONS = [
   },
   {
     value: "DJANGO",
-    icon: "python",
-    label: "Python · Django",
-    sublabel: "자동 마이그레이션",
+    language: "PYTHON",
+    label: "Django",
+    description: "자동 마이그레이션",
     artifactAccept: ".zip",
     artifactLabel: "백엔드 아티팩트 (.zip)",
     artifactHint: "manage.py, requirements.txt가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
@@ -66,9 +73,9 @@ const STACK_OPTIONS = [
   },
   {
     value: "EXPRESS",
-    icon: "node",
-    label: "Node.js · Express",
-    sublabel: "직접 마이그레이션",
+    language: "NODE",
+    label: "Express",
+    description: "직접 마이그레이션",
     artifactAccept: ".zip",
     artifactLabel: "백엔드 아티팩트 (.zip)",
     artifactHint: "package.json이 포함된 프로젝트 소스를 zip으로 올려주세요. package.json에 " +
@@ -108,6 +115,7 @@ const schemaFile = ref(null);
 // 텍스트/설정 폼 상태
 const form = reactive({
   projectName: "",
+  language: "JAVA",
   stack: "SPRING_JPA",
   runtimeVersion: "17",
   internalPort: 8080,
@@ -122,6 +130,11 @@ const form = reactive({
 
 const selectedStack = computed(
   () => STACK_OPTIONS.find((s) => s.value === form.stack) || STACK_OPTIONS[0]
+);
+
+// 현재 고른 언어에 속한 프레임워크 카드 목록
+const availableStacks = computed(
+  () => STACK_OPTIONS.filter((s) => s.language === form.language)
 );
 
 const DB_ENGINE_OPTIONS = [
@@ -150,6 +163,12 @@ const errors = reactive({
 // 백엔드 검증 규칙과 동일
 const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 const DB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,99}$/;
+
+function selectLanguage(value) {
+  form.language = value;
+  const firstStack = STACK_OPTIONS.find((s) => s.language === value);
+  selectStack(firstStack.value);
+}
 
 function selectStack(value) {
   form.stack = value;
@@ -356,12 +375,37 @@ async function handleRetry() {
             :error="errors.projectName"
           />
 
-          <!-- 언어/프레임워크 선택 -->
+          <!-- 언어 선택 -->
           <div class="flex flex-col gap-3">
-            <span class="text-sm font-bold text-ink-900">언어 / 프레임워크</span>
+            <span class="text-sm font-bold text-ink-900">언어</span>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <button
+                v-for="lang in LANGUAGE_OPTIONS"
+                :key="lang.value"
+                type="button"
+                @click="selectLanguage(lang.value)"
+                :class="[
+                  'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                  form.language === lang.value
+                    ? 'border-primary bg-primary-light ring-1 ring-primary'
+                    : 'border-border bg-background hover:border-primary/50',
+                ]"
+              >
+                <TechIcon :kind="lang.icon" />
+                <span class="flex flex-col">
+                  <span class="text-sm font-semibold text-ink-900">{{ lang.label }}</span>
+                  <span class="text-xs text-ink-500">{{ lang.sublabel }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 프레임워크 선택 - 위에서 고른 언어에 속한 것만 나타난다 -->
+          <div class="flex flex-col gap-3">
+            <span class="text-sm font-bold text-ink-900">프레임워크</span>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
-                v-for="opt in STACK_OPTIONS"
+                v-for="opt in availableStacks"
                 :key="opt.value"
                 type="button"
                 @click="selectStack(opt.value)"
@@ -372,10 +416,9 @@ async function handleRetry() {
                     : 'border-border bg-background hover:border-primary/50',
                 ]"
               >
-                <TechIcon :kind="opt.icon" />
                 <span class="flex flex-col">
                   <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
-                  <span class="text-xs text-ink-500">{{ opt.sublabel }}</span>
+                  <span class="text-xs text-ink-500">{{ opt.description }}</span>
                 </span>
               </button>
             </div>
