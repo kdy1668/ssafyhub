@@ -50,14 +50,17 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
 
     private final DeploymentRepository deploymentRepository;
     private final String publicDomain;
+    private final String frontendWebsiteBase; // S3 정적 웹 호스팅 엔드포인트(끝에 슬래시 없음)
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
-    public SubdomainProxyFilter(DeploymentRepository deploymentRepository, String publicDomain) {
+    public SubdomainProxyFilter(DeploymentRepository deploymentRepository, String publicDomain,
+                                String frontendWebsiteBase) {
         this.deploymentRepository = deploymentRepository;
         this.publicDomain = publicDomain;
+        this.frontendWebsiteBase = frontendWebsiteBase;
     }
 
     @Override
@@ -75,13 +78,28 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
             return;
         }
 
-        String endpointUrl = deployment.get().getEndpointUrl();
-        if (endpointUrl == null || endpointUrl.isBlank()) {
-            response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "아직 배포가 준비되지 않았습니다.");
-            return;
+        String uri = request.getRequestURI();
+        String suffix = request.getQueryString() != null ? "?" + request.getQueryString() : "";
+
+        String target;
+        if (uri.equals("/api") || uri.startsWith("/api/")) {
+            // /api/* → 백엔드(E206). "/api"를 떼고 endpoint_url로 전달(백엔드 앱은 /messages 등 원경로 유지).
+            String backendBase = deployment.get().getEndpointUrl();
+            if (backendBase == null || backendBase.isBlank()) {
+                response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "백엔드가 아직 준비되지 않았습니다.");
+                return;
+            }
+            String backendPath = uri.substring("/api".length()); // "/api/x" → "/x", "/api" → ""
+            if (backendPath.isEmpty()) {
+                backendPath = "/";
+            }
+            target = backendBase + backendPath + suffix;
+        } else {
+            // 그 외 전부 → 프론트 정적(S3 정적 웹 호스팅)의 {slug}/... 로. 루트/없는 경로는 S3가 index.html로 폴백.
+            target = frontendWebsiteBase + "/" + slug + uri + suffix;
         }
 
-        proxy(request, response, endpointUrl);
+        proxy(request, response, target);
     }
 
     /** host가 "{label}.{publicDomain}" 이고 label이 예약어가 아니면 label(slug)을 돌려준다. 아니면 null. */
@@ -100,9 +118,7 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
         return label;
     }
 
-    private void proxy(HttpServletRequest request, HttpServletResponse response, String base) throws IOException {
-        String query = request.getQueryString();
-        String target = base + request.getRequestURI() + (query != null ? "?" + query : "");
+    private void proxy(HttpServletRequest request, HttpServletResponse response, String target) throws IOException {
         try {
             byte[] body = StreamUtils.copyToByteArray(request.getInputStream());
             HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(target))

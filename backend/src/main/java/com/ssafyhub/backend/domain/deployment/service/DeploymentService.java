@@ -139,7 +139,13 @@ public class DeploymentService {
         DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
 
-        return DeploymentStatusResponse.of(deployment, latestLog);
+        // 실제로 떠 있을 때(endpoint_url 존재)만 접속 주소를 서브도메인으로 노출한다.
+        // endpoint_url(IP+경로)은 프록시 내부 타깃이라 그대로 두고, 사용자에겐 {학번}.도메인 을 보여준다.
+        String accessUrl = deployment.getEndpointUrl() != null
+                ? "https://%s.%s".formatted(deployment.getSlug(), publicDomain)
+                : null;
+
+        return DeploymentStatusResponse.of(deployment, latestLog, accessUrl);
     }
 
     /**
