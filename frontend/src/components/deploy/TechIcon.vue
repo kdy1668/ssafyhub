@@ -2,13 +2,12 @@
 // 배포 신청 화면의 DB/백킹서비스 선택 카드용 아이콘.
 // 실제 제품 로고 대신 색상 + 추상 아이콘으로 기술을 구분한다(상표 문제 회피 + 유지보수 단순화).
 const props = defineProps({
-  kind: { type: String, required: true }, // none | mysql | postgres | redis | mongodb | java | python | node
+  kind: { type: String, required: true }, // none | mysql | redis | mongodb | java | python | node
 });
 
 const PALETTE = {
   none: { bg: "#F1F5F9", fg: "#94A3B8" },
   mysql: { bg: "#E7F3FE", fg: "#00618A" },
-  postgres: { bg: "#EAF0FF", fg: "#336791" },
   redis: { bg: "#FCE8E6", fg: "#C5221F" },
   mongodb: { bg: "#E6F4EA", fg: "#12924F" },
   java: { bg: "#FBF1E1", fg: "#C77700" },
@@ -30,9 +29,9 @@ const colors = PALETTE[props.kind] || PALETTE.none;
       <line x1="7" y1="7" x2="17" y2="17" />
     </svg>
 
-    <!-- MySQL / PostgreSQL: 원통형 DB 아이콘(색상으로 구분) -->
+    <!-- MySQL: 원통형 DB 아이콘 -->
     <svg
-      v-else-if="kind === 'mysql' || kind === 'postgres'"
+      v-else-if="kind === 'mysql'"
       viewBox="0 0 24 24" class="h-5 w-5" fill="none" :stroke="colors.fg" stroke-width="2"
       stroke-linecap="round" stroke-linejoin="round"
     >

@@ -96,7 +96,7 @@ public class Deployment {
     @Column(name = "encrypted_database_password", columnDefinition = "TEXT")
     private String encryptedDatabasePassword;
 
-    // 관계형 DB 엔진("MYSQL"/"POSTGRES"). databaseName이 있는데 이 값이 없는 과거 데이터는
+    // 관계형 DB 엔진(현재 "MYSQL"만 지원). databaseName이 있는데 이 값이 없는 과거 데이터는
     // "MYSQL"로 간주한다(getEffectiveDatabaseEngine 참고).
     @Column(name = "database_engine", length = 20)
     private String databaseEngine;

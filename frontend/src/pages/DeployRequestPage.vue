@@ -70,6 +70,17 @@ const STACK_OPTIONS = [
       { value: "3.11", label: "Python 3.11" },
       { value: "3.12", label: "Python 3.12" },
     ],
+    zipExample: `backend.zip
+├── manage.py
+├── requirements.txt
+├── myproject/
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+└── myapp/
+    ├── models.py
+    ├── views.py
+    └── migrations/`,
   },
   {
     value: "EXPRESS",
@@ -85,6 +96,12 @@ const STACK_OPTIONS = [
       { value: "18", label: "Node.js 18" },
       { value: "20", label: "Node.js 20" },
     ],
+    zipExample: `backend.zip
+├── package.json
+├── package-lock.json
+├── index.js        (package.json "main"/"scripts.start"이 가리키는 진입 파일)
+└── src/
+    └── routes/...`,
   },
 ];
 
@@ -119,7 +136,7 @@ const form = reactive({
   stack: "SPRING_JPA",
   runtimeVersion: "17",
   internalPort: 8080,
-  databaseEngine: "NONE", // NONE | MYSQL | POSTGRES
+  databaseEngine: "NONE", // NONE | MYSQL
   databaseName: "",
   databasePassword: "",
   neededServices: [], // 예: ["REDIS", "MONGODB"] - 관계형 DB 외 추가 백킹서비스
@@ -138,9 +155,8 @@ const availableStacks = computed(
 );
 
 const DB_ENGINE_OPTIONS = [
-  { value: "NONE", icon: "none", label: "사용 안 함", description: "DB가 필요 없는 앱" },
+  { value: "NONE", icon: "none", label: "사용 안 함", description: "DB 없음 / SQLite 등 내장 DB" },
   { value: "MYSQL", icon: "mysql", label: "MySQL", description: "관계형 DB" },
-  { value: "POSTGRES", icon: "postgres", label: "PostgreSQL", description: "관계형 DB" },
 ];
 
 const BACKING_SERVICE_OPTIONS = [
@@ -483,6 +499,10 @@ async function handleRetry() {
               />
               <p v-if="errors.backendFile" class="mt-1 text-xs text-red-500">{{ errors.backendFile }}</p>
               <p class="mt-1 text-xs text-ink-500">{{ selectedStack.artifactHint }}</p>
+              <pre
+                v-if="selectedStack.zipExample"
+                class="mt-2 overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"
+              ><code>{{ selectedStack.zipExample }}</code></pre>
             </div>
 
             <div>
@@ -498,6 +518,12 @@ async function handleRetry() {
                 React/Vue 등으로 빌드한 정적 산출물(예: dist 폴더 안의 내용)을 그대로 zip으로 압축해서
                 올려주세요. index.html이 zip 최상위(또는 폴더 한 겹 안)에 있어야 합니다.
               </p>
+              <pre class="mt-2 overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code>frontend.zip
+├── index.html
+├── assets/
+│   ├── index-xxxx.js
+│   └── index-xxxx.css
+└── ...</code></pre>
             </div>
           </div>
 
@@ -525,6 +551,11 @@ async function handleRetry() {
                   </span>
                 </button>
               </div>
+              <p v-if="form.databaseEngine === 'NONE'" class="text-xs text-ink-500">
+                SQLite처럼 컨테이너 안 파일로 저장하는 내장 DB를 쓴다면 이 옵션을 그대로 선택하세요
+                - 플랫폼이 별도로 준비할 게 없습니다. 다만 컨테이너가 재시작되면 그 안의 파일은
+                함께 사라지니, 데이터를 계속 보존해야 한다면 위의 MySQL을 선택해주세요.
+              </p>
             </div>
 
             <div v-if="form.databaseEngine !== 'NONE'" class="flex flex-col gap-4">

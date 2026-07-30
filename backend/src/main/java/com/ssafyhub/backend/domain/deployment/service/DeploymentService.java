@@ -42,7 +42,7 @@ public class DeploymentService {
 
     private static final String PENDING_MESSAGE = "배포 요청이 접수되었습니다.";
     private static final Set<String> SUPPORTED_NEEDED_SERVICES = Set.of("REDIS", "MONGODB");
-    private static final Set<String> SUPPORTED_DATABASE_ENGINES = Set.of("MYSQL", "POSTGRES");
+    private static final Set<String> SUPPORTED_DATABASE_ENGINES = Set.of("MYSQL");
     // Java 계열(.jar 아티팩트)과 Python/Node.js 계열(.zip 소스 아티팩트)을 구분해야 파일 확장자를 검증할 수 있다.
     private static final Set<String> JAR_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS");
     private static final Set<String> SUPPORTED_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS", "DJANGO", "EXPRESS");
