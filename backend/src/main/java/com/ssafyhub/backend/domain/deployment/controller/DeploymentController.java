@@ -80,6 +80,21 @@ public class DeploymentController {
     }
 
     @Operation(
+            summary = "배포 진행 로그 조회",
+            description = "배포의 단계별 진행 로그(PENDING→BUILDING→DEPLOYING→RUNNING/FAILED)를 시간순으로 반환합니다. 본인 배포만 조회 가능."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @GetMapping("/{deploymentId}/logs")
+    public ResponseEntity<ApiResponse<java.util.List<com.ssafyhub.backend.domain.deployment.dto.DeploymentLogResponse>>> getDeploymentLogs(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long deploymentId
+    ) {
+        var logs = deploymentService.getDeploymentLogs(userDetails.getMemberId(), deploymentId);
+        return ResponseEntity.ok(ApiResponse.success("배포 로그를 조회했습니다.", logs));
+    }
+
+    @Operation(
             summary = "배포 삭제",
             description = "배포를 삭제합니다. 실행 중인 서버(k8s Deployment/Service/Ingress)를 함께 내리고 "
                     + "배포 이력까지 제거하므로 되돌릴 수 없습니다. 본인의 배포만 삭제할 수 있습니다."

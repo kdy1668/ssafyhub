@@ -132,6 +132,18 @@ public class DeploymentService {
         );
     }
 
+    /** 배포 진행 로그(깃헙 액션식 단계별) - 본인 배포만 조회 가능. */
+    public java.util.List<com.ssafyhub.backend.domain.deployment.dto.DeploymentLogResponse> getDeploymentLogs(
+            Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        return deploymentLogRepository.findByDeployment_IdOrderByIdAsc(deployment.getId())
+                .stream()
+                .map(com.ssafyhub.backend.domain.deployment.dto.DeploymentLogResponse::from)
+                .toList();
+    }
+
     public DeploymentStatusResponse getMyDeployment(Long memberId) {
         Deployment deployment = deploymentRepository.findByMember_Id(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));

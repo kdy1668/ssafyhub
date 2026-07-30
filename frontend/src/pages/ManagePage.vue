@@ -11,6 +11,7 @@ import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
 import { useMyDeployment } from "../composables/useDeployments";
+import { useDeploymentLogs } from "../composables/useDeploymentLogs";
 import { deleteDeployment } from "../api/deployments";
 import { useQueryClient } from "@tanstack/vue-query";
 import { useToastStore } from "../stores/useToastStore";
@@ -21,6 +22,14 @@ const queryClient = useQueryClient();
 
 // 내 배포 상태 1건 조회 (3초 폴링, 사용자당 배포는 1개)
 const { data: currentDeployment, isLoading, isError, error } = useMyDeployment();
+
+// 배포 진행 로그 (깃헙 액션식). deploymentId 있으면 3초 폴링으로 실시간 갱신.
+const deploymentId = computed(() => currentDeployment.value?.deploymentId);
+const {
+  data: deploymentLogs,
+  isFetching: isLogsFetching,
+  refetch: refetchLogs,
+} = useDeploymentLogs(deploymentId, computed(() => Boolean(deploymentId.value)));
 
 // 아직 배포한 적이 없는 사용자(404)는 에러가 아니라 "배포 없음" 빈 상태로 취급
 const hasNoDeployment = computed(() => isError.value && error.value?.status === 404);
@@ -93,9 +102,9 @@ async function confirmControl() {
   }
 }
 
-// 로그 새로고침 껍데기 (백엔드 연동 예정)
+// 로그 수동 새로고침 (평소엔 3초 폴링으로 자동 갱신됨)
 function handleRefreshLogs() {
-  toastStore.showToast("로그 새로고침 기능은 백엔드 연동 예정입니다.", "info");
+  refetchLogs();
 }
 
 // 상태에 따른 UI(색상, 애니메이션, 아이콘) 처리
@@ -241,10 +250,11 @@ const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "R
         </div>
       </BaseCard>
 
-      <!-- 로그 뷰어 (껍데기 UI, 백엔드 로그 연동 예정) -->
+      <!-- 배포 진행 로그 (깃헙 액션식) -->
       <div v-if="currentDeployment" class="mt-6">
         <LogViewer
-          :logs="[]"
+          :logs="deploymentLogs || []"
+          :loading="isLogsFetching"
           @refresh="handleRefreshLogs"
         />
       </div>
