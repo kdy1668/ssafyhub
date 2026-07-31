@@ -30,7 +30,7 @@ const HOW_IT_WORKS_STEPS = [
 // 순서의 여러 페이지로 나뉘어 있고 마지막이 항상 검토 화면이다 - 그 흐름을 그대로 따른다.
 const STEPS = [
   { id: 1, title: "배포 구조", description: "분리형 또는 통합형" },
-  { id: 2, title: "언어 / 프레임워크", description: "실행 환경 선택" },
+  { id: 2, title: "백엔드 언어 / 프레임워크", description: "백엔드 실행 환경 선택" },
   { id: 3, title: "실행 설정", description: "런타임 · 포트 · 공개범위" },
   { id: 4, title: "파일 업로드", description: "빌드 산출물" },
   { id: 5, title: "데이터베이스", description: "DB · 백킹서비스" },
@@ -535,6 +535,7 @@ async function handleRetry() {
       <div class="flex flex-col gap-6 sm:flex-row sm:items-start">
         <!-- 왼쪽 단계 네비게이션 (AWS 콘솔 마법사 - EC2 인스턴스 시작/CloudFormation 스택 생성 스타일) -->
         <nav
+          aria-label="배포 단계"
           class="flex shrink-0 flex-row gap-1 overflow-x-auto pb-2 sm:w-56 sm:flex-col sm:overflow-visible sm:pb-0"
         >
           <button
@@ -542,6 +543,7 @@ async function handleRetry() {
             :key="s.id"
             type="button"
             :disabled="s.id > maxVisitedStep"
+            :aria-current="currentStep === s.id ? 'step' : undefined"
             @click="goToStep(s.id)"
             :class="[
               'flex shrink-0 items-center gap-3 rounded-lg border p-3 text-left transition-colors sm:shrink',
@@ -605,10 +607,11 @@ async function handleRetry() {
               </div>
             </div>
 
-            <!-- 2단계: 언어 / 프레임워크 -->
+            <!-- 2단계: 백엔드 언어 / 프레임워크 (프론트는 이미 빌드된 정적 파일을 올리는 방식이라
+                 프레임워크를 몰라도 되므로, 여기서는 백엔드만 다룬다는 걸 이름으로 명확히 한다) -->
             <div v-show="currentStep === 2" class="flex flex-col gap-5">
               <div class="flex flex-col gap-3">
-                <h2 class="text-sm font-bold text-ink-900">언어를 선택하세요</h2>
+                <h2 class="text-sm font-bold text-ink-900">백엔드 언어를 선택하세요</h2>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <button
                     v-for="lang in LANGUAGE_OPTIONS"
@@ -633,7 +636,7 @@ async function handleRetry() {
 
               <!-- 프레임워크 선택 - 위에서 고른 언어에 속한 것만 나타난다 -->
               <div class="flex flex-col gap-3">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">프레임워크</h3>
+                <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">백엔드 프레임워크</h3>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     v-for="opt in availableStacks"
@@ -717,14 +720,19 @@ async function handleRetry() {
               <h2 class="text-sm font-bold text-ink-900">빌드 파일을 업로드하세요</h2>
 
               <div>
-                <label class="mb-1 block text-sm font-medium text-ink-700">{{ selectedStack.artifactLabel }}</label>
+                <div class="mb-1 flex items-center gap-2">
+                  <label class="text-sm font-medium text-ink-700">{{ selectedStack.artifactLabel }}</label>
+                  <span class="rounded bg-primary-light px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                    {{ selectedLanguage.label }} · {{ selectedStack.label }} 전용
+                  </span>
+                </div>
                 <input
                   type="file"
                   :accept="selectedStack.artifactAccept"
                   @change="handleBackendFileChange"
                   class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
                 />
-                <p v-if="errors.backendFile" class="mt-1 text-xs text-red-500">{{ errors.backendFile }}</p>
+                <p v-if="errors.backendFile" class="mt-1 text-xs text-danger">{{ errors.backendFile }}</p>
                 <p class="mt-1 text-xs text-ink-500">{{ selectedStack.artifactHint }}</p>
                 <pre
                   v-if="selectedStack.zipExample"
@@ -733,14 +741,19 @@ async function handleRetry() {
               </div>
 
               <div v-if="form.deploymentStructure === 'SEPARATE'">
-                <label class="mb-1 block text-sm font-medium text-ink-700">프론트엔드 아티팩트 (.zip)</label>
+                <div class="mb-1 flex items-center gap-2">
+                  <label class="text-sm font-medium text-ink-700">프론트엔드 아티팩트 (.zip)</label>
+                  <span class="rounded bg-border px-1.5 py-0.5 text-[11px] font-medium text-ink-500">
+                    프레임워크 무관
+                  </span>
+                </div>
                 <input
                   type="file"
                   accept=".zip"
                   @change="handleFrontendFileChange"
                   class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
                 />
-                <p v-if="errors.frontendFile" class="mt-1 text-xs text-red-500">{{ errors.frontendFile }}</p>
+                <p v-if="errors.frontendFile" class="mt-1 text-xs text-danger">{{ errors.frontendFile }}</p>
                 <p class="mt-1 text-xs text-ink-500">
                   React/Vue 등으로 빌드한 정적 산출물(예: dist 폴더 안의 내용)을 그대로 zip으로 압축해서
                   올려주세요. index.html이 zip 최상위(또는 폴더 한 겹 안)에 있어야 합니다.
@@ -821,7 +834,7 @@ async function handleRetry() {
                     @change="handleSchemaFileChange"
                     class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
                   />
-                  <p v-if="errors.schemaFile" class="mt-1 text-xs text-red-500">{{ errors.schemaFile }}</p>
+                  <p v-if="errors.schemaFile" class="mt-1 text-xs text-danger">{{ errors.schemaFile }}</p>
                   <p class="mt-1 text-xs text-ink-500">
                     선택한 스택은 테이블을 자동으로 만들어주지 않습니다.
                     <code class="rounded bg-ink-900 px-1 py-0.5 text-white">CREATE TABLE</code>
@@ -864,7 +877,7 @@ async function handleRetry() {
             <div v-show="currentStep === 6" class="flex flex-col gap-3">
               <h2 class="text-sm font-bold text-ink-900">환경변수를 입력하세요</h2>
               <EnvVarsEditor v-model="form.envVars" />
-              <p v-if="errors.env" class="mt-1 text-xs text-red-500">{{ errors.env }}</p>
+              <p v-if="errors.env" class="mt-1 text-xs text-danger">{{ errors.env }}</p>
             </div>
 
             <!-- 7단계: 검토 및 배포 -->
@@ -882,7 +895,7 @@ async function handleRetry() {
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-4 px-3 py-2">
-                  <dt class="text-ink-500">언어 / 프레임워크</dt>
+                  <dt class="text-ink-500">백엔드 언어 / 프레임워크</dt>
                   <dd class="font-medium text-ink-900">
                     {{ selectedLanguage.label }} · {{ selectedStack.label }}
                   </dd>
