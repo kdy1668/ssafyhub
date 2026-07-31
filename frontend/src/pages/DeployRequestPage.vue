@@ -11,8 +11,17 @@ import EnvVarsEditor from "../components/deploy/EnvVarsEditor.vue";
 import PreviewModal from "../components/deploy/PreviewModal.vue";
 import UploadProgress from "../components/deploy/UploadProgress.vue";
 import TechIcon from "../components/deploy/TechIcon.vue";
+import StepHeader from "../components/deploy/StepHeader.vue";
 import { useModalStore } from "../stores/useModalStore";
 import { useToastStore } from "../stores/useToastStore";
+
+// 페이지 상단 "어떻게 동작하나요?" 다이어그램 - AWS 콘솔의 서비스 개요 다이어그램 참고.
+const HOW_IT_WORKS_STEPS = [
+  { icon: "settings", title: "언어 선택", description: "Java·Python·Node 중 고르기" },
+  { icon: "upload", title: "파일 업로드", description: "빌드 산출물만 올리면 끝" },
+  { icon: "cube", title: "자동 빌드", description: "Dockerfile은 플랫폼이 대신 생성" },
+  { icon: "rocket", title: "배포 완료", description: "몇 분 안에 내 URL로 접속" },
+];
 
 // 새로 만든 엔진(로직) import (경로를 프로젝트에 맞게 확인해주세요)
 import { useCreateDeployment } from "../composables/useDeployments";
@@ -401,11 +410,35 @@ async function handleRetry() {
         </p>
       </div>
 
+      <!-- 어떻게 동작하나요? (초심자용 개요 다이어그램) -->
+      <div class="mb-6 rounded-lg border border-border bg-surface p-5 shadow-card sm:p-6">
+        <p class="mb-4 text-xs font-bold uppercase tracking-wider text-primary">어떻게 동작하나요?</p>
+        <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-2">
+          <template v-for="(step, i) in HOW_IT_WORKS_STEPS" :key="step.title">
+            <div class="flex flex-1 items-center gap-3 sm:flex-col sm:text-center">
+              <span
+                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-light text-primary"
+              >
+                <AppIcon :name="step.icon" class="h-5 w-5" />
+              </span>
+              <div class="sm:mt-1">
+                <p class="text-sm font-semibold text-ink-900">{{ step.title }}</p>
+                <p class="text-xs text-ink-500">{{ step.description }}</p>
+              </div>
+            </div>
+            <div v-if="i < HOW_IT_WORKS_STEPS.length - 1" class="hidden shrink-0 text-lg text-ink-300 sm:block">
+              →
+            </div>
+          </template>
+        </div>
+      </div>
+
       <!-- 배포 신청 폼 카드 -->
       <BaseCard class="p-6 sm:p-8 shadow-card border border-border bg-surface rounded-lg">
         <form class="flex flex-col gap-6" @submit.prevent="handleSubmit">
 
-          <!-- 기본 설정 영역 -->
+          <!-- 1. 프로젝트 정보 -->
+          <StepHeader :step="1" title="프로젝트 정보" />
           <BaseInput
             id="projectName"
             label="프로젝트 이름"
@@ -416,7 +449,7 @@ async function handleRetry() {
 
           <!-- 배포 구조 선택 -->
           <div class="flex flex-col gap-3">
-            <span class="text-sm font-bold text-ink-900">배포 구조</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-500">배포 구조</span>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
                 v-for="opt in DEPLOYMENT_STRUCTURE_OPTIONS"
@@ -438,9 +471,12 @@ async function handleRetry() {
             </div>
           </div>
 
+          <!-- 2. 언어 / 프레임워크 -->
+          <StepHeader :step="2" title="언어 / 프레임워크" />
+
           <!-- 언어 선택 -->
           <div class="flex flex-col gap-3">
-            <span class="text-sm font-bold text-ink-900">언어</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-500">언어</span>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <button
                 v-for="lang in LANGUAGE_OPTIONS"
@@ -465,7 +501,7 @@ async function handleRetry() {
 
           <!-- 프레임워크 선택 - 위에서 고른 언어에 속한 것만 나타난다 -->
           <div class="flex flex-col gap-3">
-            <span class="text-sm font-bold text-ink-900">프레임워크</span>
+            <span class="text-xs font-semibold uppercase tracking-wide text-ink-500">프레임워크</span>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
                 v-for="opt in availableStacks"
@@ -486,6 +522,9 @@ async function handleRetry() {
               </button>
             </div>
           </div>
+
+          <!-- 3. 실행 설정 -->
+          <StepHeader :step="3" title="실행 설정" />
 
           <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <BaseSelect
@@ -532,9 +571,9 @@ async function handleRetry() {
             </div>
           </div>
 
-          <!-- 파일 업로드 영역 -->
+          <!-- 4. 빌드 파일 업로드 -->
           <div class="flex flex-col gap-4 border-y border-border py-6">
-            <h3 class="text-sm font-bold text-ink-900">빌드 파일 업로드</h3>
+            <StepHeader :step="4" title="빌드 파일 업로드" />
 
             <div>
               <label class="mb-1 block text-sm font-medium text-ink-700">{{ selectedStack.artifactLabel }}</label>
@@ -578,10 +617,11 @@ async function handleRetry() {
             </p>
           </div>
 
-          <!-- DB / 백킹서비스 설정 영역 -->
+          <!-- 5. 데이터베이스 / 백킹서비스 설정 영역 -->
           <div class="flex flex-col gap-5 border-b border-border pb-6">
+            <StepHeader :step="5" title="데이터베이스 / 백킹서비스" />
             <div class="flex flex-col gap-3">
-              <span class="text-sm font-bold text-ink-900">데이터베이스</span>
+              <span class="text-xs font-semibold uppercase tracking-wide text-ink-500">데이터베이스</span>
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <button
                   v-for="opt in DB_ENGINE_OPTIONS"
@@ -650,7 +690,7 @@ async function handleRetry() {
             </div>
 
             <div class="flex flex-col gap-3">
-              <span class="text-sm font-bold text-ink-900">추가 백킹서비스</span>
+              <span class="text-xs font-semibold uppercase tracking-wide text-ink-500">추가 백킹서비스</span>
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
                   v-for="opt in BACKING_SERVICE_OPTIONS"
@@ -679,8 +719,9 @@ async function handleRetry() {
             </div>
           </div>
 
-          <!-- 환경변수 영역 -->
-          <div>
+          <!-- 6. 환경변수 영역 -->
+          <div class="flex flex-col gap-3">
+            <StepHeader :step="6" title="환경변수" />
             <EnvVarsEditor v-model="form.envVars" />
             <p v-if="errors.env" class="mt-1 text-xs text-red-500">{{ errors.env }}</p>
           </div>
