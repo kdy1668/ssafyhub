@@ -92,14 +92,22 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
             }
             target = backendBase + uri + suffix;
         } else if (uri.equals("/api") || uri.startsWith("/api/")) {
-            // /api/* → 백엔드(E206). 경로를 그대로 유지해서 전달한다(백엔드 앱도 /api/messages 등
-            // 자기가 만든 경로 그대로 응답하면 됨 - 통합형과 동일한 규칙이라 구조와 무관하게 일관됨).
+            // /api/* → 백엔드(E206). "/api"는 프론트가 "이건 백엔드로 갈 요청"이라고 표시하는
+            // 용도일 뿐이라, 여기서 벗겨내고 전달한다(k8s Ingress의 stripPrefix -
+            // KubernetesDeployService.applyIngress- 와 동일한 방식). 그래서 백엔드 앱은
+            // 이 플랫폼의 /api 컨벤션을 전혀 몰라도 되고, 로컬에서 그냥 돌릴 때와 똑같은
+            // 자기 경로(예: /messages)로 요청을 받는다 - 모놀리식(위 분기, 경로 그대로 통과)과도
+            // 자연히 일치한다.
             String backendBase = deployment.get().getEndpointUrl();
             if (backendBase == null || backendBase.isBlank()) {
                 response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "백엔드가 아직 준비되지 않았습니다.");
                 return;
             }
-            target = backendBase + uri + suffix;
+            String backendUri = uri.substring("/api".length());
+            if (backendUri.isEmpty()) {
+                backendUri = "/";
+            }
+            target = backendBase + backendUri + suffix;
         } else {
             // 그 외 전부 → 프론트 정적(S3 정적 웹 호스팅)의 {slug}/... 로. 루트/없는 경로는 S3가 index.html로 폴백.
             target = frontendWebsiteBase + "/" + slug + uri + suffix;
