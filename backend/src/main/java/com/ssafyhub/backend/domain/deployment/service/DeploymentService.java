@@ -44,14 +44,11 @@ public class DeploymentService {
     private static final Set<String> SUPPORTED_NEEDED_SERVICES = Set.of("REDIS", "MONGODB");
     private static final Set<String> SUPPORTED_DATABASE_ENGINES = Set.of("MYSQL");
     // Java 계열(.jar 아티팩트)과 Python/Node.js 계열(.zip 소스 아티팩트)을 구분해야 파일 확장자를 검증할 수 있다.
-    private static final Set<String> JAR_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS");
-    private static final Set<String> SUPPORTED_STACKS =
-            Set.of("SPRING_JPA", "SPRING_MYBATIS", "DJANGO", "FASTAPI", "EXPRESS");
-    // 테이블을 스스로 만들어주지 않는 스택만 DB 초기화 SQL 업로드를 허용한다. 언어별로 "자동 마이그레이션"과
-    // "수동 마이그레이션"을 골고루 대응시킨다: Java는 JPA(자동)/MyBatis(수동), Python은 Django(자동,
-    // 내장 ORM+migrate)/FastAPI(수동, 내장 마이그레이션 관례가 없음), Node.js는 관례상 내장 마이그레이션이
-    // 없어 Express 등은 전부 수동으로만 취급한다.
-    private static final Set<String> MANUAL_MIGRATION_STACKS = Set.of("SPRING_MYBATIS", "FASTAPI", "EXPRESS");
+    // JPA/MyBatis는 더 이상 별도 스택이 아니다 - 둘 다 .jar 하나 받아 "java -jar"로 실행하는 것뿐이라
+    // Dockerfile이 완전히 같고(JAR_STACKS 판정에도 차이가 없었음), 차이는 오직 "테이블을 자동으로
+    // 만들어주는가"였는데 그건 이제 프레임워크와 무관하게 사용자에게 직접 물어본다(manualMigration).
+    private static final Set<String> JAR_STACKS = Set.of("SPRING_BOOT");
+    private static final Set<String> SUPPORTED_STACKS = Set.of("SPRING_BOOT", "DJANGO", "FASTAPI", "EXPRESS");
     // PLAIN은 "이미 빌드된 정적 zip을 그대로 올린다"(기존 방식) - 그 외는 소스 zip을 받아
     // 플랫폼이 Docker로 빌드해서 정적 산출물만 추출한다(백엔드의 DJANGO/FASTAPI/EXPRESS와 같은 개념).
     private static final Set<String> SUPPORTED_FRONTEND_STACKS = Set.of("REACT", "VUE", "ANGULAR", "SVELTE", "PLAIN");
@@ -131,8 +128,15 @@ public class DeploymentService {
         String databaseEngine = validateDatabaseEngine(databaseName, request.databaseEngine());
         String neededServices = validateAndJoinNeededServices(request.neededServices());
 
-        if ("SPRING_MYBATIS".equals(stack) && databaseName != null && request.schemaArtifactId() == null) {
-            throw new BusinessException(ErrorCode.SCHEMA_REQUIRED_FOR_MYBATIS);
+        // 테이블 자동 생성 여부는 더 이상 스택에서 추론하지 않고 사용자에게 직접 물어본다 - 같은
+        // Express라도 Sequelize sync()면 자동, 직접 SQL이면 수동일 수 있어서 프레임워크만으로는
+        // 알 수 없다. DB를 쓰는 백엔드 배포에서만 의미가 있다.
+        Boolean manualMigration = null;
+        if (backendArtifact != null && databaseName != null) {
+            manualMigration = request.manualMigration();
+            if (manualMigration == null) {
+                throw new BusinessException(ErrorCode.MIGRATION_TYPE_REQUIRED);
+            }
         }
 
         Artifact schemaArtifact = null;
@@ -140,11 +144,13 @@ public class DeploymentService {
             if (backendArtifact == null || databaseName == null) {
                 throw new BusinessException(ErrorCode.SCHEMA_REQUIRES_DATABASE);
             }
-            if (!MANUAL_MIGRATION_STACKS.contains(stack)) {
-                throw new BusinessException(ErrorCode.STACK_DOES_NOT_SUPPORT_SCHEMA_SQL);
+            if (!Boolean.TRUE.equals(manualMigration)) {
+                throw new BusinessException(ErrorCode.SCHEMA_NOT_ALLOWED_WHEN_AUTO_MIGRATION);
             }
             schemaArtifact = getArtifact(request.schemaArtifactId());
             validateArtifact(schemaArtifact, memberId, ArtifactType.SCHEMA_SQL);
+        } else if (Boolean.TRUE.equals(manualMigration)) {
+            throw new BusinessException(ErrorCode.SCHEMA_REQUIRED_WHEN_MANUAL_MIGRATION);
         }
 
         if (backendArtifact != null) {

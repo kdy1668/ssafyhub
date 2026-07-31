@@ -162,8 +162,9 @@ class DeploymentServiceTest {
         given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
         given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "SPRING_JPA", "21", 8080, "PLAIN", null, "app_db", "db-password",
+                "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "PLAIN", null, "app_db", "db-password",
                 null,
+                false,
                 null,
                 null,
                 List.of(
@@ -231,8 +232,8 @@ class DeploymentServiceTest {
         });
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, null, "SPRING_JPA", "21", 8080, null, null, "app_db", "db-password",
-                null, null, null,
+                "demo-service", 1L, null, "SPRING_BOOT", "21", 8080, null, null, "app_db", "db-password",
+                null, false, null, null,
                 List.of(new DeploymentEnvRequest("JWT_SECRET", "secret-value")),
                 null, null
         );
@@ -261,7 +262,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", null, 2L, null, null, null, "REACT", "20",
-                null, null, null, null, null,
+                null, null, null, null, null, null,
                 List.of(new DeploymentEnvRequest("VITE_API_BASE", "https://api.example.com")),
                 null, null
         );
@@ -284,7 +285,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", null, null, null, null, null, null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null,
                 List.of(new DeploymentEnvRequest("A", "b")),
                 null, null
         );
@@ -298,15 +299,15 @@ class DeploymentServiceTest {
     }
 
     @Test
-    void Spring_MyBatis에서_MySQL을_사용하면_스키마_SQL이_필수다() {
+    void 수동_마이그레이션인데_스키마_SQL이_없으면_거부한다() {
         given(memberRepository.findById(11L)).willReturn(Optional.of(member));
         given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
         given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
         given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "SPRING_MYBATIS", "21", 8080, "PLAIN", null, "app_db", "db-password",
-                "MYSQL", null, null,
+                "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "PLAIN", null, "app_db", "db-password",
+                "MYSQL", true, null, null,
                 List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
                 null, null
         );
@@ -314,7 +315,53 @@ class DeploymentServiceTest {
         assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.SCHEMA_REQUIRED_FOR_MYBATIS);
+                .isEqualTo(ErrorCode.SCHEMA_REQUIRED_WHEN_MANUAL_MIGRATION);
+
+        verify(deploymentRepository, never()).saveAndFlush(any());
+        verify(deploymentOutboxRepository, never()).save(any());
+    }
+
+    @Test
+    void 자동_마이그레이션인데_스키마_SQL을_보내면_거부한다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "PLAIN", null, "app_db", "db-password",
+                "MYSQL", false, 9L, null,
+                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
+                null, null
+        );
+
+        assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.SCHEMA_NOT_ALLOWED_WHEN_AUTO_MIGRATION);
+
+        verify(deploymentRepository, never()).saveAndFlush(any());
+        verify(deploymentOutboxRepository, never()).save(any());
+    }
+
+    @Test
+    void DB를_쓰는데_마이그레이션_여부가_없으면_거부한다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "PLAIN", null, "app_db", "db-password",
+                "MYSQL", null, null, null,
+                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
+                null, null
+        );
+
+        assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.MIGRATION_TYPE_REQUIRED);
 
         verify(deploymentRepository, never()).saveAndFlush(any());
         verify(deploymentOutboxRepository, never()).save(any());
@@ -325,7 +372,7 @@ class DeploymentServiceTest {
                 "demo-service",
                 1L,
                 2L,
-                "SPRING_JPA",
+                "SPRING_BOOT",
                 "21",
                 8080,
                 "PLAIN",
@@ -333,6 +380,7 @@ class DeploymentServiceTest {
                 "app_db",
                 "db-password",
                 null,
+                false,
                 null,
                 null,
                 List.of(

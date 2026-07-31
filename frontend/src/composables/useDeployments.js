@@ -91,7 +91,7 @@ export function useCreateDeployment() {
       backendFile, frontendFile, schemaFile,
       projectName, stack, runtimeVersion, internalPort,
       frontendStack, frontendRuntimeVersion,
-      databaseName, databasePassword, databaseEngine, neededServices, envList,
+      databaseName, databasePassword, databaseEngine, manualMigration, neededServices, envList,
       visibility, description,
     } = args;
 
@@ -171,6 +171,7 @@ export function useCreateDeployment() {
         databaseName,
         databasePassword,
         databaseEngine,
+        manualMigration,
         schemaArtifactId: schemaFile ? schemaArtifact?.artifactId : undefined,
         neededServices,
         env: envList,
