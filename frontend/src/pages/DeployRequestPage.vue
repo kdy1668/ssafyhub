@@ -45,33 +45,22 @@ const LANGUAGE_OPTIONS = [
   { value: "NODE", icon: "node", label: "Node.js", sublabel: "Express" },
 ];
 
-// 언어 안에서 고를 프레임워크/마이그레이션 방식 - 선택에 따라 백엔드 아티팩트 형식,
-// 런타임 버전 목록, DB 초기화 SQL 업로드 노출 여부(자동 마이그레이션 vs 수동)가 전부 바뀐다.
+// 언어 안에서 고를 프레임워크 - 선택에 따라 백엔드 아티팩트 형식과 런타임 버전 목록이 바뀐다.
 // 실제 Dockerfile은 플랫폼이 스택에 맞춰 자동 생성하므로 사용자는 올릴 필요가 없다.
+// 예전엔 Java만 JPA/MyBatis로 나눠서 "자동/수동 마이그레이션"을 골랐는데, 둘 다 .jar 하나
+// 받아서 "java -jar"로 실행하는 것뿐이라 Dockerfile이 완전히 같고 실제 차이는 "테이블을
+// 자동으로 만들어주는가"뿐이었다. 그런데 이건 프레임워크가 아니라 "그 프레임워크를 어떻게
+// 썼는지"에 달려있어서(예: Express도 ORM의 sync()를 쓰면 자동일 수 있음), 이제 스택과
+// 무관하게 데이터베이스 단계에서 직접 물어본다(manualMigration).
 const STACK_OPTIONS = [
   {
-    value: "SPRING_JPA",
+    value: "SPRING_BOOT",
     language: "JAVA",
-    label: "JPA / Hibernate",
-    description: "자동 마이그레이션",
+    label: "Spring Boot",
+    description: "JPA·MyBatis 등 자유롭게 구성",
     artifactAccept: ".jar",
     artifactLabel: "백엔드 아티팩트 (.jar)",
     artifactHint: "빌드된 실행 파일(.jar) 하나만 올리면 됩니다. 실행 환경은 플랫폼이 자동으로 구성합니다.",
-    manualMigration: false,
-    runtimeOptions: [
-      { value: "17", label: "Java 17" },
-      { value: "21", label: "Java 21" },
-    ],
-  },
-  {
-    value: "SPRING_MYBATIS",
-    language: "JAVA",
-    label: "MyBatis",
-    description: "직접 마이그레이션",
-    artifactAccept: ".jar",
-    artifactLabel: "백엔드 아티팩트 (.jar)",
-    artifactHint: "빌드된 실행 파일(.jar) 하나만 올리면 됩니다. 테이블은 아래 'DB 초기화 SQL'로 생성합니다.",
-    manualMigration: true,
     runtimeOptions: [
       { value: "17", label: "Java 17" },
       { value: "21", label: "Java 21" },
@@ -81,12 +70,11 @@ const STACK_OPTIONS = [
     value: "DJANGO",
     language: "PYTHON",
     label: "Django",
-    description: "자동 마이그레이션",
+    description: "Python 웹 프레임워크",
     artifactAccept: ".zip",
     artifactLabel: "백엔드 아티팩트 (.zip)",
     artifactHint: "manage.py, requirements.txt가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
-      "배포 시 pip install과 DB 마이그레이션을 자동으로 실행합니다.",
-    manualMigration: false,
+      "배포 시 pip install을 자동으로 실행합니다.",
     runtimeOptions: [
       { value: "3.11", label: "Python 3.11" },
       { value: "3.12", label: "Python 3.12" },
@@ -107,12 +95,10 @@ const STACK_OPTIONS = [
     value: "FASTAPI",
     language: "PYTHON",
     label: "FastAPI",
-    description: "직접 마이그레이션",
+    description: "비동기 API 프레임워크",
     artifactAccept: ".zip",
     artifactLabel: "백엔드 아티팩트 (.zip)",
-    artifactHint: "main.py(FastAPI 앱), requirements.txt가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
-      "FastAPI는 내장 마이그레이션 관례가 없어 테이블은 아래 'DB 초기화 SQL'로 생성합니다.",
-    manualMigration: true,
+    artifactHint: "main.py(FastAPI 앱), requirements.txt가 포함된 프로젝트 소스를 zip으로 올려주세요.",
     runtimeOptions: [
       { value: "3.11", label: "Python 3.11" },
       { value: "3.12", label: "Python 3.12" },
@@ -128,12 +114,11 @@ const STACK_OPTIONS = [
     value: "EXPRESS",
     language: "NODE",
     label: "Express",
-    description: "직접 마이그레이션",
+    description: "Node.js 웹 프레임워크",
     artifactAccept: ".zip",
     artifactLabel: "백엔드 아티팩트 (.zip)",
     artifactHint: "package.json이 포함된 프로젝트 소스를 zip으로 올려주세요. package.json에 " +
       "\"start\" 스크립트가 있어야 하고, 앱은 process.env.PORT로 지정된 포트를 사용해야 합니다.",
-    manualMigration: true,
     runtimeOptions: [
       { value: "18", label: "Node.js 18" },
       { value: "20", label: "Node.js 20" },
@@ -253,6 +238,27 @@ const FRONTEND_STACK_OPTIONS = [
   },
 ];
 
+// 1단계 "무엇을 배포할까요?" - AWS EC2 콘솔의 "로드밸런서 유형 선택" 화면(ALB/NLB/GWLB/Classic을
+// 각각 다이어그램이 있는 카드로 늘어놓고 하나를 고르게 하는 패턴)을 참고했다. 두 개의 독립
+// 스위치 대신, 실제로 나올 수 있는 3가지 결과를 이름표 붙은 카드로 직접 고르게 한다.
+const DEPLOYMENT_TOPOLOGY_OPTIONS = [
+  {
+    value: "FRONTEND_ONLY",
+    title: "프론트엔드만",
+    description: "정적 사이트만 배포합니다. API 서버가 필요 없는 경우.",
+  },
+  {
+    value: "SEPARATE",
+    title: "분리 배포",
+    description: "프론트엔드와 백엔드를 각각 독립적으로 배포합니다. 프론트가 API를 호출합니다.",
+  },
+  {
+    value: "MONOLITHIC",
+    title: "통합 배포",
+    description: "백엔드 하나가 화면과 API를 모두 처리합니다(타임리프, 정적 리소스 서빙 등).",
+  },
+];
+
 const VISIBILITY_OPTIONS = [
   { value: "PUBLIC", label: "공개 (PUBLIC)" },
   { value: "PRIVATE", label: "비공개 (PRIVATE)" },
@@ -281,15 +287,15 @@ const schemaFile = ref(null);
 const currentStep = ref(1);
 const maxVisitedStep = ref(1);
 
-// 텍스트/설정 폼 상태. hasFrontend/hasBackend는 "분리형/통합형/프론트만" 같은 이름표 대신
-// 독립된 스위치 두 개로 받는다 - 조합(둘 다 on=분리형, 백엔드만 on=통합형, 프론트만 on=신규
-// 케이스)은 화면이 자동으로 계산해서 보여줄 뿐 사용자가 직접 고르는 값이 아니다.
+// 텍스트/설정 폼 상태. hasFrontend/hasBackend는 1단계의 3카드 선택(DEPLOYMENT_TOPOLOGY_OPTIONS)
+// 결과로 함께 세팅된다 - 화면에는 "프론트만/분리 배포/통합 배포"로 보이지만 내부적으로는
+// 이 두 불리언 조합으로 표현해서 2단계 이후 로직(어떤 그리드를 보여줄지 등)을 단순하게 유지한다.
 const form = reactive({
   hasFrontend: true,
   hasBackend: true,
   projectName: "",
   language: "JAVA",
-  stack: "SPRING_JPA",
+  stack: "SPRING_BOOT",
   runtimeVersion: "17",
   internalPort: 8080,
   frontendStack: "REACT",
@@ -297,6 +303,9 @@ const form = reactive({
   databaseEngine: "NONE", // NONE | MYSQL
   databaseName: "",
   databasePassword: "",
+  // 테이블 자동 생성 여부 - null(미답변) | false(자동) | true(수동, DB 초기화 SQL 필요).
+  // 프레임워크에서 추론하지 않고 직접 물어본다(같은 프레임워크도 쓰기 나름이라).
+  manualMigration: null,
   neededServices: [], // 예: ["REDIS", "MONGODB"] - 관계형 DB 외 추가 백킹서비스
   envVars: [],
   visibility: "PUBLIC",
@@ -315,6 +324,13 @@ const selectedFrontendStack = computed(
 const selectedDbEngineOption = computed(
   () => DB_ENGINE_OPTIONS.find((o) => o.value === form.databaseEngine) || DB_ENGINE_OPTIONS[0]
 );
+// 1단계 카드 하이라이트용 - hasFrontend/hasBackend 조합으로부터 지금 어떤 카드가 선택된
+// 상태인지 역산한다(selectTopology로만 세팅되므로 사실상 이 3가지 조합만 나온다).
+const selectedTopology = computed(() => {
+  if (form.hasFrontend && form.hasBackend) return "SEPARATE";
+  if (form.hasBackend) return "MONOLITHIC";
+  return "FRONTEND_ONLY";
+});
 
 // 현재 고른 언어에 속한 프레임워크 카드 목록
 const availableStacks = computed(
@@ -337,6 +353,7 @@ const errors = reactive({
   backendFile: "",
   frontendFile: "",
   schemaFile: "",
+  migrationType: "",
   databaseName: "",
   databasePassword: "",
   internalPort: "",
@@ -348,25 +365,31 @@ const errors = reactive({
 const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 const DB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,99}$/;
 
-function toggleHasFrontend() {
-  form.hasFrontend = !form.hasFrontend;
+function selectTopology(value) {
+  form.hasFrontend = value !== "MONOLITHIC";
+  form.hasBackend = value !== "FRONTEND_ONLY";
+
   if (!form.hasFrontend) {
     frontendFile.value = null;
     errors.frontendFile = "";
   }
-  errors.structure = "";
-}
-
-function toggleHasBackend() {
-  form.hasBackend = !form.hasBackend;
   if (!form.hasBackend) {
     backendFile.value = null;
     errors.backendFile = "";
     form.databaseEngine = "NONE";
+    form.manualMigration = null;
     schemaFile.value = null;
     errors.schemaFile = "";
   }
   errors.structure = "";
+}
+
+function selectMigrationType(value) {
+  form.manualMigration = value;
+  if (!value) {
+    schemaFile.value = null;
+    errors.schemaFile = "";
+  }
 }
 
 function selectLanguage(value) {
@@ -381,10 +404,6 @@ function selectStack(value) {
   form.runtimeVersion = stack.runtimeOptions[0].value;
   backendFile.value = null;
   errors.backendFile = "";
-  if (!stack.manualMigration) {
-    schemaFile.value = null;
-    errors.schemaFile = "";
-  }
 }
 
 function selectFrontendStack(value) {
@@ -413,6 +432,7 @@ function handleSchemaFileChange(e) {
 function selectDatabaseEngine(value) {
   form.databaseEngine = value;
   if (value === "NONE") {
+    form.manualMigration = null;
     schemaFile.value = null;
     errors.schemaFile = "";
   }
@@ -488,23 +508,25 @@ function validateDatabase() {
     errors.schemaFile = "";
     errors.databaseName = "";
     errors.databasePassword = "";
+    errors.migrationType = "";
     return true;
   }
 
-  if (
-    form.stack === "SPRING_MYBATIS" &&
-    form.databaseEngine !== "NONE" &&
-    !schemaFile.value
-  ) {
-    errors.schemaFile = "Spring MyBatis에서 MySQL을 사용하려면 DB 초기화 SQL 파일이 필요합니다.";
-  } else if (
-    selectedStack.value.manualMigration &&
-    schemaFile.value &&
-    !schemaFile.value.name.toLowerCase().endsWith(".sql")
-  ) {
-    errors.schemaFile = "DB 초기화 SQL 파일은 .sql 형식이어야 합니다.";
-  } else {
+  if (form.databaseEngine === "NONE") {
+    errors.migrationType = "";
     errors.schemaFile = "";
+  } else {
+    errors.migrationType = form.manualMigration === null
+      ? "테이블이 자동으로 생성되는지 알려주세요."
+      : "";
+
+    if (form.manualMigration === true && !schemaFile.value) {
+      errors.schemaFile = "테이블이 자동으로 생성되지 않는다면 DB 초기화 SQL 파일이 필요합니다.";
+    } else if (schemaFile.value && !schemaFile.value.name.toLowerCase().endsWith(".sql")) {
+      errors.schemaFile = "DB 초기화 SQL 파일은 .sql 형식이어야 합니다.";
+    } else {
+      errors.schemaFile = "";
+    }
   }
 
   if (form.databaseEngine !== "NONE") {
@@ -519,7 +541,7 @@ function validateDatabase() {
     errors.databasePassword = "";
   }
 
-  return !errors.schemaFile && !errors.databaseName && !errors.databasePassword;
+  return !errors.migrationType && !errors.schemaFile && !errors.databaseName && !errors.databasePassword;
 }
 
 function validateEnvVars() {
@@ -575,12 +597,12 @@ function goToStep(id) {
 
 function buildPayload() {
   const needDatabase = form.hasBackend && form.databaseEngine !== "NONE";
-  const canUseSchemaFile = needDatabase && selectedStack.value.manualMigration;
+  const canUseSchemaFile = needDatabase && form.manualMigration === true;
   const frontendNeedsRuntime = form.hasFrontend && selectedFrontendStack.value.needsBuild;
   return {
     backendFile: form.hasBackend ? backendFile.value : null,
     frontendFile: form.hasFrontend ? frontendFile.value : null,
-    // 수동 마이그레이션 스택 + DB 사용 중 + 실제로 파일을 고른 경우에만 올린다.
+    // 수동 마이그레이션(사용자가 직접 답한 값) + DB 사용 중 + 실제로 파일을 고른 경우에만 올린다.
     schemaFile: canUseSchemaFile ? schemaFile.value : null,
     projectName: form.projectName,
     stack: form.hasBackend ? form.stack : undefined,
@@ -592,6 +614,7 @@ function buildPayload() {
     databaseName: needDatabase ? form.databaseName : "",
     databasePassword: needDatabase ? form.databasePassword : "",
     databaseEngine: needDatabase ? form.databaseEngine : undefined,
+    manualMigration: needDatabase ? form.manualMigration : undefined,
     neededServices: form.hasBackend ? form.neededServices : [],
     envList: form.envVars.filter((v) => v.key && v.value),
     visibility: form.visibility,
@@ -740,89 +763,69 @@ async function handleRetry() {
           <form class="flex flex-col gap-6" @submit.prevent="handleSubmit">
             <p class="text-xs font-medium text-ink-500">단계 {{ currentStep }} / {{ STEPS.length }}</p>
 
-            <!-- 1단계: 무엇을 배포할까요? (독립 스위치 두 개 - "분리형/통합형/프론트만" 같은
-                 이름표를 외우게 하는 대신, 뭘 가지고 있는지만 답하면 구조는 자동으로 정해진다) -->
+            <!-- 1단계: 무엇을 배포할까요? (AWS EC2의 "로드밸런서 유형 선택" 화면처럼, 실제로
+                 나올 수 있는 3가지 결과를 다이어그램이 있는 카드로 늘어놓고 하나를 고른다) -->
             <div v-show="currentStep === 1" class="flex flex-col gap-3">
               <h2 class="text-sm font-bold text-ink-900">무엇을 배포할까요?</h2>
-              <p class="text-xs text-ink-500">각각 독립적으로 켜고 끄세요. 최소 하나는 켜져 있어야 합니다.</p>
-              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <p class="text-xs text-ink-500">서비스 구조를 하나 고르세요.</p>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <button
+                  v-for="opt in DEPLOYMENT_TOPOLOGY_OPTIONS"
+                  :key="opt.value"
                   type="button"
-                  @click="toggleHasFrontend"
+                  @click="selectTopology(opt.value)"
                   :class="[
-                    'flex flex-col gap-2 rounded-lg border p-4 text-left transition-colors',
-                    form.hasFrontend
+                    'flex flex-col gap-3 rounded-lg border p-4 text-left transition-colors',
+                    selectedTopology === opt.value
                       ? 'border-primary bg-primary-light ring-1 ring-primary'
                       : 'border-border bg-background hover:border-primary/50',
                   ]"
                 >
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-semibold text-ink-900">프론트엔드</span>
-                    <AppIcon
-                      v-if="form.hasFrontend"
-                      name="check"
-                      class="h-4 w-4 shrink-0 rounded-full bg-primary p-0.5 text-white"
-                    />
-                    <span v-else class="h-4 w-4 shrink-0 rounded-full border border-ink-300" />
-                  </div>
-                  <span class="text-xs text-ink-500">
-                    React/Vue 등 화면. 소스만 올리면 플랫폼이 빌드해서 정적 호스팅에 올립니다.
-                  </span>
-                  <span
-                    :class="[
-                      'w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                      form.hasFrontend ? 'bg-success-light text-success' : 'bg-border text-ink-500',
-                    ]"
-                  >
-                    {{ form.hasFrontend ? "포함됨" : "제외됨" }}
-                  </span>
-                </button>
+                  <!-- 다이어그램: 실제 트래픽이 어디로 흐르는지 한눈에 보여준다(AWS 로드밸런서
+                       유형 카드의 간단한 선그림 아이콘 참고) -->
+                  <svg viewBox="0 0 120 60" class="h-14 w-full">
+                    <defs>
+                      <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+                        <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" />
+                      </marker>
+                    </defs>
+                    <g :class="selectedTopology === opt.value ? 'text-primary' : 'text-ink-300'">
+                      <template v-if="opt.value === 'FRONTEND_ONLY'">
+                        <rect x="4" y="22" width="34" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
+                        <text x="21" y="32.5" font-size="8" text-anchor="middle" fill="currentColor">사용자</text>
+                        <line x1="40" y1="30" x2="80" y2="30" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
+                        <rect x="82" y="20" width="34" height="20" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
+                        <text x="99" y="27" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">정적</text>
+                        <text x="99" y="35" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">사이트</text>
+                      </template>
+                      <template v-else-if="opt.value === 'SEPARATE'">
+                        <rect x="2" y="22" width="26" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
+                        <text x="15" y="32.5" font-size="7" text-anchor="middle" fill="currentColor">사용자</text>
+                        <line x1="28" y1="30" x2="52" y2="30" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
+                        <rect x="54" y="16" width="28" height="18" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
+                        <text x="68" y="27.5" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">프론트</text>
+                        <line x1="68" y1="34" x2="68" y2="46" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
+                        <text x="72" y="44" font-size="6" text-anchor="start" fill="currentColor">/api</text>
+                        <rect x="82" y="40" width="32" height="18" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
+                        <text x="98" y="51.5" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">백엔드</text>
+                      </template>
+                      <template v-else>
+                        <rect x="4" y="22" width="34" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
+                        <text x="21" y="32.5" font-size="8" text-anchor="middle" fill="currentColor">사용자</text>
+                        <line x1="40" y1="30" x2="80" y2="30" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
+                        <rect x="82" y="18" width="34" height="24" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
+                        <text x="99" y="27.5" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">백엔드</text>
+                        <text x="99" y="36" font-size="6.5" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">(화면+API)</text>
+                      </template>
+                    </g>
+                  </svg>
 
-                <button
-                  type="button"
-                  @click="toggleHasBackend"
-                  :class="[
-                    'flex flex-col gap-2 rounded-lg border p-4 text-left transition-colors',
-                    form.hasBackend
-                      ? 'border-primary bg-primary-light ring-1 ring-primary'
-                      : 'border-border bg-background hover:border-primary/50',
-                  ]"
-                >
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-semibold text-ink-900">백엔드</span>
-                    <AppIcon
-                      v-if="form.hasBackend"
-                      name="check"
-                      class="h-4 w-4 shrink-0 rounded-full bg-primary p-0.5 text-white"
-                    />
-                    <span v-else class="h-4 w-4 shrink-0 rounded-full border border-ink-300" />
-                  </div>
-                  <span class="text-xs text-ink-500">
-                    API 서버. 화면까지 직접 서빙(타임리프·정적 리소스 등)해도 상관없습니다.
-                  </span>
-                  <span
-                    :class="[
-                      'w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                      form.hasBackend ? 'bg-success-light text-success' : 'bg-border text-ink-500',
-                    ]"
-                  >
-                    {{ form.hasBackend ? "포함됨" : "제외됨" }}
-                  </span>
+                  <span class="text-sm font-semibold text-ink-900">{{ opt.title }}</span>
+                  <span class="text-xs text-ink-500">{{ opt.description }}</span>
                 </button>
               </div>
 
               <p v-if="errors.structure" class="text-xs text-danger">{{ errors.structure }}</p>
-              <div
-                v-else
-                class="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs text-ink-700"
-              >
-                → 구성:
-                <strong class="text-primary">
-                  <template v-if="form.hasFrontend && form.hasBackend">프론트/백엔드 분리 배포</template>
-                  <template v-else-if="form.hasBackend">백엔드만 (통합형 - 화면 서빙도 백엔드가 처리)</template>
-                  <template v-else>프론트엔드만 (정적 사이트)</template>
-                </strong>
-              </div>
             </div>
 
             <!-- 2단계: 프레임워크 (1단계에서 켠 것만 나타난다 - 백엔드/프론트가 완전히 대칭적인
@@ -1085,10 +1088,49 @@ async function handleRetry() {
                     />
                   </div>
 
-                  <!-- JPA/Django처럼 자동으로 테이블을 만들어주는 스택에서는 아예 노출하지 않는다. -->
-                  <div v-if="selectedStack.manualMigration">
+                  <!-- 테이블 자동 생성 여부는 프레임워크에서 추측하지 않고 직접 물어본다 - 같은
+                       프레임워크라도 ORM 자동 마이그레이션을 쓰는지, 직접 SQL을 짜는지는
+                       사용자가 실제로 어떻게 구현했는지에 달려있다. -->
+                  <div class="flex flex-col gap-3">
+                    <label class="text-sm font-medium text-ink-700">테이블이 자동으로 생성되나요?</label>
+                    <p class="text-xs text-ink-500">
+                      JPA의 ddl-auto, Django의 migrate, Sequelize의 sync() 등을 쓰면 "예".
+                      테이블을 직접 SQL로 만들어야 한다면 "아니오"를 선택하세요.
+                    </p>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        @click="selectMigrationType(false)"
+                        :class="[
+                          'rounded-lg border p-3 text-left transition-colors',
+                          form.manualMigration === false
+                            ? 'border-primary bg-primary-light ring-1 ring-primary'
+                            : 'border-border bg-background hover:border-primary/50',
+                        ]"
+                      >
+                        <span class="text-sm font-semibold text-ink-900">예, 자동으로 생성됨</span>
+                        <span class="mt-0.5 block text-xs text-ink-500">DB 초기화 SQL 불필요</span>
+                      </button>
+                      <button
+                        type="button"
+                        @click="selectMigrationType(true)"
+                        :class="[
+                          'rounded-lg border p-3 text-left transition-colors',
+                          form.manualMigration === true
+                            ? 'border-primary bg-primary-light ring-1 ring-primary'
+                            : 'border-border bg-background hover:border-primary/50',
+                        ]"
+                      >
+                        <span class="text-sm font-semibold text-ink-900">아니오, 직접 만들어야 함</span>
+                        <span class="mt-0.5 block text-xs text-ink-500">DB 초기화 SQL 업로드</span>
+                      </button>
+                    </div>
+                    <p v-if="errors.migrationType" class="text-xs text-danger">{{ errors.migrationType }}</p>
+                  </div>
+
+                  <div v-if="form.manualMigration === true">
                     <label class="mb-1 block text-sm font-medium text-ink-700">
-                      DB 초기화 SQL ({{ form.stack === "SPRING_MYBATIS" ? "필수" : "선택" }} - .sql)
+                      DB 초기화 SQL (필수 - .sql)
                     </label>
                     <input
                       type="file"
@@ -1098,7 +1140,6 @@ async function handleRetry() {
                     />
                     <p v-if="errors.schemaFile" class="mt-1 text-xs text-danger">{{ errors.schemaFile }}</p>
                     <p class="mt-1 text-xs text-ink-500">
-                      선택한 스택은 테이블을 자동으로 만들어주지 않습니다.
                       <code class="rounded bg-ink-900 px-1 py-0.5 text-white">CREATE TABLE</code>
                       구문이 담긴 .sql 파일을 올려주세요 - 배포 시 DB에 한 번 실행해 드립니다.
                     </p>
@@ -1154,9 +1195,7 @@ async function handleRetry() {
                 <div class="flex items-center justify-between gap-4 px-3 py-2">
                   <dt class="text-ink-500">배포 구성</dt>
                   <dd class="font-medium text-ink-900">
-                    <template v-if="form.hasFrontend && form.hasBackend">프론트/백엔드 분리</template>
-                    <template v-else-if="form.hasBackend">백엔드만 (통합형)</template>
-                    <template v-else>프론트엔드만</template>
+                    {{ DEPLOYMENT_TOPOLOGY_OPTIONS.find((o) => o.value === selectedTopology).title }}
                   </dd>
                 </div>
                 <div v-if="form.hasBackend" class="flex items-center justify-between gap-4 px-3 py-2">
@@ -1194,6 +1233,12 @@ async function handleRetry() {
                   <dt class="text-ink-500">데이터베이스</dt>
                   <dd class="font-medium text-ink-900">
                     {{ selectedDbEngineOption.label }}{{ form.databaseEngine !== "NONE" ? ` (${form.databaseName})` : "" }}
+                  </dd>
+                </div>
+                <div v-if="form.hasBackend && form.databaseEngine !== 'NONE'" class="flex items-center justify-between gap-4 px-3 py-2">
+                  <dt class="text-ink-500">테이블 자동 생성</dt>
+                  <dd class="font-medium text-ink-900">
+                    {{ form.manualMigration === true ? "아니오 (SQL 업로드)" : form.manualMigration === false ? "예" : "-" }}
                   </dd>
                 </div>
                 <div v-if="form.hasBackend" class="flex items-center justify-between gap-4 px-3 py-2">
