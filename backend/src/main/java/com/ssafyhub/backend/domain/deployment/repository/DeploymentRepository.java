@@ -13,6 +13,9 @@ public interface DeploymentRepository extends JpaRepository<Deployment, Long> {
 
     boolean existsByMemberId(Long memberId);
 
+    // 서브도메인({slug}.ssafyhub.site) 라우팅용 - slug(=학번)로 배포를 찾아 endpoint_url로 프록시한다.
+    Optional<Deployment> findBySlug(String slug);
+
     Optional<Deployment> findByIdAndMember_Id(Long id, Long memberId);
 
     Optional<Deployment> findByMember_Id(Long memberId);

@@ -6,13 +6,12 @@
 
 ```bash
 npm install
-cp .env.example .env
 npm run dev
 ```
 
-기본 포트는 `5174`입니다 (React 버전의 `5173`과 동시에 띄울 수 있도록 분리). `.env`의 `VITE_USE_MOCKS=true`(기본값) 상태에서는 백엔드 없이 모든 화면이 mock 데이터로 동작합니다.
+기본 포트는 `5174`입니다 (React 버전의 `5173`과 동시에 띄울 수 있도록 분리). mock 데이터는 제거되었으므로 **백엔드(`localhost:8080`)가 함께 떠 있어야** 화면이 동작합니다. API 요청은 상대경로로 보내고 `vite.config.js`의 `/api` 프록시가 백엔드로 넘기므로 `.env` 없이 그대로 실행됩니다.
 
-로그인/회원가입은 `/api/users/login`, `/api/users/signup`을 호출하는 실제 API 연동입니다. 로그인 라우트 가드(`useAuthStore`)는 `localStorage`의 `auth_token` 존재 여부로 인증 상태를 판단하므로, 로그인 없이는 `/home`, `/deploy/new`, `/deployments`에 접근할 수 없습니다.
+로그인/회원가입/로그아웃은 `/api/v1/auth/login`, `/api/v1/members/signup`, `/api/v1/auth/logout`을 호출합니다. 인증 토큰은 HttpOnly 쿠키로 관리되므로 프론트에서 저장하지 않고, 라우트 가드(`useAuthStore`)는 로그인 응답으로 받은 `member` 정보 유무로 인증 상태를 판단합니다. 로그인 없이는 `/mypage`, `/deploy/new`, `/deployments`, `/admin`에 접근할 수 없습니다.
 
 ## React 버전과 다른 선택 (Vue 관용구에 맞춘 대응)
 

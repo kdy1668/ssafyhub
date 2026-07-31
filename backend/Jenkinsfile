@@ -3,10 +3,24 @@ pipeline {
 
     options {
         skipDefaultCheckout(true)
+        // 프론트엔드에만 있고 여기엔 빠져 있어서 빌드 기록이 무한히 쌓였다.
+        // JENKINS_HOME 이 8GB 루트 디스크를 공유하므로 노드가 디스크 부족으로
+        // 오프라인 처리되면 모든 빌드가 큐에서 멈춘다.
+        buildDiscarder(logRotator(numToKeepStr: '10'))
         // 배포는 컨테이너 rename/start 를 순차로 수행하므로 동시 실행되면
         // 두 빌드가 같은 컨테이너 이름을 두고 경합해 서비스가 죽을 수 있다.
         disableConcurrentBuilds()
         timeout(time: 20, unit: 'MINUTES')
+    }
+
+    // Multibranch 잡이라 새 커밋 감지는 브랜치 스캔에 달려 있고, 스캔 주기가
+    // 꺼져 있거나 웹훅이 없으면 푸시해도 빌드가 생기지 않는다. 폴링은 그 둘에
+    // 의존하지 않는 안전망이다. 이미 감지된 브랜치의 새 커밋만 잡으므로
+    // 브랜치 신규 발견은 여전히 스캔이 담당한다.
+    // 웹훅/스캔이 먼저 빌드를 만들면 폴링 차례에는 새 커밋이 없어 중복
+    // 빌드는 발생하지 않는다.
+    triggers {
+        pollSCM('H/3 * * * *')
     }
 
     environment {
@@ -45,11 +59,12 @@ pipeline {
         stage('Deploy') {
             when {
                 beforeAgent true
-                // main 브랜치와 develop 브랜치 모두 배포 단계를 실행하도록 수정
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
+                // 배포 대상은 main 하나로 고정한다. develop 은 develop->main 병합
+                // 시 MR 의 source branch 삭제 옵션 때문에 반복해서 사라져 배포
+                // 대상으로 신뢰할 수 없다. main 은 보호 브랜치라 MR 병합만
+                // 배포를 트리거하므로 오히려 경로가 명확해진다.
+                // (프론트엔드 Jenkinsfile 은 이미 main 전용이다)
+                branch 'main'
                 // 모노레포이므로 프론트엔드만 바뀐 푸시에는 재배포하지 않는다.
                 // 백엔드 배포는 컨테이너 교체라 짧은 다운타임이 발생하기 때문.
                 // 수동 실행(Build Now)은 변경 내역과 무관하게 항상 배포한다 —
@@ -57,6 +72,13 @@ pipeline {
                 anyOf {
                     changeset 'backend/**'
                     triggeredBy 'UserIdCause'
+                    // 변경 내역을 구할 수 없는 실행에서도 배포한다. 브랜치 최초
+                    // 인덱싱이나 첫 빌드는 changelog 가 비어 changeset 이 매칭되지
+                    // 않고, 트리거도 UserIdCause 가 아니라 BranchIndexingCause 라
+                    // 두 조건이 모두 빗나간다. 그러면 Deploy 가 조용히 건너뛰어진
+                    // 채로 빌드가 SUCCESS 로 끝나 배포된 것으로 오인된다.
+                    // 실제로 이 경로 때문에 컨테이너가 생성되지 않은 적이 있다.
+                    expression { currentBuild.changeSets.isEmpty() }
                 }
             }
             steps {
@@ -75,13 +97,12 @@ pipeline {
                         // Outbox 기능(34f80e3)에서 추가된 필수 값. 기본값이 없어
                         // 누락 시 Spring 컨텍스트 로딩 자체가 실패합니다.
                         string(credentialsId: 'ssafyhub-secret-encryption-key', variable: 'SECRET_ENCRYPTION_KEY'),
-                        string(credentialsId: 'ssafyhub-devops-was-base-url', variable: 'DEVOPS_WAS_BASE_URL'),
-                        // 백엔드의 S3 presigned URL 발급용. EC2에 인스턴스 프로파일이
-                        // 없으므로 자격증명을 명시적으로 주입해야 합니다.
-                        [
-                            $class: 'AmazonWebServicesCredentialsBinding',
-                            credentialsId: 'ssafyhub-backend-aws-key'
-                        ]
+                        string(credentialsId: 'ssafyhub-devops-was-base-url', variable: 'DEVOPS_WAS_BASE_URL')
+                        // S3 presigned URL 발급용 액세스 키 주입을 제거했다.
+                        // EC2 에 IAM 롤(ssafyhub-backend-ec2-role)이 붙어 있어
+                        // SDK 가 인스턴스 메타데이터에서 임시 자격증명을 받는다.
+                        // IMDS hop limit 이 2 라서 브리지 네트워크의 컨테이너에서도
+                        // 169.254.169.254 에 도달한다(1 이면 도달하지 못한다).
                     ]) {
                     sh '''
                         set -eu
@@ -92,6 +113,22 @@ pipeline {
                             docker stop "$CONTAINER_NAME"
                             docker rename "$CONTAINER_NAME" "$PREVIOUS_CONTAINER_NAME"
                         fi
+
+                        # 이 지점부터 직전 컨테이너는 정지된 채 -previous 로 밀려나
+                        # 있어서, 스크립트가 여기서 벗어나면 서비스가 내려간 채 남는다.
+                        # 롤백을 헬스체크 실패 분기에만 두면 그 앞에서 죽는 경우
+                        # -- docker run 실패(디스크 부족 등)나 빌드 중단 -- 를 놓친다.
+                        # 실제로 set -eu 가 docker run 실패에서 즉시 종료시켜 백엔드가
+                        # 죽은 채 방치된 적이 있다. 어느 경로로 나가든 되살리도록
+                        # 트랩으로 걸고, 배포가 확정된 뒤에 해제한다.
+                        restore_previous() {
+                            docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+                            if docker container inspect "$PREVIOUS_CONTAINER_NAME" >/dev/null 2>&1; then
+                                docker rename "$PREVIOUS_CONTAINER_NAME" "$CONTAINER_NAME"
+                                docker start "$CONTAINER_NAME" || true
+                            fi
+                        }
+                        trap restore_previous EXIT INT TERM
 
                         docker run -d \
                             --name "$CONTAINER_NAME" \
@@ -104,8 +141,6 @@ pipeline {
                             -e JWT_SECRET \
                             -e AWS_REGION \
                             -e AWS_S3_BUCKET \
-                            -e AWS_ACCESS_KEY_ID \
-                            -e AWS_SECRET_ACCESS_KEY \
                             -e SECRET_ENCRYPTION_KEY \
                             -e DEVOPS_WAS_BASE_URL \
                             "$IMAGE_NAME:$BUILD_NUMBER"
@@ -141,15 +176,13 @@ pipeline {
                         if [ "$healthy" != "true" ]; then
                             echo '새 컨테이너의 헬스체크가 실패했습니다.'
                             docker logs "$CONTAINER_NAME" || true
-                            docker rm -f "$CONTAINER_NAME" || true
-
-                            if docker container inspect "$PREVIOUS_CONTAINER_NAME" >/dev/null 2>&1; then
-                                docker rename "$PREVIOUS_CONTAINER_NAME" "$CONTAINER_NAME"
-                                docker start "$CONTAINER_NAME"
-                            fi
-
+                            # 롤백은 트랩이 수행한다.
                             exit 1
                         fi
+
+                        # 배포 확정. 이제부터의 실패(이미지 정리 등)로 정상 동작하는
+                        # 새 컨테이너를 되돌리면 안 되므로 트랩을 해제한다.
+                        trap - EXIT INT TERM
 
                         docker rm -f "$PREVIOUS_CONTAINER_NAME" 2>/dev/null || true
 

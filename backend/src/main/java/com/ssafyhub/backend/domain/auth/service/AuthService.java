@@ -113,6 +113,24 @@ public class AuthService {
         return new ReissueResult(newAccessToken, newRefreshToken);
     }
 
+    /**
+     * 전달된 Refresh Token을 폐기한다. 이후 재발급은 REVOKED_REFRESH_TOKEN으로 거부된다.
+     *
+     * <p>로그아웃은 멱등해야 하므로 쿠키가 없거나(null) 이미 폐기·만료된 토큰이어도 예외를 던지지 않는다.
+     * 여기서 401을 던지면 클라이언트가 쿠키를 정리할 기회를 잃는다.
+     *
+     * <p>같은 회원의 다른 Refresh Token은 건드리지 않는다(기기별 로그아웃).
+     */
+    @Transactional
+    public void logout(String refreshToken) {
+        if (refreshToken == null) {
+            return;
+        }
+
+        refreshTokenRepository.findByTokenHash(tokenHasher.hash(refreshToken))
+                .ifPresent(RefreshToken::revoke);
+    }
+
     private void storeRefreshToken(Member member, String refreshToken) {
         String tokenHash = tokenHasher.hash(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.now()

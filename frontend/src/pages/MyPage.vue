@@ -25,9 +25,9 @@ function formatDate(iso) {
   }).format(new Date(iso));
 }
 
-function handleLogout() {
-  authStore.logout();
-  router.push("/");
+async function handleLogout() {
+  await authStore.logout();
+  router.push("/login");
 }
 </script>
 

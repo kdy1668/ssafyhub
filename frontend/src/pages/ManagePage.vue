@@ -11,13 +11,25 @@ import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
 import { useMyDeployment } from "../composables/useDeployments";
+import { useDeploymentLogs } from "../composables/useDeploymentLogs";
+import { deleteDeployment } from "../api/deployments";
+import { useQueryClient } from "@tanstack/vue-query";
 import { useToastStore } from "../stores/useToastStore";
 
 const router = useRouter();
 const toastStore = useToastStore();
+const queryClient = useQueryClient();
 
 // 내 배포 상태 1건 조회 (3초 폴링, 사용자당 배포는 1개)
 const { data: currentDeployment, isLoading, isError, error } = useMyDeployment();
+
+// 배포 진행 로그 (깃헙 액션식). deploymentId 있으면 3초 폴링으로 실시간 갱신.
+const deploymentId = computed(() => currentDeployment.value?.deploymentId);
+const {
+  data: deploymentLogs,
+  isFetching: isLogsFetching,
+  refetch: refetchLogs,
+} = useDeploymentLogs(deploymentId, computed(() => Boolean(deploymentId.value)));
 
 // 아직 배포한 적이 없는 사용자(404)는 에러가 아니라 "배포 없음" 빈 상태로 취급
 const hasNoDeployment = computed(() => isError.value && error.value?.status === 404);
@@ -31,12 +43,21 @@ const CONTROL_META = {
   start: { title: "서버 시작", message: "서버를 시작하시겠습니까?", confirmText: "시작", confirmVariant: "primary" },
   stop: { title: "서버 중지", message: "서버를 중지하시겠습니까? 서비스 접속이 중단됩니다.", confirmText: "중지", confirmVariant: "danger" },
   restart: { title: "서버 재시작", message: "서버를 재시작하시겠습니까? 잠시 서비스가 중단될 수 있습니다.", confirmText: "재시작", confirmVariant: "danger" },
+  delete: {
+    title: "배포 삭제",
+    message: "배포를 삭제하시겠습니까? 실행 중인 서버가 즉시 내려가고 배포 이력까지 모두 삭제됩니다. 되돌릴 수 없습니다.",
+    confirmText: "삭제",
+    confirmVariant: "danger",
+  },
 };
 
 const confirmState = reactive({
   open: false,
   action: null,
 });
+
+// 진행 중인 액션 (버튼 로딩 표시용)
+const loadingAction = ref("");
 
 const confirmMeta = computed(() => CONTROL_META[confirmState.action] || {});
 
@@ -51,17 +72,39 @@ function cancelControl() {
   confirmState.action = null;
 }
 
-// 확인 후 실제 동작: 실제 시작/중지/재시작은 백엔드 팀에서 향후 연동 예정.
-function confirmControl() {
+// 확인 후 실제 동작. 삭제만 백엔드와 연동되어 있고, 시작/중지/재시작은 아직 연동 예정.
+async function confirmControl() {
   const labels = { start: "시작", stop: "중지", restart: "재시작" };
   const action = confirmState.action;
   cancelControl();
-  toastStore.showToast(`${labels[action] || action} 기능은 백엔드 연동 예정입니다.`, "info");
+
+  if (action !== "delete") {
+    toastStore.showToast(`${labels[action] || action} 기능은 백엔드 연동 예정입니다.`, "info");
+    return;
+  }
+
+  const deploymentId = currentDeployment.value?.deploymentId;
+  if (!deploymentId) {
+    toastStore.showToast("삭제할 배포를 찾을 수 없습니다.", "error");
+    return;
+  }
+
+  loadingAction.value = "delete";
+  try {
+    await deleteDeployment(deploymentId);
+    // 삭제 후 폴링 쿼리를 무효화해 "배포 없음" 빈 상태로 전환한다.
+    await queryClient.invalidateQueries({ queryKey: ["deployments", "me"] });
+    toastStore.showToast("배포가 삭제되었습니다.", "success");
+  } catch (error) {
+    toastStore.showToast(error.message || "배포 삭제에 실패했습니다.", "error");
+  } finally {
+    loadingAction.value = "";
+  }
 }
 
-// 로그 새로고침 껍데기 (백엔드 연동 예정)
+// 로그 수동 새로고침 (평소엔 3초 폴링으로 자동 갱신됨)
 function handleRefreshLogs() {
-  toastStore.showToast("로그 새로고침 기능은 백엔드 연동 예정입니다.", "info");
+  refetchLogs();
 }
 
 // 상태에 따른 UI(색상, 애니메이션, 아이콘) 처리
@@ -198,17 +241,20 @@ const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "R
           <span class="text-sm font-bold text-ink-900">서버 제어</span>
           <ControlButtons
             :status="currentDeployment.status"
+            :loading-action="loadingAction"
             @start="requestControl('start')"
             @stop="requestControl('stop')"
             @restart="requestControl('restart')"
+            @delete="requestControl('delete')"
           />
         </div>
       </BaseCard>
 
-      <!-- 로그 뷰어 (껍데기 UI, 백엔드 로그 연동 예정) -->
+      <!-- 배포 진행 로그 (깃헙 액션식) -->
       <div v-if="currentDeployment" class="mt-6">
         <LogViewer
-          :logs="[]"
+          :logs="deploymentLogs || []"
+          :loading="isLogsFetching"
           @refresh="handleRefreshLogs"
         />
       </div>

@@ -18,6 +18,7 @@ import com.ssafyhub.backend.domain.deployment.entity.Deployment;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentEnv;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentLog;
 import com.ssafyhub.backend.domain.deployment.enums.DeploymentStatus;
+import com.ssafyhub.backend.domain.deployment.outbox.client.DevOpsDeploymentClient;
 import com.ssafyhub.backend.domain.deployment.outbox.entity.DeploymentOutbox;
 import com.ssafyhub.backend.domain.deployment.outbox.enums.OutboxStatus;
 import com.ssafyhub.backend.domain.deployment.outbox.repository.DeploymentOutboxRepository;
@@ -58,6 +59,8 @@ class DeploymentServiceTest {
     @Mock
     private DeploymentOutboxRepository deploymentOutboxRepository;
     @Mock
+    private DevOpsDeploymentClient devOpsDeploymentClient;
+    @Mock
     private S3ObjectVerifier s3ObjectVerifier;
 
     private SecretEncryptor secretEncryptor;
@@ -76,10 +79,10 @@ class DeploymentServiceTest {
                 deploymentEnvRepository,
                 deploymentLogRepository,
                 deploymentOutboxRepository,
+                devOpsDeploymentClient,
                 s3ObjectVerifier,
                 secretEncryptor
         );
-        ReflectionTestUtils.setField(deploymentService, "supportedRuntimeVersions", List.of("17", "21"));
         ReflectionTestUtils.setField(deploymentService, "publicDomain", "ssafyhub.site");
 
         member = new Member("1551343", "hash", "홍길동", "E206");
@@ -156,8 +159,13 @@ class DeploymentServiceTest {
     void 중복된_환경변수_이름은_거부한다() {
         given(memberRepository.findById(11L)).willReturn(Optional.of(member));
         given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "21", 8080, "app_db", "db-password",
+                "demo-service", 1L, 2L, "SPRING_JPA", "21", 8080, "app_db", "db-password",
+                null,
+                null,
+                null,
                 List.of(
                         new DeploymentEnvRequest("JWT_SECRET", "one"),
                         new DeploymentEnvRequest("JWT_SECRET", "two")
@@ -191,29 +199,11 @@ class DeploymentServiceTest {
         given(memberRepository.findById(11L)).willReturn(Optional.of(member));
         given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
         given(artifactRepository.findById(1L)).willReturn(Optional.of(otherArtifact));
-        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
 
         assertThatThrownBy(() -> deploymentService.createDeployment(11L, validRequest()))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.ARTIFACT_ACCESS_DENIED);
-    }
-
-    @Test
-    void 지원하지_않는_Java_버전은_거부한다() {
-        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
-        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
-        DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "11", 8080, "app_db", "db-password",
-                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
-                null,
-                null
-        );
-
-        assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.UNSUPPORTED_RUNTIME_VERSION);
     }
 
     private Artifact artifact(Long id, ArtifactType type, String objectKey) {
@@ -229,15 +219,71 @@ class DeploymentServiceTest {
         return artifact;
     }
 
+    @Test
+    void 프론트엔드_아티팩트_없이도_배포를_생성한다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(deploymentRepository.saveAndFlush(any(Deployment.class))).willAnswer(invocation -> {
+            Deployment deployment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(deployment, "id", 100L);
+            return deployment;
+        });
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", 1L, null, "SPRING_JPA", "21", 8080, "app_db", "db-password",
+                null, null, null,
+                List.of(new DeploymentEnvRequest("JWT_SECRET", "secret-value")),
+                null, null
+        );
+
+        DeploymentCreateResponse response = deploymentService.createDeployment(11L, request);
+
+        assertThat(response.deploymentId()).isEqualTo(100L);
+        verify(artifactRepository, never()).findById(2L);
+        verify(s3ObjectVerifier, never()).verifyExists("ssafyhub-artifacts", "frontend/dist.zip");
+
+        ArgumentCaptor<Deployment> deploymentCaptor = ArgumentCaptor.forClass(Deployment.class);
+        verify(deploymentRepository).saveAndFlush(deploymentCaptor.capture());
+        assertThat(deploymentCaptor.getValue().getFrontendArtifact()).isNull();
+    }
+
+    @Test
+    void Spring_MyBatis에서_MySQL을_사용하면_스키마_SQL이_필수다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", 1L, 2L, "SPRING_MYBATIS", "21", 8080, "app_db", "db-password",
+                "MYSQL", null, null,
+                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
+                null, null
+        );
+
+        assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.SCHEMA_REQUIRED_FOR_MYBATIS);
+
+        verify(deploymentRepository, never()).saveAndFlush(any());
+        verify(deploymentOutboxRepository, never()).save(any());
+    }
+
     private DeploymentCreateRequest validRequest() {
         return new DeploymentCreateRequest(
                 "demo-service",
                 1L,
                 2L,
+                "SPRING_JPA",
                 "21",
                 8080,
                 "app_db",
                 "db-password",
+                null,
+                null,
+                null,
                 List.of(
                         new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod"),
                         new DeploymentEnvRequest("JWT_SECRET", "secret-value")

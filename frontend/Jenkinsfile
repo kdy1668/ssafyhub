@@ -38,7 +38,6 @@ pipeline {
                 // ALB(api.ssafyhub.site)로 프록시하므로 브라우저에는 ssafyhub.site
                 // 한 오리진으로만 보입니다. 덕분에 CORS 설정이 필요 없습니다.
                 VITE_API_BASE_URL = ''
-                VITE_USE_MOCKS    = 'false'
             }
             steps {
                 echo 'Vite 프로덕션 빌드를 시작합니다...'
@@ -54,7 +53,6 @@ pipeline {
                 beforeAgent true
                 anyOf {
                     branch 'main'
-                    branch 'develop'
                 }
                 // 모노레포이므로 백엔드만 바뀐 푸시에는 재배포하지 않는다.
                 // 수동 실행(Build Now)은 변경 내역과 무관하게 항상 배포한다 —
@@ -62,6 +60,13 @@ pipeline {
                 anyOf {
                     changeset 'frontend/**'
                     triggeredBy 'UserIdCause'
+                    // 변경 내역을 구할 수 없는 실행에서도 배포한다. 브랜치 최초
+                    // 인덱싱이나 첫 빌드는 changelog 가 비어 changeset 이 매칭되지
+                    // 않고, 트리거도 UserIdCause 가 아니라 BranchIndexingCause 라
+                    // 두 조건이 모두 빗나간다. 그러면 Deploy 를 건너뛴 채 빌드가
+                    // SUCCESS 로 끝나 배포된 것으로 오인된다. 백엔드에서 실제로
+                    // 이 경로 때문에 컨테이너가 생성되지 않은 적이 있다.
+                    expression { currentBuild.changeSets.isEmpty() }
                 }
             }
             steps {

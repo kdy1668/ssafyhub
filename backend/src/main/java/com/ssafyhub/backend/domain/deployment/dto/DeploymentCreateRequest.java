@@ -24,13 +24,19 @@ public record DeploymentCreateRequest(
         @Positive(message = "백엔드 Artifact ID는 양수여야 합니다.")
         Long backendArtifactId,
 
-        @Schema(description = "사전에 발급받은 프론트엔드 산출물 Artifact ID", example = "2")
-        @NotNull(message = "프론트엔드 Artifact ID는 필수입니다.")
+        @Schema(description = "사전에 발급받은 프론트엔드 산출물 Artifact ID. 백엔드가 프론트를 직접 서빙하는 " +
+                "모놀리식 구조라면 비워두세요.", example = "2", nullable = true)
         @Positive(message = "프론트엔드 Artifact ID는 양수여야 합니다.")
         Long frontendArtifactId,
 
-        @Schema(description = "Java 실행 버전 (지원 버전: 17, 21)", example = "21")
-        @NotBlank(message = "Java 실행 버전은 필수입니다.")
+        @Schema(description = "언어/프레임워크 스택 (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, FASTAPI, EXPRESS). " +
+                "이 값에 맞춰 플랫폼이 Dockerfile을 자동 생성합니다 - 사용자는 Dockerfile을 올릴 필요가 없습니다.",
+                example = "SPRING_JPA")
+        @NotBlank(message = "stack은 필수입니다.")
+        String stack,
+
+        @Schema(description = "런타임 버전 (Java: 17/21, Python: 3.11/3.12, Node.js: 18/20 등)", example = "21")
+        @NotBlank(message = "runtimeVersion은 필수입니다.")
         String runtimeVersion,
 
         @Schema(description = "애플리케이션 내부 포트", example = "8080")
@@ -38,19 +44,32 @@ public record DeploymentCreateRequest(
         @Max(value = 65535, message = "내부 포트는 65535 이하여야 합니다.")
         int internalPort,
 
-        @Schema(description = "데이터베이스 이름 (영문 시작, 영문/숫자/언더스코어)", example = "ssafyhub_db")
-        @NotBlank(message = "데이터베이스 이름은 필수입니다.")
+        @Schema(description = "데이터베이스 이름 (영문 시작, 영문/숫자/언더스코어). DB가 필요 없는 앱이면 비워두세요.",
+                example = "ssafyhub_db", nullable = true)
         @Size(max = 100, message = "데이터베이스 이름은 100자를 초과할 수 없습니다.")
         @Pattern(
-                regexp = "^[A-Za-z][A-Za-z0-9_]{0,99}$",
+                regexp = "^$|^[A-Za-z][A-Za-z0-9_]{0,99}$",
                 message = "데이터베이스 이름은 영문자로 시작하고 영문, 숫자, 언더스코어만 사용할 수 있습니다."
         )
         String databaseName,
 
-        @Schema(description = "데이터베이스 비밀번호", example = "dbPassword123")
-        @NotBlank(message = "데이터베이스 비밀번호는 필수입니다.")
+        @Schema(description = "데이터베이스 비밀번호. databaseName을 입력한 경우에만 필수입니다.",
+                example = "dbPassword123", nullable = true)
         @Size(max = 200, message = "데이터베이스 비밀번호는 200자를 초과할 수 없습니다.")
         String databasePassword,
+
+        @Schema(description = "관계형 DB 엔진 (지원: MYSQL). databaseName을 입력했는데 비워두면 MYSQL로 간주합니다.",
+                example = "MYSQL", nullable = true)
+        String databaseEngine,
+
+        @Schema(description = "사전에 발급받은 DB 초기화 SQL Artifact ID (선택 - MyBatis 등 자동 테이블 생성이 안 되는 " +
+                "경우에만). databaseName을 입력했을 때만 사용할 수 있습니다.", example = "3", nullable = true)
+        @Positive(message = "스키마 SQL Artifact ID는 양수여야 합니다.")
+        Long schemaArtifactId,
+
+        @Schema(description = "MySQL 외에 추가로 필요한 백킹서비스 목록 (현재 지원: REDIS, MONGODB). " +
+                "필요 없으면 비워두세요.", example = "[\"REDIS\"]", nullable = true)
+        List<String> neededServices,
 
         @Schema(description = "환경변수 목록 (1개 이상 20개 이하)")
         @NotNull(message = "환경변수 목록은 필수입니다.")

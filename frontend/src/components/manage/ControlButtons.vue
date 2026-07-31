@@ -7,11 +7,11 @@ const props = defineProps({
   // "RUNNING" | "DEPLOYED" | "STOPPED" | "FAILED" | "PENDING" | "BUILDING" | "DEPLOYING"
   status: { type: String, default: "" },
   // 각 액션별 진행 중 상태 (백엔드 연동 시 사용)
-  loadingAction: { type: String, default: "" }, // "start" | "stop" | "restart"
+  loadingAction: { type: String, default: "" }, // "start" | "stop" | "restart" | "delete"
   disabled: { type: Boolean, default: false },
 });
 
-defineEmits(["start", "stop", "restart"]);
+defineEmits(["start", "stop", "restart", "delete"]);
 
 // 실행 중으로 간주되는 상태
 const RUNNING_STATES = ["RUNNING", "DEPLOYED"];
@@ -56,6 +56,18 @@ function isBusy() {
       @click="$emit('restart')"
     >
       ↻ 재시작
+    </BaseButton>
+
+    <!-- 삭제: 배포가 존재하면 상태와 무관하게 활성 (실패한 배포도 지울 수 있어야 함).
+         전이 중일 때만 막는다. 서버를 내리고 이력까지 지우므로 되돌릴 수 없다. -->
+    <BaseButton
+      variant="danger"
+      class="ml-2 border-l border-border pl-4"
+      :disabled="isBusy()"
+      :loading="loadingAction === 'delete'"
+      @click="$emit('delete')"
+    >
+      🗑 삭제
     </BaseButton>
   </div>
 </template>

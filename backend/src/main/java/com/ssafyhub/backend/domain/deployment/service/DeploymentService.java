@@ -12,6 +12,7 @@ import com.ssafyhub.backend.domain.deployment.entity.Deployment;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentEnv;
 import com.ssafyhub.backend.domain.deployment.entity.DeploymentLog;
 import com.ssafyhub.backend.domain.deployment.enums.DeploymentStatus;
+import com.ssafyhub.backend.domain.deployment.outbox.client.DevOpsDeploymentClient;
 import com.ssafyhub.backend.domain.deployment.outbox.entity.DeploymentOutbox;
 import com.ssafyhub.backend.domain.deployment.outbox.repository.DeploymentOutboxRepository;
 import com.ssafyhub.backend.domain.deployment.repository.DeploymentEnvRepository;
@@ -26,18 +27,31 @@ import com.ssafyhub.backend.global.security.SecretEncryptor;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 
 @Service
 @RequiredArgsConstructor
 public class DeploymentService {
 
     private static final String PENDING_MESSAGE = "배포 요청이 접수되었습니다.";
+    private static final Set<String> SUPPORTED_NEEDED_SERVICES = Set.of("REDIS", "MONGODB");
+    private static final Set<String> SUPPORTED_DATABASE_ENGINES = Set.of("MYSQL");
+    // Java 계열(.jar 아티팩트)과 Python/Node.js 계열(.zip 소스 아티팩트)을 구분해야 파일 확장자를 검증할 수 있다.
+    private static final Set<String> JAR_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS");
+    private static final Set<String> SUPPORTED_STACKS =
+            Set.of("SPRING_JPA", "SPRING_MYBATIS", "DJANGO", "FASTAPI", "EXPRESS");
+    // 테이블을 스스로 만들어주지 않는 스택만 DB 초기화 SQL 업로드를 허용한다. 언어별로 "자동 마이그레이션"과
+    // "수동 마이그레이션"을 골고루 대응시킨다: Java는 JPA(자동)/MyBatis(수동), Python은 Django(자동,
+    // 내장 ORM+migrate)/FastAPI(수동, 내장 마이그레이션 관례가 없음), Node.js는 관례상 내장 마이그레이션이
+    // 없어 Express 등은 전부 수동으로만 취급한다.
+    private static final Set<String> MANUAL_MIGRATION_STACKS = Set.of("SPRING_MYBATIS", "FASTAPI", "EXPRESS");
 
     private final MemberRepository memberRepository;
     private final ArtifactRepository artifactRepository;
@@ -45,11 +59,9 @@ public class DeploymentService {
     private final DeploymentEnvRepository deploymentEnvRepository;
     private final DeploymentLogRepository deploymentLogRepository;
     private final DeploymentOutboxRepository deploymentOutboxRepository;
+    private final DevOpsDeploymentClient devOpsDeploymentClient;
     private final S3ObjectVerifier s3ObjectVerifier;
     private final SecretEncryptor secretEncryptor;
-
-    @Value("${deployment.supported-runtime-versions}")
-    private List<String> supportedRuntimeVersions;
 
     @Value("${deployment.public-domain}")
     private String publicDomain;
@@ -63,20 +75,53 @@ public class DeploymentService {
             throw new BusinessException(ErrorCode.DEPLOYMENT_ALREADY_EXISTS);
         }
 
-        validateRuntimeVersion(request.runtimeVersion());
+        Artifact backendArtifact = getArtifact(request.backendArtifactId());
+        validateArtifact(backendArtifact, memberId, ArtifactType.BACKEND_JAR);
+
+        // 프론트엔드는 선택 사항 - 백엔드가 프론트를 직접 서빙하는 모놀리식 구조라면 안 보낸다.
+        Artifact frontendArtifact = null;
+        if (request.frontendArtifactId() != null) {
+            frontendArtifact = getArtifact(request.frontendArtifactId());
+            validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
+        }
         validateUniqueEnvKeys(request.env());
 
-        Artifact backendArtifact = getArtifact(request.backendArtifactId());
-        Artifact frontendArtifact = getArtifact(request.frontendArtifactId());
+        String stack = validateStack(request.stack(), backendArtifact);
 
-        validateArtifact(backendArtifact, memberId, ArtifactType.BACKEND_JAR);
-        validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
+        String databaseName = blankToNull(request.databaseName());
+        String databasePassword = blankToNull(request.databasePassword());
+        if (databaseName != null && databasePassword == null) {
+            throw new BusinessException(ErrorCode.DATABASE_PASSWORD_REQUIRED);
+        }
+        String encryptedDatabasePassword = databasePassword != null ? secretEncryptor.encrypt(databasePassword) : null;
+        String databaseEngine = validateDatabaseEngine(databaseName, request.databaseEngine());
+        String neededServices = validateAndJoinNeededServices(request.neededServices());
+
+        if ("SPRING_MYBATIS".equals(stack) && databaseName != null && request.schemaArtifactId() == null) {
+            throw new BusinessException(ErrorCode.SCHEMA_REQUIRED_FOR_MYBATIS);
+        }
+
+        Artifact schemaArtifact = null;
+        if (request.schemaArtifactId() != null) {
+            if (databaseName == null) {
+                throw new BusinessException(ErrorCode.SCHEMA_REQUIRES_DATABASE);
+            }
+            if (!MANUAL_MIGRATION_STACKS.contains(stack)) {
+                throw new BusinessException(ErrorCode.STACK_DOES_NOT_SUPPORT_SCHEMA_SQL);
+            }
+            schemaArtifact = getArtifact(request.schemaArtifactId());
+            validateArtifact(schemaArtifact, memberId, ArtifactType.SCHEMA_SQL);
+        }
 
         s3ObjectVerifier.verifyExists(backendArtifact.getBucket(), backendArtifact.getObjectKey());
-        s3ObjectVerifier.verifyExists(frontendArtifact.getBucket(), frontendArtifact.getObjectKey());
+        if (frontendArtifact != null) {
+            s3ObjectVerifier.verifyExists(frontendArtifact.getBucket(), frontendArtifact.getObjectKey());
+        }
+        if (schemaArtifact != null) {
+            s3ObjectVerifier.verifyExists(schemaArtifact.getBucket(), schemaArtifact.getObjectKey());
+        }
 
         LocalDateTime requestedAt = LocalDateTime.now();
-        String encryptedDatabasePassword = secretEncryptor.encrypt(request.databasePassword());
 
         Deployment deployment = new Deployment(
                 member,
@@ -85,9 +130,13 @@ public class DeploymentService {
                 request.projectName().trim(),
                 member.getStudentNumber(),
                 request.runtimeVersion().trim(),
+                stack,
                 request.internalPort(),
-                request.databaseName(),
+                databaseName,
                 encryptedDatabasePassword,
+                databaseEngine,
+                schemaArtifact,
+                neededServices,
                 requestedAt,
                 request.visibility(),
                 request.description()
@@ -115,8 +164,16 @@ public class DeploymentService {
         ));
 
         backendArtifact.markUsed();
-        frontendArtifact.markUsed();
-        artifactRepository.saveAll(List.of(backendArtifact, frontendArtifact));
+        List<Artifact> usedArtifacts = new java.util.ArrayList<>(List.of(backendArtifact));
+        if (frontendArtifact != null) {
+            frontendArtifact.markUsed();
+            usedArtifacts.add(frontendArtifact);
+        }
+        if (schemaArtifact != null) {
+            schemaArtifact.markUsed();
+            usedArtifacts.add(schemaArtifact);
+        }
+        artifactRepository.saveAll(usedArtifacts);
 
         deploymentOutboxRepository.save(DeploymentOutbox.deploymentRequested(deployment.getId(), requestedAt));
 
@@ -129,6 +186,87 @@ public class DeploymentService {
         );
     }
 
+    /**
+     * 배포된 서비스의 리소스 사용량(현재 스냅샷) - deploy-engine 메트릭을 프론트 형태로 매핑.
+     * deploy-engine이 값이 없으면(미배포/스크레이프 전) null → 0으로 처리해 500 대신 정상 응답한다.
+     * deploy-engine 자체 호출 실패 시에도 0으로 응답(리소스 확인이 화면을 깨지 않도록).
+     */
+    public com.ssafyhub.backend.domain.deployment.dto.ResourceUsageResponse getResourceUsage(
+            Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        com.ssafyhub.backend.domain.deployment.dto.DevOpsMetricsResponse metrics;
+        try {
+            metrics = devOpsDeploymentClient.getMetrics(deployment.getId());
+        } catch (RestClientException exception) {
+            metrics = null; // deploy-engine 순단 등 - 0으로 채워 응답
+        }
+
+        int cpuPercent = 0;
+        long memoryUsedMb = 0;
+        if (metrics != null) {
+            if (metrics.cpuCores() != null) {
+                cpuPercent = (int) Math.round(metrics.cpuCores() * 100); // 코어 사용량 → % (1코어=100%)
+            }
+            if (metrics.memoryBytes() != null) {
+                memoryUsedMb = metrics.memoryBytes() / (1024 * 1024);
+            }
+        }
+        // deploy-engine이 컨테이너 메모리 상한을 512Mi 고정으로 배포하므로 총량은 512로 본다.
+        long memoryTotalMb = 512;
+
+        return new com.ssafyhub.backend.domain.deployment.dto.ResourceUsageResponse(
+                deployment.getId(), cpuPercent, memoryUsedMb, memoryTotalMb, LocalDateTime.now());
+    }
+
+    /**
+     * 배포 리소스 사용량 시계열(그래프용) - deploy-engine /metrics/range를 CPU%(코어*100)/메모리MB로 변환.
+     * deploy-engine 순단/무데이터 시 빈 시계열로 응답(화면이 깨지지 않도록).
+     */
+    public com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse getResourceHistory(
+            Long memberId, Long deploymentId, int minutes) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        com.ssafyhub.backend.domain.deployment.dto.DevOpsMetricsRangeResponse range;
+        try {
+            range = devOpsDeploymentClient.getMetricsRange(deployment.getId(), minutes, 60);
+        } catch (RestClientException exception) {
+            range = null;
+        }
+
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> cpu =
+                new java.util.ArrayList<>();
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> memory =
+                new java.util.ArrayList<>();
+        if (range != null) {
+            if (range.cpuCores() != null) {
+                range.cpuCores().forEach(p -> cpu.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() * 100 : 0)));
+            }
+            if (range.memoryBytes() != null) {
+                range.memoryBytes().forEach(p -> memory.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
+            }
+        }
+        return new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse(cpu, memory);
+    }
+
+    /** 배포 진행 로그(깃헙 액션식 단계별) - 본인 배포만 조회 가능. */
+    public java.util.List<com.ssafyhub.backend.domain.deployment.dto.DeploymentLogResponse> getDeploymentLogs(
+            Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        return deploymentLogRepository.findByDeployment_IdOrderByIdAsc(deployment.getId())
+                .stream()
+                .map(com.ssafyhub.backend.domain.deployment.dto.DeploymentLogResponse::from)
+                .toList();
+    }
+
     public DeploymentStatusResponse getMyDeployment(Long memberId) {
         Deployment deployment = deploymentRepository.findByMember_Id(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
@@ -136,7 +274,42 @@ public class DeploymentService {
         DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
 
-        return DeploymentStatusResponse.of(deployment, latestLog);
+        // 실제로 떠 있을 때(endpoint_url 존재)만 접속 주소를 서브도메인으로 노출한다.
+        // endpoint_url(IP+경로)은 프록시 내부 타깃이라 그대로 두고, 사용자에겐 {학번}.도메인 을 보여준다.
+        String accessUrl = deployment.getEndpointUrl() != null
+                ? "https://%s.%s".formatted(deployment.getSlug(), publicDomain)
+                : null;
+
+        return DeploymentStatusResponse.of(deployment, latestLog, accessUrl);
+    }
+
+    /**
+     * 배포를 삭제한다. 실행 중인 사용자 서버(k8s Deployment/Service/Ingress/Middleware)를 먼저
+     * 내리고, 성공한 뒤에 DB 행을 지운다.
+     *
+     * 순서가 중요하다. deploy-engine은 deploymentId로 namespace(팀)와 appName(slug)을 역추적하므로,
+     * 행을 먼저 지우면 정리 대상을 찾지 못해 k8s 리소스가 그대로 떠 있는 채로 고아가 된다.
+     * 반대로 k8s 정리 후 행 삭제가 실패하면 사용자가 다시 삭제를 시도하면 되고,
+     * deploy-engine의 정리는 멱등이므로 안전하다.
+     */
+    @Transactional
+    public void deleteDeployment(Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        try {
+            devOpsDeploymentClient.deleteDeployment(deployment.getId());
+        } catch (RestClientException exception) {
+            // k8s 리소스가 살아 있을 수 있으므로 행을 지우지 않고 중단한다.
+            throw new BusinessException(ErrorCode.DEPLOYMENT_DELETE_FAILED);
+        }
+
+        // deployment_envs / deployment_logs는 FK가 걸려 있어 먼저 지워야 하고,
+        // deployment_outbox는 FK가 없지만 남으면 스케줄러가 계속 발행을 시도한다.
+        deploymentOutboxRepository.deleteByDeploymentId(deployment.getId());
+        deploymentEnvRepository.deleteByDeployment_Id(deployment.getId());
+        deploymentLogRepository.deleteByDeployment_Id(deployment.getId());
+        deploymentRepository.delete(deployment);
     }
 
     private Artifact getArtifact(Long artifactId) {
@@ -158,10 +331,59 @@ public class DeploymentService {
         }
     }
 
-    private void validateRuntimeVersion(String runtimeVersion) {
-        if (!supportedRuntimeVersions.contains(runtimeVersion.trim())) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_RUNTIME_VERSION);
+    private String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /**
+     * stack이 지원 목록에 있는지, 그리고 백엔드 아티팩트 확장자가 그 스택과 맞는지 검증한다.
+     * Java 계열(.jar 자동 Dockerfile)과 Python/Node.js 계열(.zip 소스 + 자동 Dockerfile)은
+     * 업로드 형식 자체가 다르므로, 잘못 짝지어지면 배포 단계에서야 실패하지 않도록 여기서 막는다.
+     */
+    private String validateStack(String rawStack, Artifact backendArtifact) {
+        String stack = rawStack == null ? "" : rawStack.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_STACKS.contains(stack)) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_STACK);
         }
+
+        String fileName = backendArtifact.getOriginalFileName().toLowerCase(Locale.ROOT);
+        boolean isJavaStack = JAR_STACKS.contains(stack);
+        boolean isJarFile = fileName.endsWith(".jar");
+        if (isJavaStack != isJarFile) {
+            throw new BusinessException(ErrorCode.STACK_ARTIFACT_MISMATCH);
+        }
+        return stack;
+    }
+
+    /** databaseName이 없으면 엔진도 의미 없으니 null. 있는데 엔진이 비어 있으면 MYSQL 기본값. */
+    private String validateDatabaseEngine(String databaseName, String rawEngine) {
+        if (databaseName == null) {
+            return null;
+        }
+        String engine = blankToNull(rawEngine);
+        if (engine == null) {
+            return "MYSQL";
+        }
+        String upper = engine.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_DATABASE_ENGINES.contains(upper)) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_DATABASE_ENGINE);
+        }
+        return upper;
+    }
+
+    private String validateAndJoinNeededServices(List<String> neededServices) {
+        if (neededServices == null || neededServices.isEmpty()) {
+            return null;
+        }
+        Set<String> normalized = new HashSet<>();
+        for (String service : neededServices) {
+            String upper = service == null ? "" : service.trim().toUpperCase(Locale.ROOT);
+            if (!SUPPORTED_NEEDED_SERVICES.contains(upper)) {
+                throw new BusinessException(ErrorCode.UNSUPPORTED_NEEDED_SERVICE);
+            }
+            normalized.add(upper);
+        }
+        return String.join(",", normalized);
     }
 
     private void validateUniqueEnvKeys(List<DeploymentEnvRequest> envs) {

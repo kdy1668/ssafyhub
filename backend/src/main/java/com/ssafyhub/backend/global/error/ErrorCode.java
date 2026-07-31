@@ -24,9 +24,10 @@ public enum ErrorCode {
 
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_004", "회원을 찾을 수 없습니다."),
 
-    INVALID_BACKEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_001", "백엔드 파일은 .jar 형식이어야 합니다."),
+    INVALID_BACKEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_001", "백엔드 파일은 .jar 또는 Dockerfile을 포함한 .zip 형식이어야 합니다."),
     INVALID_FRONTEND_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_002", "프론트엔드 파일은 .zip 형식이어야 합니다."),
     INVALID_FILE_NAME(HttpStatus.BAD_REQUEST, "ARTIFACT_003", "올바르지 않은 파일 이름입니다."),
+    INVALID_SCHEMA_FILE(HttpStatus.BAD_REQUEST, "ARTIFACT_011", "DB 초기화 SQL 파일은 .sql 형식이어야 합니다."),
     PRESIGNED_URL_GENERATION_FAILED(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "ARTIFACT_004",
@@ -44,9 +45,21 @@ public enum ErrorCode {
     ),
 
     DEPLOYMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "DEPLOYMENT_001", "사용자별 배포는 하나만 생성할 수 있습니다."),
-    UNSUPPORTED_RUNTIME_VERSION(HttpStatus.BAD_REQUEST, "DEPLOYMENT_002", "지원하지 않는 Java 실행 버전입니다."),
     DUPLICATE_ENV_KEY(HttpStatus.BAD_REQUEST, "DEPLOYMENT_003", "중복된 환경변수 이름이 존재합니다."),
     DEPLOYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "DEPLOYMENT_004", "조회할 배포 정보가 없습니다."),
+    DEPLOYMENT_DELETE_FAILED(HttpStatus.BAD_GATEWAY, "DEPLOYMENT_005", "배포 리소스 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    DATABASE_PASSWORD_REQUIRED(HttpStatus.BAD_REQUEST, "DEPLOYMENT_006", "데이터베이스 이름을 입력했다면 비밀번호도 함께 입력해야 합니다."),
+    UNSUPPORTED_NEEDED_SERVICE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_007", "지원하지 않는 백킹서비스입니다. (지원: REDIS, MONGODB)"),
+    UNSUPPORTED_DATABASE_ENGINE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_008", "지원하지 않는 데이터베이스 엔진입니다. (지원: MYSQL)"),
+    SCHEMA_REQUIRES_DATABASE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_009", "DB 초기화 SQL 파일은 데이터베이스를 선택했을 때만 사용할 수 있습니다."),
+    UNSUPPORTED_STACK(HttpStatus.BAD_REQUEST, "DEPLOYMENT_010",
+            "지원하지 않는 언어/프레임워크입니다. (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, FASTAPI, EXPRESS)"),
+    STACK_ARTIFACT_MISMATCH(HttpStatus.BAD_REQUEST, "DEPLOYMENT_011",
+            "백엔드 아티팩트 형식이 선택한 스택과 맞지 않습니다. (Java 계열: .jar, Python/Node.js: .zip)"),
+    STACK_DOES_NOT_SUPPORT_SCHEMA_SQL(HttpStatus.BAD_REQUEST, "DEPLOYMENT_012",
+            "선택한 스택은 테이블을 자동으로 생성하므로 DB 초기화 SQL을 사용할 수 없습니다."),
+    SCHEMA_REQUIRED_FOR_MYBATIS(HttpStatus.BAD_REQUEST, "DEPLOYMENT_013",
+            "Spring MyBatis에서 MySQL을 사용하려면 DB 초기화 SQL 파일이 필요합니다."),
 
     SHOWCASE_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOWCASE_001", "존재하지 않는 서비스입니다."),
     ;

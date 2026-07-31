@@ -1,5 +1,4 @@
-import { apiClient, USE_MOCKS, mockDelay, ensureCsrfToken } from "./client";
-import { mockUser } from "./mockData";
+import { apiClient, ensureCsrfToken } from "./client";
 
 // 백엔드 member 응답 { memberId, name, studentNumber, teamName, role } 을
 // 프론트에서 쓰는 공통 형태 { id, name, studentNumber, team, role } 로 정규화한다.
@@ -15,17 +14,6 @@ function normalizeMember(member) {
 }
 
 export async function signupRequest({ team, name, studentId, password, passwordConfirm }) {
-  if (USE_MOCKS) {
-    await mockDelay(500);
-    if (!name || !studentId || !password) {
-      throw new Error("필수 항목을 모두 입력해주세요.");
-    }
-    if (password !== passwordConfirm) {
-      throw new Error("비밀번호가 일치하지 않습니다.");
-    }
-    return { success: true, name, team };
-  }
-
   // 상태 변경 요청이므로 CSRF 토큰이 발급되어 있어야 한다.
   await ensureCsrfToken();
 
@@ -41,17 +29,6 @@ export async function signupRequest({ team, name, studentId, password, passwordC
 }
 
 export async function loginRequest({ studentId, password }) {
-  if (USE_MOCKS) {
-    await mockDelay(500);
-    if (!studentId || !password) {
-      throw new Error("학번과 비밀번호를 입력해주세요.");
-    }
-    // 백엔드 없이 동작하도록 mock member 반환.
-    // 테스트 편의: 학번이 "admin"이면 관리자 권한으로 로그인됩니다.
-    const role = studentId === "admin" ? "ADMIN" : "USER";
-    return { ...mockUser, role };
-  }
-
   // 로그인 요청 전 CSRF 토큰 확보 (POST 요청은 X-XSRF-TOKEN 헤더 필요)
   await ensureCsrfToken();
 
@@ -62,4 +39,13 @@ export async function loginRequest({ studentId, password }) {
   });
   // ApiResponse.data = { member: {...} } → 정규화한 member 반환 (토큰은 쿠키에 있으므로 꺼내지 않음)
   return normalizeMember(data?.data?.member);
+}
+
+export async function logoutRequest() {
+  // 상태 변경 요청이므로 CSRF 토큰이 발급되어 있어야 한다.
+  await ensureCsrfToken();
+
+  // Refresh Token 폐기와 쿠키 삭제(Set-Cookie; Max-Age=0)는 서버가 처리한다.
+  // 토큰은 HttpOnly 쿠키라서 프론트에서 직접 지울 수 없다.
+  await apiClient.post("/api/v1/auth/logout");
 }
