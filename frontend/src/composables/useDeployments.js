@@ -90,7 +90,6 @@ export function useCreateDeployment() {
     const {
       backendFile, frontendFile, schemaFile,
       projectName, stack, runtimeVersion, internalPort,
-      frontendStack, frontendRuntimeVersion,
       databaseName, databasePassword, databaseEngine, manualMigration, neededServices, envList,
       visibility, description,
     } = args;
@@ -133,8 +132,8 @@ export function useCreateDeployment() {
       };
 
       // allSettled 로 모든 파일을 시도 → 부분 실패도 각 상태에 반영
-      // 백엔드는 스택에 따라 .jar(Java) 또는 .zip(Python/Node 소스), 프론트엔드는 항상 .zip
-      // (PLAIN이면 빌드된 정적 파일, 그 외는 저희가 빌드할 소스).
+      // 백엔드는 스택에 따라 .jar(Java) 또는 .zip(Python/Node 소스), 프론트엔드는 항상
+      // 이미 빌드된 정적 산출물 .zip.
       const uploadTasks = [];
       if (backendFile && backendArtifact) {
         const backendContentType = backendFile.name.toLowerCase().endsWith(".zip")
@@ -166,8 +165,6 @@ export function useCreateDeployment() {
         stack,
         runtimeVersion,
         internalPort: internalPort != null ? Number(internalPort) : undefined,
-        frontendStack,
-        frontendRuntimeVersion,
         databaseName,
         databasePassword,
         databaseEngine,

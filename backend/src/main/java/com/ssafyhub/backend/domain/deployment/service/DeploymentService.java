@@ -48,10 +48,10 @@ public class DeploymentService {
     // Dockerfile이 완전히 같고(JAR_STACKS 판정에도 차이가 없었음), 차이는 오직 "테이블을 자동으로
     // 만들어주는가"였는데 그건 이제 프레임워크와 무관하게 사용자에게 직접 물어본다(manualMigration).
     private static final Set<String> JAR_STACKS = Set.of("SPRING_BOOT");
-    private static final Set<String> SUPPORTED_STACKS = Set.of("SPRING_BOOT", "DJANGO", "FASTAPI", "EXPRESS");
-    // PLAIN은 "이미 빌드된 정적 zip을 그대로 올린다"(기존 방식) - 그 외는 소스 zip을 받아
-    // 플랫폼이 Docker로 빌드해서 정적 산출물만 추출한다(백엔드의 DJANGO/FASTAPI/EXPRESS와 같은 개념).
-    private static final Set<String> SUPPORTED_FRONTEND_STACKS = Set.of("REACT", "VUE", "ANGULAR", "SVELTE", "PLAIN");
+    // FLASK는 Django/FastAPI와 실제로 다르다 - WSGI라 gunicorn으로 띄워야 해서(uvicorn 아님)
+    // 플랫폼이 생성하는 Dockerfile의 CMD 자체가 다르다. Node는 EXPRESS 하나로 표기하지만
+    // Dockerfile이 "npm start"에 위임하는 방식이라 실제로는 Fastify/Koa/NestJS 등도 그대로 동작한다.
+    private static final Set<String> SUPPORTED_STACKS = Set.of("SPRING_BOOT", "DJANGO", "FASTAPI", "FLASK", "EXPRESS");
 
     private final MemberRepository memberRepository;
     private final ArtifactRepository artifactRepository;
@@ -99,20 +99,12 @@ public class DeploymentService {
         }
 
         // 프론트엔드는 선택 사항 - 백엔드가 프론트를 직접 서빙하는 모놀리식 구조라면(또는 백엔드
-        // 자체가 없는 프론트만 배포라면) 프레임워크/런타임도 백엔드가 있을 때만 의미가 있다.
+        // 자체가 없는 프론트만 배포라면) 안 보낸다. 항상 이미 빌드된 정적 zip을 그대로 올린다
+        // (플랫폼이 대신 빌드해주지 않음 - 프레임워크와 무관하게 정적 파일이라 구분할 이유가 없다).
         Artifact frontendArtifact = null;
-        String frontendStack = null;
-        String frontendRuntimeVersion = null;
         if (request.frontendArtifactId() != null) {
             frontendArtifact = getArtifact(request.frontendArtifactId());
             validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
-            frontendStack = validateFrontendStack(request.frontendStack());
-            if (!"PLAIN".equals(frontendStack)) {
-                frontendRuntimeVersion = blankToNull(request.frontendRuntimeVersion());
-                if (frontendRuntimeVersion == null) {
-                    throw new BusinessException(ErrorCode.FRONTEND_RUNTIME_VERSION_REQUIRED);
-                }
-            }
         }
         validateUniqueEnvKeys(request.env());
 
@@ -181,9 +173,7 @@ public class DeploymentService {
                 neededServices,
                 requestedAt,
                 request.visibility(),
-                request.description(),
-                frontendStack,
-                frontendRuntimeVersion
+                request.description()
         );
 
         try {
@@ -398,15 +388,6 @@ public class DeploymentService {
         boolean isJarFile = fileName.endsWith(".jar");
         if (isJavaStack != isJarFile) {
             throw new BusinessException(ErrorCode.STACK_ARTIFACT_MISMATCH);
-        }
-        return stack;
-    }
-
-    /** 프론트 프레임워크가 지원 목록에 있는지 검증한다. PLAIN은 "이미 빌드됨"을 뜻한다. */
-    private String validateFrontendStack(String rawStack) {
-        String stack = rawStack == null ? "PLAIN" : rawStack.trim().toUpperCase(Locale.ROOT);
-        if (!SUPPORTED_FRONTEND_STACKS.contains(stack)) {
-            throw new BusinessException(ErrorCode.UNSUPPORTED_FRONTEND_STACK);
         }
         return stack;
     }

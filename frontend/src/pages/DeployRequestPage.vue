@@ -132,112 +132,6 @@ const STACK_OPTIONS = [
   },
 ];
 
-// 프론트엔드 프레임워크 - 백엔드와 동일하게 "소스를 올리면 플랫폼이 빌드"로 통일했다(일관성).
-// PLAIN만 예외로 "이미 빌드된 정적 파일을 그대로 올린다"(빌드 도구를 안 쓰는 경우의 탈출구).
-// React/Vue/Svelte는 전부 Vite 기준 관례(npm run build → dist/)라 러타임 옵션도 동일하다.
-const FRONTEND_STACK_OPTIONS = [
-  {
-    value: "REACT",
-    icon: "react",
-    label: "React",
-    description: "소스 업로드 · 자동 빌드",
-    needsBuild: true,
-    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
-    artifactHint: "package.json, index.html, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
-      "\"npm install && npm run build\"를 자동 실행해 dist/ 결과물만 배포합니다(Vite 기준).",
-    runtimeOptions: [
-      { value: "18", label: "Node.js 18" },
-      { value: "20", label: "Node.js 20" },
-    ],
-    zipExample: `frontend.zip
-├── package.json
-├── package-lock.json
-├── index.html
-├── vite.config.js
-└── src/
-    └── main.jsx`,
-  },
-  {
-    value: "VUE",
-    icon: "vue",
-    label: "Vue",
-    description: "소스 업로드 · 자동 빌드",
-    needsBuild: true,
-    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
-    artifactHint: "package.json, index.html, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
-      "\"npm install && npm run build\"를 자동 실행해 dist/ 결과물만 배포합니다(Vite 기준).",
-    runtimeOptions: [
-      { value: "18", label: "Node.js 18" },
-      { value: "20", label: "Node.js 20" },
-    ],
-    zipExample: `frontend.zip
-├── package.json
-├── package-lock.json
-├── index.html
-├── vite.config.js
-└── src/
-    └── main.js`,
-  },
-  {
-    value: "ANGULAR",
-    icon: "angular",
-    label: "Angular",
-    description: "소스 업로드 · 자동 빌드",
-    needsBuild: true,
-    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
-    artifactHint: "package.json, angular.json, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
-      "\"npm install && npm run build\"(ng build)를 자동 실행해 dist/ 결과물만 배포합니다.",
-    runtimeOptions: [
-      { value: "18", label: "Node.js 18" },
-      { value: "20", label: "Node.js 20" },
-    ],
-    zipExample: `frontend.zip
-├── package.json
-├── angular.json
-├── package-lock.json
-└── src/
-    └── app/`,
-  },
-  {
-    value: "SVELTE",
-    icon: "svelte",
-    label: "Svelte",
-    description: "소스 업로드 · 자동 빌드",
-    needsBuild: true,
-    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
-    artifactHint: "package.json, index.html, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
-      "\"npm install && npm run build\"를 자동 실행해 dist/ 결과물만 배포합니다(Vite 기준).",
-    runtimeOptions: [
-      { value: "18", label: "Node.js 18" },
-      { value: "20", label: "Node.js 20" },
-    ],
-    zipExample: `frontend.zip
-├── package.json
-├── package-lock.json
-├── index.html
-├── vite.config.js
-└── src/
-    └── main.js`,
-  },
-  {
-    value: "PLAIN",
-    icon: "plain",
-    label: "플레인 HTML/JS",
-    description: "이미 빌드됨 · 그대로 업로드",
-    needsBuild: false,
-    artifactLabel: "프론트엔드 아티팩트 (.zip, 빌드 완료)",
-    artifactHint: "이미 빌드를 마친 정적 산출물(index.html 등)을 그대로 zip으로 올려주세요. " +
-      "index.html이 zip 최상위(또는 폴더 한 겹 안)에 있어야 합니다.",
-    runtimeOptions: [],
-    zipExample: `frontend.zip
-├── index.html
-├── assets/
-│   ├── index-xxxx.js
-│   └── index-xxxx.css
-└── ...`,
-  },
-];
-
 // 1단계 "무엇을 배포할까요?" - AWS EC2 콘솔의 "로드밸런서 유형 선택" 화면(ALB/NLB/GWLB/Classic을
 // 각각 다이어그램이 있는 카드로 늘어놓고 하나를 고르게 하는 패턴)을 참고했다. 두 개의 독립
 // 스위치 대신, 실제로 나올 수 있는 3가지 결과를 이름표 붙은 카드로 직접 고르게 한다.
@@ -298,8 +192,6 @@ const form = reactive({
   stack: "SPRING_BOOT",
   runtimeVersion: "17",
   internalPort: 8080,
-  frontendStack: "REACT",
-  frontendRuntimeVersion: "18",
   databaseEngine: "NONE", // NONE | MYSQL
   databaseName: "",
   databasePassword: "",
@@ -317,9 +209,6 @@ const selectedStack = computed(
 );
 const selectedLanguage = computed(
   () => LANGUAGE_OPTIONS.find((l) => l.value === form.language) || LANGUAGE_OPTIONS[0]
-);
-const selectedFrontendStack = computed(
-  () => FRONTEND_STACK_OPTIONS.find((s) => s.value === form.frontendStack) || FRONTEND_STACK_OPTIONS[0]
 );
 const selectedDbEngineOption = computed(
   () => DB_ENGINE_OPTIONS.find((o) => o.value === form.databaseEngine) || DB_ENGINE_OPTIONS[0]
@@ -404,14 +293,6 @@ function selectStack(value) {
   form.runtimeVersion = stack.runtimeOptions[0].value;
   backendFile.value = null;
   errors.backendFile = "";
-}
-
-function selectFrontendStack(value) {
-  form.frontendStack = value;
-  const stack = FRONTEND_STACK_OPTIONS.find((s) => s.value === value);
-  form.frontendRuntimeVersion = stack.runtimeOptions[0]?.value || "";
-  frontendFile.value = null;
-  errors.frontendFile = "";
 }
 
 function handleBackendFileChange(e) {
@@ -598,7 +479,6 @@ function goToStep(id) {
 function buildPayload() {
   const needDatabase = form.hasBackend && form.databaseEngine !== "NONE";
   const canUseSchemaFile = needDatabase && form.manualMigration === true;
-  const frontendNeedsRuntime = form.hasFrontend && selectedFrontendStack.value.needsBuild;
   return {
     backendFile: form.hasBackend ? backendFile.value : null,
     frontendFile: form.hasFrontend ? frontendFile.value : null,
@@ -608,8 +488,6 @@ function buildPayload() {
     stack: form.hasBackend ? form.stack : undefined,
     runtimeVersion: form.hasBackend ? form.runtimeVersion : undefined,
     internalPort: form.hasBackend ? form.internalPort : undefined,
-    frontendStack: form.hasFrontend ? form.frontendStack : undefined,
-    frontendRuntimeVersion: frontendNeedsRuntime ? form.frontendRuntimeVersion : undefined,
     // "사용 안 함"이면 빈 값으로 보내 백엔드가 "DB 프로비저닝 안 함"으로 처리하게 한다.
     databaseName: needDatabase ? form.databaseName : "",
     databasePassword: needDatabase ? form.databasePassword : "",
@@ -828,10 +706,14 @@ async function handleRetry() {
               <p v-if="errors.structure" class="text-xs text-danger">{{ errors.structure }}</p>
             </div>
 
-            <!-- 2단계: 프레임워크 (1단계에서 켠 것만 나타난다 - 백엔드/프론트가 완전히 대칭적인
-                 카드 UI를 쓴다: 둘 다 "소스를 올리면 플랫폼이 빌드") -->
+            <!-- 2단계: 프레임워크 (백엔드가 있을 때만 나타난다 - 프론트엔드는 이미 빌드된
+                 정적 산출물을 그대로 올리는 방식이라 프레임워크 구분이 필요 없다) -->
             <div v-show="currentStep === 2" class="flex flex-col gap-6">
               <h2 class="text-sm font-bold text-ink-900">프레임워크를 선택하세요</h2>
+
+              <p v-if="!form.hasBackend" class="text-xs text-ink-500">
+                프론트엔드만 배포하는 구성이라 프레임워크 선택이 필요 없습니다. 다음 단계로 넘어가세요.
+              </p>
 
               <div v-if="form.hasBackend" class="flex flex-col gap-5">
                 <div class="flex flex-col gap-3">
@@ -858,7 +740,10 @@ async function handleRetry() {
                   </div>
                 </div>
 
-                <div class="flex flex-col gap-3">
+                <!-- 선택지가 하나뿐인 언어(Java=Spring Boot, Node=Express)는 고를 게 없어서
+                     그리드 자체를 숨기고 이미 자동 선택된 값을 그대로 쓴다. 실제로 고를 게
+                     있는 언어(Python=Django/FastAPI)에서만 보여준다. -->
+                <div v-if="availableStacks.length > 1" class="flex flex-col gap-3">
                   <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">백엔드 프레임워크</h3>
                   <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <button
@@ -879,30 +764,6 @@ async function handleRetry() {
                       </span>
                     </button>
                   </div>
-                </div>
-              </div>
-
-              <div v-if="form.hasFrontend" class="flex flex-col gap-3">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">프론트엔드 프레임워크</h3>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <button
-                    v-for="opt in FRONTEND_STACK_OPTIONS"
-                    :key="opt.value"
-                    type="button"
-                    @click="selectFrontendStack(opt.value)"
-                    :class="[
-                      'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
-                      form.frontendStack === opt.value
-                        ? 'border-primary bg-primary-light ring-1 ring-primary'
-                        : 'border-border bg-background hover:border-primary/50',
-                    ]"
-                  >
-                    <TechIcon :kind="opt.icon" />
-                    <span class="flex flex-col">
-                      <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
-                      <span class="text-xs text-ink-500">{{ opt.description }}</span>
-                    </span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -934,14 +795,6 @@ async function handleRetry() {
                   :error="errors.internalPort"
                 />
               </div>
-
-              <BaseSelect
-                v-if="form.hasFrontend && selectedFrontendStack.needsBuild"
-                id="frontendRuntimeVersion"
-                label="프론트 빌드용 Node 버전"
-                :options="selectedFrontendStack.runtimeOptions"
-                v-model="form.frontendRuntimeVersion"
-              />
 
               <BaseSelect
                 id="visibility"
@@ -997,19 +850,9 @@ async function handleRetry() {
               </div>
 
               <div v-if="form.hasFrontend">
-                <div class="mb-1 flex items-center gap-2">
-                  <label class="text-sm font-medium text-ink-700">{{ selectedFrontendStack.artifactLabel }}</label>
-                  <span
-                    :class="[
-                      'rounded px-1.5 py-0.5 text-[11px] font-medium',
-                      selectedFrontendStack.value === 'PLAIN'
-                        ? 'bg-border text-ink-500'
-                        : 'bg-sky/10 text-sky-hover',
-                    ]"
-                  >
-                    {{ selectedFrontendStack.value === 'PLAIN' ? "프레임워크 무관" : `${selectedFrontendStack.label} 전용` }}
-                  </span>
-                </div>
+                <label class="mb-1 block text-sm font-medium text-ink-700">
+                  프론트엔드 아티팩트 (.zip, 빌드 완료)
+                </label>
                 <input
                   type="file"
                   accept=".zip"
@@ -1017,11 +860,10 @@ async function handleRetry() {
                   class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
                 />
                 <p v-if="errors.frontendFile" class="mt-1 text-xs text-danger">{{ errors.frontendFile }}</p>
-                <p class="mt-1 text-xs text-ink-500">{{ selectedFrontendStack.artifactHint }}</p>
-                <pre
-                  v-if="selectedFrontendStack.zipExample"
-                  class="mt-2 overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"
-                ><code>{{ selectedFrontendStack.zipExample }}</code></pre>
+                <p class="mt-1 text-xs text-ink-500">
+                  React/Vue 등으로 빌드한 정적 산출물(예: dist 폴더 안의 내용)을 그대로 zip으로
+                  압축해서 올려주세요. index.html이 zip 최상위(또는 폴더 한 겹 안)에 있어야 합니다.
+                </p>
               </div>
 
               <p v-if="!form.hasFrontend" class="text-xs text-ink-500">
@@ -1208,13 +1050,6 @@ async function handleRetry() {
                   <dt class="text-ink-500">백엔드 런타임 / 포트</dt>
                   <dd class="font-medium text-ink-900">
                     {{ form.runtimeVersion }} · {{ form.internalPort }}
-                  </dd>
-                </div>
-                <div v-if="form.hasFrontend" class="flex items-center justify-between gap-4 px-3 py-2">
-                  <dt class="text-ink-500">프론트엔드 프레임워크</dt>
-                  <dd class="font-medium text-ink-900">
-                    {{ selectedFrontendStack.label }}
-                    {{ selectedFrontendStack.needsBuild ? `(Node ${form.frontendRuntimeVersion})` : "" }}
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-4 px-3 py-2">
