@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed } from "vue";
 import { useRouter } from "vue-router";
+import { useQueryClient } from "@tanstack/vue-query";
 import AppHeader from "../components/common/AppHeader.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import BaseInput from "../components/common/BaseInput.vue";
@@ -40,7 +41,7 @@ const STEPS = [
 // 언어 선택 - 고르면 그 언어에 속한 프레임워크 카드들이 아래에 나타난다.
 const LANGUAGE_OPTIONS = [
   { value: "JAVA", icon: "java", label: "Java", sublabel: "Spring Boot" },
-  { value: "PYTHON", icon: "python", label: "Python", sublabel: "Django" },
+  { value: "PYTHON", icon: "python", label: "Python", sublabel: "Django · FastAPI" },
   { value: "NODE", icon: "node", label: "Node.js", sublabel: "Express" },
 ];
 
@@ -103,6 +104,27 @@ const STACK_OPTIONS = [
     └── migrations/`,
   },
   {
+    value: "FASTAPI",
+    language: "PYTHON",
+    label: "FastAPI",
+    description: "직접 마이그레이션",
+    artifactAccept: ".zip",
+    artifactLabel: "백엔드 아티팩트 (.zip)",
+    artifactHint: "main.py(FastAPI 앱), requirements.txt가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
+      "FastAPI는 내장 마이그레이션 관례가 없어 테이블은 아래 'DB 초기화 SQL'로 생성합니다.",
+    manualMigration: true,
+    runtimeOptions: [
+      { value: "3.11", label: "Python 3.11" },
+      { value: "3.12", label: "Python 3.12" },
+    ],
+    zipExample: `backend.zip
+├── main.py
+├── requirements.txt
+└── app/
+    ├── routers/
+    └── models/`,
+  },
+  {
     value: "EXPRESS",
     language: "NODE",
     label: "Express",
@@ -142,6 +164,7 @@ const DESCRIPTION_MAX_LENGTH = 2000;
 
 const router = useRouter();
 const toastStore = useToastStore();
+const queryClient = useQueryClient();
 const {
   executeDeploy,
   retry,
@@ -427,6 +450,9 @@ async function onDeploySuccess(deployment) {
       : "배포 요청이 접수되었습니다.",
     "success"
   );
+  // 삭제 직후 재생성한 경우 등 - 이전 배포의 캐시된 상태/로그가 staleTime(30초) 동안
+  // 그대로 보일 수 있어, 이동 전에 무효화해서 새 배포의 실제 상태를 바로 가져오게 한다.
+  await queryClient.invalidateQueries({ queryKey: ["deployments", "me"] });
   router.push("/deployments"); // 배포 상태 화면으로 이동 (3초 폴링 자동 시작)
 }
 

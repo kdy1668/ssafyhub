@@ -29,7 +29,7 @@ public record DeploymentCreateRequest(
         @Positive(message = "프론트엔드 Artifact ID는 양수여야 합니다.")
         Long frontendArtifactId,
 
-        @Schema(description = "언어/프레임워크 스택 (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, EXPRESS). " +
+        @Schema(description = "언어/프레임워크 스택 (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, FASTAPI, EXPRESS). " +
                 "이 값에 맞춰 플랫폼이 Dockerfile을 자동 생성합니다 - 사용자는 Dockerfile을 올릴 필요가 없습니다.",
                 example = "SPRING_JPA")
         @NotBlank(message = "stack은 필수입니다.")
