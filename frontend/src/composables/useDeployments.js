@@ -90,21 +90,22 @@ export function useCreateDeployment() {
     const {
       backendFile, frontendFile, schemaFile,
       projectName, stack, runtimeVersion, internalPort,
+      frontendStack, frontendRuntimeVersion,
       databaseName, databasePassword, databaseEngine, neededServices, envList,
       visibility, description,
     } = args;
 
     deployError.value = null;
-    resetUpload(uploads.backend, backendFile.name);
+    resetUpload(uploads.backend, backendFile ? backendFile.name : "");
     resetUpload(uploads.frontend, frontendFile ? frontendFile.name : "");
     resetUpload(uploads.schema, schemaFile ? schemaFile.name : "");
 
     try {
-      // [STEP 1] Presigned URL 발급 (frontendFile은 통합형 구조일 때, schemaFile은 자동
-      // 마이그레이션이 아닌 스택일 때만 선택적으로 보낸다)
+      // [STEP 1] Presigned URL 발급 (백엔드/프론트 둘 다 선택 사항 - 최소 하나는 컴포넌트가
+      // 이미 검증해서 넘겨준다. schemaFile은 자동 마이그레이션이 아닌 스택일 때만 선택적으로 보낸다)
       phase.value = "preparing";
       const presignedRes = await getPresignedUrls(
-        backendFile.name,
+        backendFile ? backendFile.name : undefined,
         frontendFile ? frontendFile.name : undefined,
         schemaFile ? schemaFile.name : undefined
       );
@@ -132,13 +133,15 @@ export function useCreateDeployment() {
       };
 
       // allSettled 로 모든 파일을 시도 → 부분 실패도 각 상태에 반영
-      // 백엔드는 스택에 따라 .jar(Java) 또는 .zip(Python/Node 소스), 프론트엔드는 항상 정적 빌드 .zip.
-      const backendContentType = backendFile.name.toLowerCase().endsWith(".zip")
-        ? "application/zip"
-        : "application/java-archive";
-      const uploadTasks = [
-        uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, backendContentType),
-      ];
+      // 백엔드는 스택에 따라 .jar(Java) 또는 .zip(Python/Node 소스), 프론트엔드는 항상 .zip
+      // (PLAIN이면 빌드된 정적 파일, 그 외는 저희가 빌드할 소스).
+      const uploadTasks = [];
+      if (backendFile && backendArtifact) {
+        const backendContentType = backendFile.name.toLowerCase().endsWith(".zip")
+          ? "application/zip"
+          : "application/java-archive";
+        uploadTasks.push(uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, backendContentType));
+      }
       if (frontendFile && frontendArtifact) {
         uploadTasks.push(uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip"));
       }
@@ -158,11 +161,13 @@ export function useCreateDeployment() {
       phase.value = "creating";
       const deployment = await apiCreateDeployment({
         projectName,
-        backendArtifactId: backendArtifact.artifactId,
+        backendArtifactId: backendFile ? backendArtifact?.artifactId : undefined,
         frontendArtifactId: frontendFile ? frontendArtifact?.artifactId : undefined,
         stack,
         runtimeVersion,
-        internalPort: Number(internalPort),
+        internalPort: internalPort != null ? Number(internalPort) : undefined,
+        frontendStack,
+        frontendRuntimeVersion,
         databaseName,
         databasePassword,
         databaseEngine,

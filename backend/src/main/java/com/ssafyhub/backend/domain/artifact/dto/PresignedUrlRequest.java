@@ -1,13 +1,12 @@
 package com.ssafyhub.backend.domain.artifact.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 @Schema(description = "업로드용 Presigned URL 발급 요청")
 public record PresignedUrlRequest(
-        @Schema(description = "백엔드 산출물 파일 이름 (.jar 또는 Dockerfile 포함 .zip)", example = "backend.jar")
-        @NotBlank(message = "백엔드 파일 이름은 필수입니다.")
+        @Schema(description = "백엔드 산출물 파일 이름 (.jar 또는 Dockerfile 포함 .zip, 선택 - 프론트만 " +
+                "배포한다면 비워두세요)", example = "backend.jar", nullable = true)
         @Size(max = 255, message = "백엔드 파일 이름은 255자를 초과할 수 없습니다.")
         String backendFileName,
 

@@ -92,17 +92,14 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
             }
             target = backendBase + uri + suffix;
         } else if (uri.equals("/api") || uri.startsWith("/api/")) {
-            // /api/* → 백엔드(E206). "/api"를 떼고 endpoint_url로 전달(백엔드 앱은 /messages 등 원경로 유지).
+            // /api/* → 백엔드(E206). 경로를 그대로 유지해서 전달한다(백엔드 앱도 /api/messages 등
+            // 자기가 만든 경로 그대로 응답하면 됨 - 통합형과 동일한 규칙이라 구조와 무관하게 일관됨).
             String backendBase = deployment.get().getEndpointUrl();
             if (backendBase == null || backendBase.isBlank()) {
                 response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "백엔드가 아직 준비되지 않았습니다.");
                 return;
             }
-            String backendPath = uri.substring("/api".length()); // "/api/x" → "/x", "/api" → ""
-            if (backendPath.isEmpty()) {
-                backendPath = "/";
-            }
-            target = backendBase + backendPath + suffix;
+            target = backendBase + uri + suffix;
         } else {
             // 그 외 전부 → 프론트 정적(S3 정적 웹 호스팅)의 {slug}/... 로. 루트/없는 경로는 S3가 index.html로 폴백.
             target = frontendWebsiteBase + "/" + slug + uri + suffix;

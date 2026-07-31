@@ -60,6 +60,17 @@ public enum ErrorCode {
             "선택한 스택은 테이블을 자동으로 생성하므로 DB 초기화 SQL을 사용할 수 없습니다."),
     SCHEMA_REQUIRED_FOR_MYBATIS(HttpStatus.BAD_REQUEST, "DEPLOYMENT_013",
             "Spring MyBatis에서 MySQL을 사용하려면 DB 초기화 SQL 파일이 필요합니다."),
+    NEED_AT_LEAST_ONE_ARTIFACT(HttpStatus.BAD_REQUEST, "DEPLOYMENT_014",
+            "백엔드 또는 프론트엔드 중 최소 하나는 업로드해야 합니다."),
+    RUNTIME_VERSION_REQUIRED(HttpStatus.BAD_REQUEST, "DEPLOYMENT_015", "백엔드를 올렸다면 런타임 버전은 필수입니다."),
+    INTERNAL_PORT_REQUIRED(HttpStatus.BAD_REQUEST, "DEPLOYMENT_016",
+            "백엔드를 올렸다면 내부 포트(1~65535)는 필수입니다."),
+    UNSUPPORTED_FRONTEND_STACK(HttpStatus.BAD_REQUEST, "DEPLOYMENT_017",
+            "지원하지 않는 프론트엔드 프레임워크입니다. (지원: REACT, VUE, ANGULAR, SVELTE, PLAIN)"),
+    FRONTEND_RUNTIME_VERSION_REQUIRED(HttpStatus.BAD_REQUEST, "DEPLOYMENT_018",
+            "PLAIN이 아닌 프론트엔드 프레임워크를 골랐다면 런타임 버전은 필수입니다."),
+    DATABASE_REQUIRES_BACKEND(HttpStatus.BAD_REQUEST, "DEPLOYMENT_019",
+            "데이터베이스는 백엔드가 있을 때만 사용할 수 있습니다."),
 
     SHOWCASE_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOWCASE_001", "존재하지 않는 서비스입니다."),
     ;

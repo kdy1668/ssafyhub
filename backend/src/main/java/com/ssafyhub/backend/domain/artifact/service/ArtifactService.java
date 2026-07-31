@@ -40,26 +40,34 @@ public class ArtifactService {
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
 
-        // 백엔드: .jar(플랫폼이 표준 Dockerfile 자동 생성) 또는 .zip(Dockerfile 포함 BYO 빌드) 둘 다 허용.
-        String backendFileName = validateFileName(
-                request.backendFileName(), List.of(".jar", ".zip"), ErrorCode.INVALID_BACKEND_FILE);
+        // 백엔드/프론트 둘 다 선택 사항이지만(프론트만 배포/백엔드만 배포 모두 가능) 최소 하나는 있어야 한다.
+        boolean needsBackend = request.backendFileName() != null && !request.backendFileName().isBlank();
+        boolean needsFrontend = request.frontendFileName() != null && !request.frontendFileName().isBlank();
+        if (!needsBackend && !needsFrontend) {
+            throw new BusinessException(ErrorCode.NEED_AT_LEAST_ONE_ARTIFACT);
+        }
 
         String requestId = UUID.randomUUID().toString();
-        String backendObjectKey = createObjectKey(memberId, requestId, "backend", backendFileName);
         Duration signatureDuration = Duration.ofMinutes(expirationMinutes);
         LocalDateTime expiresAt = LocalDateTime.now().plus(signatureDuration);
 
-        Artifact backendArtifact = new Artifact(
-                member,
-                ArtifactType.BACKEND_JAR,
-                backendFileName,
-                bucket,
-                backendObjectKey,
-                expiresAt
-        );
+        // 백엔드: .jar(플랫폼이 표준 Dockerfile 자동 생성) 또는 .zip(Dockerfile 포함 BYO 빌드) 둘 다 허용.
+        Artifact backendArtifact = null;
+        if (needsBackend) {
+            String backendFileName = validateFileName(
+                    request.backendFileName(), List.of(".jar", ".zip"), ErrorCode.INVALID_BACKEND_FILE);
+            String backendObjectKey = createObjectKey(memberId, requestId, "backend", backendFileName);
+            backendArtifact = new Artifact(
+                    member,
+                    ArtifactType.BACKEND_JAR,
+                    backendFileName,
+                    bucket,
+                    backendObjectKey,
+                    expiresAt
+            );
+        }
 
         // 프론트엔드는 선택 사항 - 백엔드가 프론트를 직접 서빙하는 모놀리식 구조라면 안 보낸다.
-        boolean needsFrontend = request.frontendFileName() != null && !request.frontendFileName().isBlank();
         Artifact frontendArtifact = null;
         if (needsFrontend) {
             String frontendFileName = validateFileName(
@@ -92,7 +100,10 @@ public class ArtifactService {
             );
         }
 
-        List<Artifact> artifacts = new java.util.ArrayList<>(List.of(backendArtifact));
+        List<Artifact> artifacts = new java.util.ArrayList<>();
+        if (needsBackend) {
+            artifacts.add(backendArtifact);
+        }
         if (needsFrontend) {
             artifacts.add(frontendArtifact);
         }
@@ -101,7 +112,11 @@ public class ArtifactService {
         }
         artifactRepository.saveAll(artifacts);
 
-        String backendUploadUrl = createUploadUrl(backendObjectKey, signatureDuration);
+        ArtifactUploadResponse backendUploadResponse = null;
+        if (needsBackend) {
+            String backendUploadUrl = createUploadUrl(backendArtifact.getObjectKey(), signatureDuration);
+            backendUploadResponse = new ArtifactUploadResponse(backendArtifact.getId(), backendUploadUrl);
+        }
         ArtifactUploadResponse frontendUploadResponse = null;
         if (needsFrontend) {
             String frontendUploadUrl = createUploadUrl(frontendArtifact.getObjectKey(), signatureDuration);
@@ -114,7 +129,7 @@ public class ArtifactService {
         }
 
         return new PresignedUrlResponse(
-                new ArtifactUploadResponse(backendArtifact.getId(), backendUploadUrl),
+                backendUploadResponse,
                 frontendUploadResponse,
                 schemaUploadResponse,
                 expiresAt

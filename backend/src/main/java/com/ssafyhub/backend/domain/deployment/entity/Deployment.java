@@ -56,10 +56,10 @@ public class Deployment {
     )
     private Member member;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    // 프론트만 있는 배포(백엔드 없이 정적 사이트만)도 있어서 nullable - null이면 "백엔드 없음"을 뜻한다.
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
             name = "backend_artifact_id",
-            nullable = false,
             foreignKey = @ForeignKey(name = "fk_deployments_backend_artifact")
     )
     private Artifact backendArtifact;
@@ -79,7 +79,8 @@ public class Deployment {
     @Column(nullable = false, length = 150)
     private String slug;
 
-    @Column(name = "runtime_version", nullable = false, length = 20)
+    // 백엔드가 없으면(프론트만) 의미가 없어서 nullable.
+    @Column(name = "runtime_version", length = 20)
     private String runtimeVersion;
 
     // 언어+프레임워크 조합("SPRING_JPA"/"SPRING_MYBATIS"/"DJANGO"/"EXPRESS"). 플랫폼이 이 값에 맞는
@@ -87,8 +88,19 @@ public class Deployment {
     @Column(name = "tech_stack", length = 30)
     private String techStack;
 
-    @Column(name = "internal_port", nullable = false)
-    private int internalPort;
+    // 백엔드가 없으면(프론트만) 의미가 없어서 nullable.
+    @Column(name = "internal_port")
+    private Integer internalPort;
+
+    // 프론트 프레임워크("REACT"/"VUE"/"ANGULAR"/"SVELTE"/"PLAIN"). PLAIN이거나 값이 없으면(과거 데이터
+    // 포함) "이미 빌드된 정적 zip을 그대로 올린다"는 뜻 - 그 외는 플랫폼이 소스를 받아 직접 빌드한다.
+    @Column(name = "frontend_stack", length = 30)
+    private String frontendStack;
+
+    // 프론트 빌드(Node)에 쓸 런타임 버전. backend의 runtime_version과 별개 컬럼이다 - 분리형
+    // 배포에서 백엔드/프론트 언어 자체가 다를 수 있어(예: 백엔드 Java, 프론트 Node) 공유할 수 없다.
+    @Column(name = "frontend_runtime_version", length = 20)
+    private String frontendRuntimeVersion;
 
     // DB가 필요 없는 앱(SQLite 내장형 등)도 있어서 nullable - null이면 "DB 프로비저닝 안 함"을 뜻한다.
     @Column(name = "database_name", length = 100)
@@ -144,7 +156,7 @@ public class Deployment {
             String slug,
             String runtimeVersion,
             String techStack,
-            int internalPort,
+            Integer internalPort,
             String databaseName,
             String encryptedDatabasePassword,
             String databaseEngine,
@@ -152,7 +164,9 @@ public class Deployment {
             String neededServices,
             LocalDateTime requestedAt,
             Visibility visibility,
-            String description
+            String description,
+            String frontendStack,
+            String frontendRuntimeVersion
     ) {
         this.member = member;
         this.backendArtifact = backendArtifact;
@@ -170,11 +184,22 @@ public class Deployment {
         this.requestedAt = requestedAt;
         this.visibility = (visibility != null) ? visibility : Visibility.PRIVATE;
         this.description = description;
+        this.frontendStack = frontendStack;
+        this.frontendRuntimeVersion = frontendRuntimeVersion;
     }
 
     /** 과거 데이터(techStack 컬럼이 없던 시절, .jar+JPA만 지원)는 SPRING_JPA로 간주한다. */
     public String getEffectiveTechStack() {
         return (techStack == null || techStack.isBlank()) ? "SPRING_JPA" : techStack;
+    }
+
+    /** PLAIN이거나 값이 없으면(과거 데이터 포함) "이미 빌드된 정적 zip"으로 간주한다. */
+    public String getEffectiveFrontendStack() {
+        return (frontendStack == null || frontendStack.isBlank()) ? "PLAIN" : frontendStack;
+    }
+
+    public boolean isFrontendPrebuilt() {
+        return "PLAIN".equals(getEffectiveFrontendStack());
     }
 
     /** databaseName이 있는데 엔진이 비어 있는 과거 데이터는 MYSQL로 간주한다. */

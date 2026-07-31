@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 
 @Schema(description = "업로드용 Presigned URL 발급 응답")
 public record PresignedUrlResponse(
-        @Schema(description = "백엔드 산출물 업로드 정보")
+        @Schema(description = "백엔드 산출물 업로드 정보 (요청 시에만 존재)", nullable = true)
         ArtifactUploadResponse backendArtifact,
 
         @Schema(description = "프론트엔드 산출물 업로드 정보 (요청 시에만 존재)", nullable = true)
