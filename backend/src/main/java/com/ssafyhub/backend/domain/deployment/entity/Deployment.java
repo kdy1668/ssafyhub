@@ -83,24 +83,14 @@ public class Deployment {
     @Column(name = "runtime_version", length = 20)
     private String runtimeVersion;
 
-    // 언어+프레임워크 조합("SPRING_JPA"/"SPRING_MYBATIS"/"DJANGO"/"EXPRESS"). 플랫폼이 이 값에 맞는
-    // Dockerfile을 자동 생성하므로 사용자는 Dockerfile을 올릴 필요가 없다. 과거 데이터는 SPRING_JPA로 간주.
+    // 언어+프레임워크 조합("SPRING_BOOT"/"DJANGO"/"FASTAPI"/"FLASK"/"EXPRESS"). 플랫폼이 이 값에 맞는
+    // Dockerfile을 자동 생성하므로 사용자는 Dockerfile을 올릴 필요가 없다. 과거 데이터는 SPRING_BOOT로 간주.
     @Column(name = "tech_stack", length = 30)
     private String techStack;
 
     // 백엔드가 없으면(프론트만) 의미가 없어서 nullable.
     @Column(name = "internal_port")
     private Integer internalPort;
-
-    // 프론트 프레임워크("REACT"/"VUE"/"ANGULAR"/"SVELTE"/"PLAIN"). PLAIN이거나 값이 없으면(과거 데이터
-    // 포함) "이미 빌드된 정적 zip을 그대로 올린다"는 뜻 - 그 외는 플랫폼이 소스를 받아 직접 빌드한다.
-    @Column(name = "frontend_stack", length = 30)
-    private String frontendStack;
-
-    // 프론트 빌드(Node)에 쓸 런타임 버전. backend의 runtime_version과 별개 컬럼이다 - 분리형
-    // 배포에서 백엔드/프론트 언어 자체가 다를 수 있어(예: 백엔드 Java, 프론트 Node) 공유할 수 없다.
-    @Column(name = "frontend_runtime_version", length = 20)
-    private String frontendRuntimeVersion;
 
     // DB가 필요 없는 앱(SQLite 내장형 등)도 있어서 nullable - null이면 "DB 프로비저닝 안 함"을 뜻한다.
     @Column(name = "database_name", length = 100)
@@ -164,9 +154,7 @@ public class Deployment {
             String neededServices,
             LocalDateTime requestedAt,
             Visibility visibility,
-            String description,
-            String frontendStack,
-            String frontendRuntimeVersion
+            String description
     ) {
         this.member = member;
         this.backendArtifact = backendArtifact;
@@ -184,22 +172,11 @@ public class Deployment {
         this.requestedAt = requestedAt;
         this.visibility = (visibility != null) ? visibility : Visibility.PRIVATE;
         this.description = description;
-        this.frontendStack = frontendStack;
-        this.frontendRuntimeVersion = frontendRuntimeVersion;
     }
 
-    /** 과거 데이터(techStack 컬럼이 없던 시절, .jar+JPA만 지원)는 SPRING_JPA로 간주한다. */
+    /** 과거 데이터(techStack 컬럼이 없던 시절, .jar만 지원)는 SPRING_BOOT로 간주한다. */
     public String getEffectiveTechStack() {
-        return (techStack == null || techStack.isBlank()) ? "SPRING_JPA" : techStack;
-    }
-
-    /** PLAIN이거나 값이 없으면(과거 데이터 포함) "이미 빌드된 정적 zip"으로 간주한다. */
-    public String getEffectiveFrontendStack() {
-        return (frontendStack == null || frontendStack.isBlank()) ? "PLAIN" : frontendStack;
-    }
-
-    public boolean isFrontendPrebuilt() {
-        return "PLAIN".equals(getEffectiveFrontendStack());
+        return (techStack == null || techStack.isBlank()) ? "SPRING_BOOT" : techStack;
     }
 
     /** databaseName이 있는데 엔진이 비어 있는 과거 데이터는 MYSQL로 간주한다. */

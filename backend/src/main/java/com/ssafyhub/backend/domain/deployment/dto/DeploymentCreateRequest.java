@@ -27,10 +27,10 @@ public record DeploymentCreateRequest(
         @Positive(message = "프론트엔드 Artifact ID는 양수여야 합니다.")
         Long frontendArtifactId,
 
-        @Schema(description = "백엔드 언어/프레임워크 스택 (지원: SPRING_BOOT, DJANGO, FASTAPI, EXPRESS). " +
-                "backendArtifactId를 보냈을 때만 필수입니다. 이 값에 맞춰 플랫폼이 Dockerfile을 자동 생성합니다 - " +
-                "사용자는 Dockerfile을 올릴 필요가 없습니다. (JPA/MyBatis 구분은 없음 - 둘 다 .jar 실행이라 " +
-                "빌드 방식이 같고, 테이블 자동 생성 여부는 manualMigration으로 따로 받는다)",
+        @Schema(description = "백엔드 언어/프레임워크 스택 (지원: SPRING_BOOT, DJANGO, FASTAPI, FLASK, " +
+                "EXPRESS). backendArtifactId를 보냈을 때만 필수입니다. 이 값에 맞춰 플랫폼이 Dockerfile을 자동 " +
+                "생성합니다 - 사용자는 Dockerfile을 올릴 필요가 없습니다. (JPA/MyBatis 구분은 없음 - 둘 다 " +
+                ".jar 실행이라 빌드 방식이 같고, 테이블 자동 생성 여부는 manualMigration으로 따로 받는다)",
                 example = "SPRING_BOOT", nullable = true)
         String stack,
 
@@ -41,16 +41,6 @@ public record DeploymentCreateRequest(
         @Schema(description = "백엔드 애플리케이션 내부 포트. backendArtifactId를 보냈을 때만 필수입니다.",
                 example = "8080", nullable = true)
         Integer internalPort,
-
-        @Schema(description = "프론트엔드 프레임워크 (지원: REACT, VUE, ANGULAR, SVELTE, PLAIN). PLAIN은 " +
-                "\"이미 빌드된 정적 zip을 그대로 올린다\"는 뜻이고, 그 외는 소스 zip을 올리면 플랫폼이 직접 " +
-                "빌드합니다. frontendArtifactId를 보냈는데 비워두면 PLAIN으로 간주합니다.",
-                example = "REACT", nullable = true)
-        String frontendStack,
-
-        @Schema(description = "프론트엔드 빌드용 Node 런타임 버전 (18/20 등). frontendStack이 PLAIN이 아닐 " +
-                "때만 필수입니다.", example = "20", nullable = true)
-        String frontendRuntimeVersion,
 
         @Schema(description = "데이터베이스 이름 (영문 시작, 영문/숫자/언더스코어). DB가 필요 없는 앱이면 비워두세요.",
                 example = "ssafyhub_db", nullable = true)
