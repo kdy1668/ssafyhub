@@ -52,6 +52,9 @@ public class DeploymentService {
     // 내장 ORM+migrate)/FastAPI(수동, 내장 마이그레이션 관례가 없음), Node.js는 관례상 내장 마이그레이션이
     // 없어 Express 등은 전부 수동으로만 취급한다.
     private static final Set<String> MANUAL_MIGRATION_STACKS = Set.of("SPRING_MYBATIS", "FASTAPI", "EXPRESS");
+    // PLAIN은 "이미 빌드된 정적 zip을 그대로 올린다"(기존 방식) - 그 외는 소스 zip을 받아
+    // 플랫폼이 Docker로 빌드해서 정적 산출물만 추출한다(백엔드의 DJANGO/FASTAPI/EXPRESS와 같은 개념).
+    private static final Set<String> SUPPORTED_FRONTEND_STACKS = Set.of("REACT", "VUE", "ANGULAR", "SVELTE", "PLAIN");
 
     private final MemberRepository memberRepository;
     private final ArtifactRepository artifactRepository;
@@ -75,21 +78,52 @@ public class DeploymentService {
             throw new BusinessException(ErrorCode.DEPLOYMENT_ALREADY_EXISTS);
         }
 
-        Artifact backendArtifact = getArtifact(request.backendArtifactId());
-        validateArtifact(backendArtifact, memberId, ArtifactType.BACKEND_JAR);
+        // 백엔드/프론트 둘 다 선택 사항이지만 최소 하나는 있어야 한다 - 아무것도 없는 배포는 무의미.
+        if (request.backendArtifactId() == null && request.frontendArtifactId() == null) {
+            throw new BusinessException(ErrorCode.NEED_AT_LEAST_ONE_ARTIFACT);
+        }
 
-        // 프론트엔드는 선택 사항 - 백엔드가 프론트를 직접 서빙하는 모놀리식 구조라면 안 보낸다.
+        Artifact backendArtifact = null;
+        String stack = null;
+        String runtimeVersion = null;
+        Integer internalPort = null;
+        if (request.backendArtifactId() != null) {
+            backendArtifact = getArtifact(request.backendArtifactId());
+            validateArtifact(backendArtifact, memberId, ArtifactType.BACKEND_JAR);
+            stack = validateStack(request.stack(), backendArtifact);
+            runtimeVersion = blankToNull(request.runtimeVersion());
+            if (runtimeVersion == null) {
+                throw new BusinessException(ErrorCode.RUNTIME_VERSION_REQUIRED);
+            }
+            if (request.internalPort() == null || request.internalPort() < 1 || request.internalPort() > 65535) {
+                throw new BusinessException(ErrorCode.INTERNAL_PORT_REQUIRED);
+            }
+            internalPort = request.internalPort();
+        }
+
+        // 프론트엔드는 선택 사항 - 백엔드가 프론트를 직접 서빙하는 모놀리식 구조라면(또는 백엔드
+        // 자체가 없는 프론트만 배포라면) 프레임워크/런타임도 백엔드가 있을 때만 의미가 있다.
         Artifact frontendArtifact = null;
+        String frontendStack = null;
+        String frontendRuntimeVersion = null;
         if (request.frontendArtifactId() != null) {
             frontendArtifact = getArtifact(request.frontendArtifactId());
             validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
+            frontendStack = validateFrontendStack(request.frontendStack());
+            if (!"PLAIN".equals(frontendStack)) {
+                frontendRuntimeVersion = blankToNull(request.frontendRuntimeVersion());
+                if (frontendRuntimeVersion == null) {
+                    throw new BusinessException(ErrorCode.FRONTEND_RUNTIME_VERSION_REQUIRED);
+                }
+            }
         }
         validateUniqueEnvKeys(request.env());
 
-        String stack = validateStack(request.stack(), backendArtifact);
-
         String databaseName = blankToNull(request.databaseName());
         String databasePassword = blankToNull(request.databasePassword());
+        if (databaseName != null && backendArtifact == null) {
+            throw new BusinessException(ErrorCode.DATABASE_REQUIRES_BACKEND);
+        }
         if (databaseName != null && databasePassword == null) {
             throw new BusinessException(ErrorCode.DATABASE_PASSWORD_REQUIRED);
         }
@@ -103,7 +137,7 @@ public class DeploymentService {
 
         Artifact schemaArtifact = null;
         if (request.schemaArtifactId() != null) {
-            if (databaseName == null) {
+            if (backendArtifact == null || databaseName == null) {
                 throw new BusinessException(ErrorCode.SCHEMA_REQUIRES_DATABASE);
             }
             if (!MANUAL_MIGRATION_STACKS.contains(stack)) {
@@ -113,7 +147,9 @@ public class DeploymentService {
             validateArtifact(schemaArtifact, memberId, ArtifactType.SCHEMA_SQL);
         }
 
-        s3ObjectVerifier.verifyExists(backendArtifact.getBucket(), backendArtifact.getObjectKey());
+        if (backendArtifact != null) {
+            s3ObjectVerifier.verifyExists(backendArtifact.getBucket(), backendArtifact.getObjectKey());
+        }
         if (frontendArtifact != null) {
             s3ObjectVerifier.verifyExists(frontendArtifact.getBucket(), frontendArtifact.getObjectKey());
         }
@@ -129,9 +165,9 @@ public class DeploymentService {
                 frontendArtifact,
                 request.projectName().trim(),
                 member.getStudentNumber(),
-                request.runtimeVersion().trim(),
+                runtimeVersion,
                 stack,
-                request.internalPort(),
+                internalPort,
                 databaseName,
                 encryptedDatabasePassword,
                 databaseEngine,
@@ -139,7 +175,9 @@ public class DeploymentService {
                 neededServices,
                 requestedAt,
                 request.visibility(),
-                request.description()
+                request.description(),
+                frontendStack,
+                frontendRuntimeVersion
         );
 
         try {
@@ -163,8 +201,11 @@ public class DeploymentService {
                 PENDING_MESSAGE
         ));
 
-        backendArtifact.markUsed();
-        List<Artifact> usedArtifacts = new java.util.ArrayList<>(List.of(backendArtifact));
+        List<Artifact> usedArtifacts = new java.util.ArrayList<>();
+        if (backendArtifact != null) {
+            backendArtifact.markUsed();
+            usedArtifacts.add(backendArtifact);
+        }
         if (frontendArtifact != null) {
             frontendArtifact.markUsed();
             usedArtifacts.add(frontendArtifact);
@@ -351,6 +392,15 @@ public class DeploymentService {
         boolean isJarFile = fileName.endsWith(".jar");
         if (isJavaStack != isJarFile) {
             throw new BusinessException(ErrorCode.STACK_ARTIFACT_MISMATCH);
+        }
+        return stack;
+    }
+
+    /** 프론트 프레임워크가 지원 목록에 있는지 검증한다. PLAIN은 "이미 빌드됨"을 뜻한다. */
+    private String validateFrontendStack(String rawStack) {
+        String stack = rawStack == null ? "PLAIN" : rawStack.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_FRONTEND_STACKS.contains(stack)) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_FRONTEND_STACK);
         }
         return stack;
     }

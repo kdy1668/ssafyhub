@@ -162,7 +162,7 @@ class DeploymentServiceTest {
         given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
         given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "SPRING_JPA", "21", 8080, "app_db", "db-password",
+                "demo-service", 1L, 2L, "SPRING_JPA", "21", 8080, "PLAIN", null, "app_db", "db-password",
                 null,
                 null,
                 null,
@@ -231,7 +231,7 @@ class DeploymentServiceTest {
         });
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, null, "SPRING_JPA", "21", 8080, "app_db", "db-password",
+                "demo-service", 1L, null, "SPRING_JPA", "21", 8080, null, null, "app_db", "db-password",
                 null, null, null,
                 List.of(new DeploymentEnvRequest("JWT_SECRET", "secret-value")),
                 null, null
@@ -249,6 +249,55 @@ class DeploymentServiceTest {
     }
 
     @Test
+    void 백엔드_없이_프론트만으로도_배포를_생성한다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
+        given(deploymentRepository.saveAndFlush(any(Deployment.class))).willAnswer(invocation -> {
+            Deployment deployment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(deployment, "id", 100L);
+            return deployment;
+        });
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", null, 2L, null, null, null, "REACT", "20",
+                null, null, null, null, null,
+                List.of(new DeploymentEnvRequest("VITE_API_BASE", "https://api.example.com")),
+                null, null
+        );
+
+        DeploymentCreateResponse response = deploymentService.createDeployment(11L, request);
+
+        assertThat(response.deploymentId()).isEqualTo(100L);
+        verify(artifactRepository, never()).findById(1L);
+
+        ArgumentCaptor<Deployment> deploymentCaptor = ArgumentCaptor.forClass(Deployment.class);
+        verify(deploymentRepository).saveAndFlush(deploymentCaptor.capture());
+        assertThat(deploymentCaptor.getValue().getBackendArtifact()).isNull();
+        assertThat(deploymentCaptor.getValue().getEffectiveFrontendStack()).isEqualTo("REACT");
+    }
+
+    @Test
+    void 백엔드도_프론트도_없으면_거부한다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                List.of(new DeploymentEnvRequest("A", "b")),
+                null, null
+        );
+
+        assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.NEED_AT_LEAST_ONE_ARTIFACT);
+
+        verify(deploymentRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void Spring_MyBatis에서_MySQL을_사용하면_스키마_SQL이_필수다() {
         given(memberRepository.findById(11L)).willReturn(Optional.of(member));
         given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
@@ -256,7 +305,7 @@ class DeploymentServiceTest {
         given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
-                "demo-service", 1L, 2L, "SPRING_MYBATIS", "21", 8080, "app_db", "db-password",
+                "demo-service", 1L, 2L, "SPRING_MYBATIS", "21", 8080, "PLAIN", null, "app_db", "db-password",
                 "MYSQL", null, null,
                 List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
                 null, null
@@ -279,6 +328,8 @@ class DeploymentServiceTest {
                 "SPRING_JPA",
                 "21",
                 8080,
+                "PLAIN",
+                null,
                 "app_db",
                 "db-password",
                 null,

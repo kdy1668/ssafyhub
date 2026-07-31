@@ -95,6 +95,49 @@ class ArtifactServiceTest {
     }
 
     @Test
+    void 백엔드_파일_없이_프론트만으로도_URL을_발급한다() {
+        Member member = new Member("1551343", "hash", "홍길동", "E206");
+        given(memberRepository.findById(1L)).willReturn(Optional.of(member));
+        given(artifactRepository.saveAll(any())).willAnswer(invocation -> {
+            List<Artifact> artifacts = invocation.getArgument(0);
+            ReflectionTestUtils.setField(artifacts.get(0), "id", 20L);
+            return artifacts;
+        });
+        given(presignedUrlProvider.createPutUrl(anyString(), anyString(), any(Duration.class)))
+                .willReturn("https://s3.example/frontend");
+
+        PresignedUrlResponse response = artifactService.issuePresignedUrls(
+                1L,
+                new PresignedUrlRequest(null, "dist.zip", null)
+        );
+
+        assertThat(response.backendArtifact()).isNull();
+        assertThat(response.frontendArtifact().artifactId()).isEqualTo(20L);
+
+        ArgumentCaptor<List<Artifact>> captor = ArgumentCaptor.forClass(List.class);
+        verify(artifactRepository).saveAll(captor.capture());
+        assertThat(captor.getValue())
+                .extracting(Artifact::getArtifactType)
+                .containsExactly(ArtifactType.FRONTEND_ZIP);
+    }
+
+    @Test
+    void 백엔드도_프론트도_없으면_거부한다() {
+        given(memberRepository.findById(1L))
+                .willReturn(Optional.of(new Member("1551343", "hash", "홍길동", "E206")));
+
+        assertThatThrownBy(() -> artifactService.issuePresignedUrls(
+                1L,
+                new PresignedUrlRequest(null, null, null)
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.NEED_AT_LEAST_ONE_ARTIFACT);
+
+        verify(artifactRepository, never()).saveAll(any());
+    }
+
+    @Test
     void 백엔드_파일이_JAR도_ZIP도_아니면_거부한다() {
         given(memberRepository.findById(1L))
                 .willReturn(Optional.of(new Member("1551343", "hash", "홍길동", "E206")));

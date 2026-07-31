@@ -18,9 +18,9 @@ import { useCreateDeployment } from "../composables/useDeployments";
 
 // 페이지 상단 "어떻게 동작하나요?" 다이어그램 (1단계에서만 노출) - AWS 콘솔의 서비스 개요 다이어그램 참고.
 const HOW_IT_WORKS_STEPS = [
-  { icon: "settings", title: "언어 선택", description: "Java·Python·Node 중 고르기" },
-  { icon: "upload", title: "파일 업로드", description: "빌드 산출물만 올리면 끝" },
-  { icon: "cube", title: "자동 빌드", description: "Dockerfile은 플랫폼이 대신 생성" },
+  { icon: "settings", title: "구성 선택", description: "프론트/백엔드 중 뭘 올릴지" },
+  { icon: "upload", title: "파일 업로드", description: "소스/산출물만 올리면 끝" },
+  { icon: "cube", title: "자동 빌드", description: "Dockerfile·빌드는 플랫폼이 대신" },
   { icon: "rocket", title: "배포 완료", description: "몇 분 안에 내 URL로 접속" },
 ];
 
@@ -29,10 +29,10 @@ const HOW_IT_WORKS_STEPS = [
 // 마법사도 Source and deployment → Configure build → Configure service → Review and create
 // 순서의 여러 페이지로 나뉘어 있고 마지막이 항상 검토 화면이다 - 그 흐름을 그대로 따른다.
 const STEPS = [
-  { id: 1, title: "배포 구조", description: "분리형 또는 통합형" },
-  { id: 2, title: "백엔드 언어 / 프레임워크", description: "백엔드 실행 환경 선택" },
+  { id: 1, title: "무엇을 배포할까요?", description: "프론트 · 백엔드 선택" },
+  { id: 2, title: "프레임워크", description: "실행 환경 선택" },
   { id: 3, title: "실행 설정", description: "런타임 · 포트 · 공개범위" },
-  { id: 4, title: "파일 업로드", description: "빌드 산출물" },
+  { id: 4, title: "파일 업로드", description: "소스 / 산출물" },
   { id: 5, title: "데이터베이스", description: "DB · 백킹서비스" },
   { id: 6, title: "환경변수", description: "앱 설정값" },
   { id: 7, title: "검토 및 배포", description: "최종 확인" },
@@ -147,12 +147,110 @@ const STACK_OPTIONS = [
   },
 ];
 
-// 배포 구조 - 분리형(백엔드/프론트 각각 업로드) vs 통합형(백엔드가 프론트를 직접 서빙,
-// 예: Spring static 리소스, express.static). 통합형이면 프론트 업로드 자체를 받지 않는다.
-// 가장 큰 아키텍처 결정이라 1단계(맨 처음)에 둔다.
-const DEPLOYMENT_STRUCTURE_OPTIONS = [
-  { value: "SEPARATE", label: "프론트/백엔드 분리", description: "각각 따로 빌드해서 업로드" },
-  { value: "MONOLITHIC", label: "하나로 통합", description: "백엔드가 프론트도 직접 서빙" },
+// 프론트엔드 프레임워크 - 백엔드와 동일하게 "소스를 올리면 플랫폼이 빌드"로 통일했다(일관성).
+// PLAIN만 예외로 "이미 빌드된 정적 파일을 그대로 올린다"(빌드 도구를 안 쓰는 경우의 탈출구).
+// React/Vue/Svelte는 전부 Vite 기준 관례(npm run build → dist/)라 러타임 옵션도 동일하다.
+const FRONTEND_STACK_OPTIONS = [
+  {
+    value: "REACT",
+    icon: "react",
+    label: "React",
+    description: "소스 업로드 · 자동 빌드",
+    needsBuild: true,
+    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
+    artifactHint: "package.json, index.html, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
+      "\"npm install && npm run build\"를 자동 실행해 dist/ 결과물만 배포합니다(Vite 기준).",
+    runtimeOptions: [
+      { value: "18", label: "Node.js 18" },
+      { value: "20", label: "Node.js 20" },
+    ],
+    zipExample: `frontend.zip
+├── package.json
+├── package-lock.json
+├── index.html
+├── vite.config.js
+└── src/
+    └── main.jsx`,
+  },
+  {
+    value: "VUE",
+    icon: "vue",
+    label: "Vue",
+    description: "소스 업로드 · 자동 빌드",
+    needsBuild: true,
+    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
+    artifactHint: "package.json, index.html, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
+      "\"npm install && npm run build\"를 자동 실행해 dist/ 결과물만 배포합니다(Vite 기준).",
+    runtimeOptions: [
+      { value: "18", label: "Node.js 18" },
+      { value: "20", label: "Node.js 20" },
+    ],
+    zipExample: `frontend.zip
+├── package.json
+├── package-lock.json
+├── index.html
+├── vite.config.js
+└── src/
+    └── main.js`,
+  },
+  {
+    value: "ANGULAR",
+    icon: "angular",
+    label: "Angular",
+    description: "소스 업로드 · 자동 빌드",
+    needsBuild: true,
+    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
+    artifactHint: "package.json, angular.json, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
+      "\"npm install && npm run build\"(ng build)를 자동 실행해 dist/ 결과물만 배포합니다.",
+    runtimeOptions: [
+      { value: "18", label: "Node.js 18" },
+      { value: "20", label: "Node.js 20" },
+    ],
+    zipExample: `frontend.zip
+├── package.json
+├── angular.json
+├── package-lock.json
+└── src/
+    └── app/`,
+  },
+  {
+    value: "SVELTE",
+    icon: "svelte",
+    label: "Svelte",
+    description: "소스 업로드 · 자동 빌드",
+    needsBuild: true,
+    artifactLabel: "프론트엔드 아티팩트 (.zip, 소스)",
+    artifactHint: "package.json, index.html, src/가 포함된 프로젝트 소스를 zip으로 올려주세요. " +
+      "\"npm install && npm run build\"를 자동 실행해 dist/ 결과물만 배포합니다(Vite 기준).",
+    runtimeOptions: [
+      { value: "18", label: "Node.js 18" },
+      { value: "20", label: "Node.js 20" },
+    ],
+    zipExample: `frontend.zip
+├── package.json
+├── package-lock.json
+├── index.html
+├── vite.config.js
+└── src/
+    └── main.js`,
+  },
+  {
+    value: "PLAIN",
+    icon: "plain",
+    label: "플레인 HTML/JS",
+    description: "이미 빌드됨 · 그대로 업로드",
+    needsBuild: false,
+    artifactLabel: "프론트엔드 아티팩트 (.zip, 빌드 완료)",
+    artifactHint: "이미 빌드를 마친 정적 산출물(index.html 등)을 그대로 zip으로 올려주세요. " +
+      "index.html이 zip 최상위(또는 폴더 한 겹 안)에 있어야 합니다.",
+    runtimeOptions: [],
+    zipExample: `frontend.zip
+├── index.html
+├── assets/
+│   ├── index-xxxx.js
+│   └── index-xxxx.css
+└── ...`,
+  },
 ];
 
 const VISIBILITY_OPTIONS = [
@@ -183,14 +281,19 @@ const schemaFile = ref(null);
 const currentStep = ref(1);
 const maxVisitedStep = ref(1);
 
-// 텍스트/설정 폼 상태
+// 텍스트/설정 폼 상태. hasFrontend/hasBackend는 "분리형/통합형/프론트만" 같은 이름표 대신
+// 독립된 스위치 두 개로 받는다 - 조합(둘 다 on=분리형, 백엔드만 on=통합형, 프론트만 on=신규
+// 케이스)은 화면이 자동으로 계산해서 보여줄 뿐 사용자가 직접 고르는 값이 아니다.
 const form = reactive({
+  hasFrontend: true,
+  hasBackend: true,
   projectName: "",
-  deploymentStructure: "SEPARATE", // SEPARATE | MONOLITHIC
   language: "JAVA",
   stack: "SPRING_JPA",
   runtimeVersion: "17",
   internalPort: 8080,
+  frontendStack: "REACT",
+  frontendRuntimeVersion: "18",
   databaseEngine: "NONE", // NONE | MYSQL
   databaseName: "",
   databasePassword: "",
@@ -205,6 +308,9 @@ const selectedStack = computed(
 );
 const selectedLanguage = computed(
   () => LANGUAGE_OPTIONS.find((l) => l.value === form.language) || LANGUAGE_OPTIONS[0]
+);
+const selectedFrontendStack = computed(
+  () => FRONTEND_STACK_OPTIONS.find((s) => s.value === form.frontendStack) || FRONTEND_STACK_OPTIONS[0]
 );
 const selectedDbEngineOption = computed(
   () => DB_ENGINE_OPTIONS.find((o) => o.value === form.databaseEngine) || DB_ENGINE_OPTIONS[0]
@@ -226,6 +332,7 @@ const BACKING_SERVICE_OPTIONS = [
 ];
 
 const errors = reactive({
+  structure: "",
   projectName: "",
   backendFile: "",
   frontendFile: "",
@@ -241,12 +348,25 @@ const errors = reactive({
 const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 const DB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,99}$/;
 
-function selectDeploymentStructure(value) {
-  form.deploymentStructure = value;
-  if (value === "MONOLITHIC") {
+function toggleHasFrontend() {
+  form.hasFrontend = !form.hasFrontend;
+  if (!form.hasFrontend) {
     frontendFile.value = null;
     errors.frontendFile = "";
   }
+  errors.structure = "";
+}
+
+function toggleHasBackend() {
+  form.hasBackend = !form.hasBackend;
+  if (!form.hasBackend) {
+    backendFile.value = null;
+    errors.backendFile = "";
+    form.databaseEngine = "NONE";
+    schemaFile.value = null;
+    errors.schemaFile = "";
+  }
+  errors.structure = "";
 }
 
 function selectLanguage(value) {
@@ -265,6 +385,14 @@ function selectStack(value) {
     schemaFile.value = null;
     errors.schemaFile = "";
   }
+}
+
+function selectFrontendStack(value) {
+  form.frontendStack = value;
+  const stack = FRONTEND_STACK_OPTIONS.find((s) => s.value === value);
+  form.frontendRuntimeVersion = stack.runtimeOptions[0]?.value || "";
+  frontendFile.value = null;
+  errors.frontendFile = "";
 }
 
 function handleBackendFileChange(e) {
@@ -298,42 +426,56 @@ function toggleNeededService(value) {
 
 // ── 단계별 검증 (AWS 마법사처럼 "다음"을 누를 때 그 단계 항목만 확인한다) ──────────
 
-function validateDeploymentStructure() {
-  return true; // 항상 유효한 기본값이 선택돼 있다
+function validateStructure() {
+  errors.structure = (form.hasFrontend || form.hasBackend)
+    ? ""
+    : "프론트엔드 또는 백엔드 중 최소 하나는 선택해야 합니다.";
+  return !errors.structure;
 }
 
-function validateLanguageFramework() {
+function validateFrameworks() {
   return true; // 항상 유효한 기본값이 선택돼 있다
 }
 
 function validateRuntimeSettings() {
-  const port = Number(form.internalPort);
-  errors.internalPort =
-    Number.isInteger(port) && port >= 1 && port <= 65535
-      ? ""
-      : "내부 포트는 1~65535 사이의 숫자여야 합니다.";
+  errors.projectName = form.projectName ? "" : "프로젝트 이름은 필수입니다.";
+
+  if (form.hasBackend) {
+    const port = Number(form.internalPort);
+    errors.internalPort =
+      Number.isInteger(port) && port >= 1 && port <= 65535
+        ? ""
+        : "내부 포트는 1~65535 사이의 숫자여야 합니다.";
+  } else {
+    errors.internalPort = "";
+  }
+
   errors.description =
     form.description.length > DESCRIPTION_MAX_LENGTH
       ? `설명은 ${DESCRIPTION_MAX_LENGTH}자를 초과할 수 없습니다.`
       : "";
-  // 프로젝트 이름도 이 단계에서 함께 확인(맨 처음 배포 구조 단계에는 입력 필드가 없어 여기서 확인)
-  errors.projectName = form.projectName ? "" : "프로젝트 이름은 필수입니다.";
-  return !errors.internalPort && !errors.description && !errors.projectName;
+  return !errors.projectName && !errors.internalPort && !errors.description;
 }
 
 function validateFiles() {
-  const backendName = backendFile.value?.name.toLowerCase() ?? "";
-  if (!backendFile.value) errors.backendFile = "백엔드 아티팩트를 업로드하세요.";
-  else if (!backendName.endsWith(selectedStack.value.artifactAccept))
-    errors.backendFile = `백엔드 파일은 ${selectedStack.value.artifactAccept} 형식이어야 합니다.`;
-  else errors.backendFile = "";
+  if (form.hasBackend) {
+    const backendName = backendFile.value?.name.toLowerCase() ?? "";
+    if (!backendFile.value) errors.backendFile = "백엔드 아티팩트를 업로드하세요.";
+    else if (!backendName.endsWith(selectedStack.value.artifactAccept))
+      errors.backendFile = `백엔드 파일은 ${selectedStack.value.artifactAccept} 형식이어야 합니다.`;
+    else errors.backendFile = "";
+  } else {
+    errors.backendFile = "";
+  }
 
-  if (form.deploymentStructure === "MONOLITHIC") {
-    errors.frontendFile = "";
-  } else if (!frontendFile.value) {
-    errors.frontendFile = "프론트엔드 ZIP 파일을 업로드하세요.";
-  } else if (!frontendFile.value.name.toLowerCase().endsWith(".zip")) {
-    errors.frontendFile = "프론트엔드 파일은 .zip 형식이어야 합니다.";
+  if (form.hasFrontend) {
+    if (!frontendFile.value) {
+      errors.frontendFile = "프론트엔드 zip 파일을 업로드하세요.";
+    } else if (!frontendFile.value.name.toLowerCase().endsWith(".zip")) {
+      errors.frontendFile = "프론트엔드 파일은 .zip 형식이어야 합니다.";
+    } else {
+      errors.frontendFile = "";
+    }
   } else {
     errors.frontendFile = "";
   }
@@ -342,6 +484,13 @@ function validateFiles() {
 }
 
 function validateDatabase() {
+  if (!form.hasBackend) {
+    errors.schemaFile = "";
+    errors.databaseName = "";
+    errors.databasePassword = "";
+    return true;
+  }
+
   if (
     form.stack === "SPRING_MYBATIS" &&
     form.databaseEngine !== "NONE" &&
@@ -392,8 +541,8 @@ function validateEnvVars() {
 }
 
 const STEP_VALIDATORS = {
-  1: validateDeploymentStructure,
-  2: validateLanguageFramework,
+  1: validateStructure,
+  2: validateFrameworks,
   3: validateRuntimeSettings,
   4: validateFiles,
   5: validateDatabase,
@@ -425,23 +574,25 @@ function goToStep(id) {
 }
 
 function buildPayload() {
-  const needDatabase = form.databaseEngine !== "NONE";
+  const needDatabase = form.hasBackend && form.databaseEngine !== "NONE";
   const canUseSchemaFile = needDatabase && selectedStack.value.manualMigration;
+  const frontendNeedsRuntime = form.hasFrontend && selectedFrontendStack.value.needsBuild;
   return {
-    backendFile: backendFile.value,
-    // 통합형이면 프론트 파일 자체가 없다 - null로 보내 백엔드가 "별도 프론트 없음"으로 처리하게 한다.
-    frontendFile: form.deploymentStructure === "MONOLITHIC" ? null : frontendFile.value,
+    backendFile: form.hasBackend ? backendFile.value : null,
+    frontendFile: form.hasFrontend ? frontendFile.value : null,
     // 수동 마이그레이션 스택 + DB 사용 중 + 실제로 파일을 고른 경우에만 올린다.
     schemaFile: canUseSchemaFile ? schemaFile.value : null,
     projectName: form.projectName,
-    stack: form.stack,
-    runtimeVersion: form.runtimeVersion,
-    internalPort: form.internalPort,
+    stack: form.hasBackend ? form.stack : undefined,
+    runtimeVersion: form.hasBackend ? form.runtimeVersion : undefined,
+    internalPort: form.hasBackend ? form.internalPort : undefined,
+    frontendStack: form.hasFrontend ? form.frontendStack : undefined,
+    frontendRuntimeVersion: frontendNeedsRuntime ? form.frontendRuntimeVersion : undefined,
     // "사용 안 함"이면 빈 값으로 보내 백엔드가 "DB 프로비저닝 안 함"으로 처리하게 한다.
     databaseName: needDatabase ? form.databaseName : "",
     databasePassword: needDatabase ? form.databasePassword : "",
     databaseEngine: needDatabase ? form.databaseEngine : undefined,
-    neededServices: form.neededServices,
+    neededServices: form.hasBackend ? form.neededServices : [],
     envList: form.envVars.filter((v) => v.key && v.value),
     visibility: form.visibility,
     description: form.description,
@@ -589,73 +740,161 @@ async function handleRetry() {
           <form class="flex flex-col gap-6" @submit.prevent="handleSubmit">
             <p class="text-xs font-medium text-ink-500">단계 {{ currentStep }} / {{ STEPS.length }}</p>
 
-            <!-- 1단계: 배포 구조 -->
+            <!-- 1단계: 무엇을 배포할까요? (독립 스위치 두 개 - "분리형/통합형/프론트만" 같은
+                 이름표를 외우게 하는 대신, 뭘 가지고 있는지만 답하면 구조는 자동으로 정해진다) -->
             <div v-show="currentStep === 1" class="flex flex-col gap-3">
-              <h2 class="text-sm font-bold text-ink-900">배포 구조를 선택하세요</h2>
+              <h2 class="text-sm font-bold text-ink-900">무엇을 배포할까요?</h2>
+              <p class="text-xs text-ink-500">각각 독립적으로 켜고 끄세요. 최소 하나는 켜져 있어야 합니다.</p>
               <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
-                  v-for="opt in DEPLOYMENT_STRUCTURE_OPTIONS"
-                  :key="opt.value"
                   type="button"
-                  @click="selectDeploymentStructure(opt.value)"
+                  @click="toggleHasFrontend"
                   :class="[
-                    'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
-                    form.deploymentStructure === opt.value
+                    'flex flex-col gap-2 rounded-lg border p-4 text-left transition-colors',
+                    form.hasFrontend
                       ? 'border-primary bg-primary-light ring-1 ring-primary'
                       : 'border-border bg-background hover:border-primary/50',
                   ]"
                 >
-                  <span class="flex flex-col">
-                    <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
-                    <span class="text-xs text-ink-500">{{ opt.description }}</span>
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-semibold text-ink-900">프론트엔드</span>
+                    <AppIcon
+                      v-if="form.hasFrontend"
+                      name="check"
+                      class="h-4 w-4 shrink-0 rounded-full bg-primary p-0.5 text-white"
+                    />
+                    <span v-else class="h-4 w-4 shrink-0 rounded-full border border-ink-300" />
+                  </div>
+                  <span class="text-xs text-ink-500">
+                    React/Vue 등 화면. 소스만 올리면 플랫폼이 빌드해서 정적 호스팅에 올립니다.
+                  </span>
+                  <span
+                    :class="[
+                      'w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                      form.hasFrontend ? 'bg-success-light text-success' : 'bg-border text-ink-500',
+                    ]"
+                  >
+                    {{ form.hasFrontend ? "포함됨" : "제외됨" }}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  @click="toggleHasBackend"
+                  :class="[
+                    'flex flex-col gap-2 rounded-lg border p-4 text-left transition-colors',
+                    form.hasBackend
+                      ? 'border-primary bg-primary-light ring-1 ring-primary'
+                      : 'border-border bg-background hover:border-primary/50',
+                  ]"
+                >
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-semibold text-ink-900">백엔드</span>
+                    <AppIcon
+                      v-if="form.hasBackend"
+                      name="check"
+                      class="h-4 w-4 shrink-0 rounded-full bg-primary p-0.5 text-white"
+                    />
+                    <span v-else class="h-4 w-4 shrink-0 rounded-full border border-ink-300" />
+                  </div>
+                  <span class="text-xs text-ink-500">
+                    API 서버. 화면까지 직접 서빙(타임리프·정적 리소스 등)해도 상관없습니다.
+                  </span>
+                  <span
+                    :class="[
+                      'w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                      form.hasBackend ? 'bg-success-light text-success' : 'bg-border text-ink-500',
+                    ]"
+                  >
+                    {{ form.hasBackend ? "포함됨" : "제외됨" }}
                   </span>
                 </button>
               </div>
+
+              <p v-if="errors.structure" class="text-xs text-danger">{{ errors.structure }}</p>
+              <div
+                v-else
+                class="rounded-md border border-dashed border-border bg-background px-3 py-2 text-xs text-ink-700"
+              >
+                → 구성:
+                <strong class="text-primary">
+                  <template v-if="form.hasFrontend && form.hasBackend">프론트/백엔드 분리 배포</template>
+                  <template v-else-if="form.hasBackend">백엔드만 (통합형 - 화면 서빙도 백엔드가 처리)</template>
+                  <template v-else>프론트엔드만 (정적 사이트)</template>
+                </strong>
+              </div>
             </div>
 
-            <!-- 2단계: 백엔드 언어 / 프레임워크 (프론트는 이미 빌드된 정적 파일을 올리는 방식이라
-                 프레임워크를 몰라도 되므로, 여기서는 백엔드만 다룬다는 걸 이름으로 명확히 한다) -->
-            <div v-show="currentStep === 2" class="flex flex-col gap-5">
-              <div class="flex flex-col gap-3">
-                <h2 class="text-sm font-bold text-ink-900">백엔드 언어를 선택하세요</h2>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <button
-                    v-for="lang in LANGUAGE_OPTIONS"
-                    :key="lang.value"
-                    type="button"
-                    @click="selectLanguage(lang.value)"
-                    :class="[
-                      'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
-                      form.language === lang.value
-                        ? 'border-primary bg-primary-light ring-1 ring-primary'
-                        : 'border-border bg-background hover:border-primary/50',
-                    ]"
-                  >
-                    <TechIcon :kind="lang.icon" />
-                    <span class="flex flex-col">
-                      <span class="text-sm font-semibold text-ink-900">{{ lang.label }}</span>
-                      <span class="text-xs text-ink-500">{{ lang.sublabel }}</span>
-                    </span>
-                  </button>
+            <!-- 2단계: 프레임워크 (1단계에서 켠 것만 나타난다 - 백엔드/프론트가 완전히 대칭적인
+                 카드 UI를 쓴다: 둘 다 "소스를 올리면 플랫폼이 빌드") -->
+            <div v-show="currentStep === 2" class="flex flex-col gap-6">
+              <h2 class="text-sm font-bold text-ink-900">프레임워크를 선택하세요</h2>
+
+              <div v-if="form.hasBackend" class="flex flex-col gap-5">
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">백엔드 언어</h3>
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <button
+                      v-for="lang in LANGUAGE_OPTIONS"
+                      :key="lang.value"
+                      type="button"
+                      @click="selectLanguage(lang.value)"
+                      :class="[
+                        'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                        form.language === lang.value
+                          ? 'border-primary bg-primary-light ring-1 ring-primary'
+                          : 'border-border bg-background hover:border-primary/50',
+                      ]"
+                    >
+                      <TechIcon :kind="lang.icon" />
+                      <span class="flex flex-col">
+                        <span class="text-sm font-semibold text-ink-900">{{ lang.label }}</span>
+                        <span class="text-xs text-ink-500">{{ lang.sublabel }}</span>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">백엔드 프레임워크</h3>
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <button
+                      v-for="opt in availableStacks"
+                      :key="opt.value"
+                      type="button"
+                      @click="selectStack(opt.value)"
+                      :class="[
+                        'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                        form.stack === opt.value
+                          ? 'border-primary bg-primary-light ring-1 ring-primary'
+                          : 'border-border bg-background hover:border-primary/50',
+                      ]"
+                    >
+                      <span class="flex flex-col">
+                        <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
+                        <span class="text-xs text-ink-500">{{ opt.description }}</span>
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <!-- 프레임워크 선택 - 위에서 고른 언어에 속한 것만 나타난다 -->
-              <div class="flex flex-col gap-3">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">백엔드 프레임워크</h3>
+              <div v-if="form.hasFrontend" class="flex flex-col gap-3">
+                <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">프론트엔드 프레임워크</h3>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
-                    v-for="opt in availableStacks"
+                    v-for="opt in FRONTEND_STACK_OPTIONS"
                     :key="opt.value"
                     type="button"
-                    @click="selectStack(opt.value)"
+                    @click="selectFrontendStack(opt.value)"
                     :class="[
                       'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
-                      form.stack === opt.value
+                      form.frontendStack === opt.value
                         ? 'border-primary bg-primary-light ring-1 ring-primary'
                         : 'border-border bg-background hover:border-primary/50',
                     ]"
                   >
+                    <TechIcon :kind="opt.icon" />
                     <span class="flex flex-col">
                       <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
                       <span class="text-xs text-ink-500">{{ opt.description }}</span>
@@ -675,10 +914,10 @@ async function handleRetry() {
                 v-model="form.projectName"
                 :error="errors.projectName"
               />
-              <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div v-if="form.hasBackend" class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <BaseSelect
                   id="runtimeVersion"
-                  label="런타임 버전"
+                  label="백엔드 런타임 버전"
                   :options="selectedStack.runtimeOptions"
                   v-model="form.runtimeVersion"
                 />
@@ -691,14 +930,22 @@ async function handleRetry() {
                   v-model="form.internalPort"
                   :error="errors.internalPort"
                 />
-
-                <BaseSelect
-                  id="visibility"
-                  label="공개 범위"
-                  :options="VISIBILITY_OPTIONS"
-                  v-model="form.visibility"
-                />
               </div>
+
+              <BaseSelect
+                v-if="form.hasFrontend && selectedFrontendStack.needsBuild"
+                id="frontendRuntimeVersion"
+                label="프론트 빌드용 Node 버전"
+                :options="selectedFrontendStack.runtimeOptions"
+                v-model="form.frontendRuntimeVersion"
+              />
+
+              <BaseSelect
+                id="visibility"
+                label="공개 범위"
+                :options="VISIBILITY_OPTIONS"
+                v-model="form.visibility"
+              />
 
               <div class="flex flex-col gap-1">
                 <label for="description" class="text-sm font-medium text-ink-700">설명</label>
@@ -721,11 +968,11 @@ async function handleRetry() {
               </div>
             </div>
 
-            <!-- 4단계: 빌드 파일 업로드 -->
+            <!-- 4단계: 파일 업로드 -->
             <div v-show="currentStep === 4" class="flex flex-col gap-4">
-              <h2 class="text-sm font-bold text-ink-900">빌드 파일을 업로드하세요</h2>
+              <h2 class="text-sm font-bold text-ink-900">파일을 업로드하세요</h2>
 
-              <div>
+              <div v-if="form.hasBackend">
                 <div class="mb-1 flex items-center gap-2">
                   <label class="text-sm font-medium text-ink-700">{{ selectedStack.artifactLabel }}</label>
                   <span class="rounded bg-primary-light px-1.5 py-0.5 text-[11px] font-medium text-primary">
@@ -746,11 +993,18 @@ async function handleRetry() {
                 ><code>{{ selectedStack.zipExample }}</code></pre>
               </div>
 
-              <div v-if="form.deploymentStructure === 'SEPARATE'">
+              <div v-if="form.hasFrontend">
                 <div class="mb-1 flex items-center gap-2">
-                  <label class="text-sm font-medium text-ink-700">프론트엔드 아티팩트 (.zip)</label>
-                  <span class="rounded bg-border px-1.5 py-0.5 text-[11px] font-medium text-ink-500">
-                    프레임워크 무관
+                  <label class="text-sm font-medium text-ink-700">{{ selectedFrontendStack.artifactLabel }}</label>
+                  <span
+                    :class="[
+                      'rounded px-1.5 py-0.5 text-[11px] font-medium',
+                      selectedFrontendStack.value === 'PLAIN'
+                        ? 'bg-border text-ink-500'
+                        : 'bg-sky/10 text-sky-hover',
+                    ]"
+                  >
+                    {{ selectedFrontendStack.value === 'PLAIN' ? "프레임워크 무관" : `${selectedFrontendStack.label} 전용` }}
                   </span>
                 </div>
                 <input
@@ -760,123 +1014,126 @@ async function handleRetry() {
                   class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
                 />
                 <p v-if="errors.frontendFile" class="mt-1 text-xs text-danger">{{ errors.frontendFile }}</p>
-                <p class="mt-1 text-xs text-ink-500">
-                  React/Vue 등으로 빌드한 정적 산출물(예: dist 폴더 안의 내용)을 그대로 zip으로 압축해서
-                  올려주세요. index.html이 zip 최상위(또는 폴더 한 겹 안)에 있어야 합니다.
-                </p>
-                <pre class="mt-2 overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"><code>frontend.zip
-├── index.html
-├── assets/
-│   ├── index-xxxx.js
-│   └── index-xxxx.css
-└── ...</code></pre>
+                <p class="mt-1 text-xs text-ink-500">{{ selectedFrontendStack.artifactHint }}</p>
+                <pre
+                  v-if="selectedFrontendStack.zipExample"
+                  class="mt-2 overflow-x-auto rounded bg-ink-900 p-3 text-[11px] leading-relaxed text-white"
+                ><code>{{ selectedFrontendStack.zipExample }}</code></pre>
               </div>
-              <p v-else class="text-xs text-ink-500">
-                선택하신 "하나로 통합" 구조는 백엔드 아티팩트 안에 정적 리소스가 이미 포함돼 있다고 보고,
-                별도 프론트 업로드 없이 백엔드 컨테이너가 모든 요청(API + 정적 자원)을 그대로 받습니다.
+
+              <p v-if="!form.hasFrontend" class="text-xs text-ink-500">
+                백엔드만 배포하는 구성이라 별도 프론트 업로드 없이, 백엔드 컨테이너가 모든 요청
+                (API + 정적 자원)을 그대로 받습니다.
               </p>
             </div>
 
-            <!-- 5단계: 데이터베이스 / 백킹서비스 -->
+            <!-- 5단계: 데이터베이스 / 백킹서비스 (백엔드가 없으면 해당 없음) -->
             <div v-show="currentStep === 5" class="flex flex-col gap-5">
               <h2 class="text-sm font-bold text-ink-900">데이터베이스를 설정하세요</h2>
-              <div class="flex flex-col gap-3">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">데이터베이스</h3>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <button
-                    v-for="opt in DB_ENGINE_OPTIONS"
-                    :key="opt.value"
-                    type="button"
-                    @click="selectDatabaseEngine(opt.value)"
-                    :class="[
-                      'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
-                      form.databaseEngine === opt.value
-                        ? 'border-primary bg-primary-light ring-1 ring-primary'
-                        : 'border-border bg-background hover:border-primary/50',
-                    ]"
-                  >
-                    <TechIcon :kind="opt.icon" />
-                    <span class="flex flex-col">
-                      <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
-                      <span class="text-xs text-ink-500">{{ opt.description }}</span>
-                    </span>
-                  </button>
-                </div>
-                <p v-if="form.databaseEngine === 'NONE'" class="text-xs text-ink-500">
-                  SQLite처럼 컨테이너 안 파일로 저장하는 내장 DB를 쓴다면 이 옵션을 그대로 선택하세요
-                  - 플랫폼이 별도로 준비할 게 없습니다. 다만 컨테이너가 재시작되면 그 안의 파일은
-                  함께 사라지니, 데이터를 계속 보존해야 한다면 위의 MySQL을 선택해주세요.
-                </p>
-              </div>
 
-              <div v-if="form.databaseEngine !== 'NONE'" class="flex flex-col gap-4">
-                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                  <BaseInput
-                    id="databaseName"
-                    label="DB 이름"
-                    placeholder="app_db"
-                    v-model="form.databaseName"
-                    :error="errors.databaseName"
-                  />
+              <p v-if="!form.hasBackend" class="text-xs text-ink-500">
+                프론트엔드만 배포하는 구성이라 데이터베이스 설정이 필요 없습니다. 다음 단계로 넘어가세요.
+              </p>
 
-                  <BaseInput
-                    id="databasePassword"
-                    type="password"
-                    label="DB 비밀번호 (필수)"
-                    placeholder="비밀번호를 입력하세요"
-                    v-model="form.databasePassword"
-                    :error="errors.databasePassword"
-                  />
-                </div>
-
-                <!-- JPA/Django처럼 자동으로 테이블을 만들어주는 스택에서는 아예 노출하지 않는다. -->
-                <div v-if="selectedStack.manualMigration">
-                  <label class="mb-1 block text-sm font-medium text-ink-700">
-                    DB 초기화 SQL ({{ form.stack === "SPRING_MYBATIS" ? "필수" : "선택" }} - .sql)
-                  </label>
-                  <input
-                    type="file"
-                    accept=".sql"
-                    @change="handleSchemaFileChange"
-                    class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
-                  />
-                  <p v-if="errors.schemaFile" class="mt-1 text-xs text-danger">{{ errors.schemaFile }}</p>
-                  <p class="mt-1 text-xs text-ink-500">
-                    선택한 스택은 테이블을 자동으로 만들어주지 않습니다.
-                    <code class="rounded bg-ink-900 px-1 py-0.5 text-white">CREATE TABLE</code>
-                    구문이 담긴 .sql 파일을 올려주세요 - 배포 시 DB에 한 번 실행해 드립니다.
+              <template v-else>
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">데이터베이스</h3>
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <button
+                      v-for="opt in DB_ENGINE_OPTIONS"
+                      :key="opt.value"
+                      type="button"
+                      @click="selectDatabaseEngine(opt.value)"
+                      :class="[
+                        'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                        form.databaseEngine === opt.value
+                          ? 'border-primary bg-primary-light ring-1 ring-primary'
+                          : 'border-border bg-background hover:border-primary/50',
+                      ]"
+                    >
+                      <TechIcon :kind="opt.icon" />
+                      <span class="flex flex-col">
+                        <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
+                        <span class="text-xs text-ink-500">{{ opt.description }}</span>
+                      </span>
+                    </button>
+                  </div>
+                  <p v-if="form.databaseEngine === 'NONE'" class="text-xs text-ink-500">
+                    SQLite처럼 컨테이너 안 파일로 저장하는 내장 DB를 쓴다면 이 옵션을 그대로 선택하세요
+                    - 플랫폼이 별도로 준비할 게 없습니다. 다만 컨테이너가 재시작되면 그 안의 파일은
+                    함께 사라지니, 데이터를 계속 보존해야 한다면 위의 MySQL을 선택해주세요.
                   </p>
                 </div>
-              </div>
 
-              <div class="flex flex-col gap-3">
-                <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">추가 백킹서비스</h3>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <button
-                    v-for="opt in BACKING_SERVICE_OPTIONS"
-                    :key="opt.value"
-                    type="button"
-                    @click="toggleNeededService(opt.value)"
-                    :class="[
-                      'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
-                      form.neededServices.includes(opt.value)
-                        ? 'border-primary bg-primary-light ring-1 ring-primary'
-                        : 'border-border bg-background hover:border-primary/50',
-                    ]"
-                  >
-                    <TechIcon :kind="opt.icon" />
-                    <span class="flex flex-col">
-                      <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
-                      <span class="text-xs text-ink-500">{{ opt.description }}</span>
-                    </span>
-                    <AppIcon
-                      v-if="form.neededServices.includes(opt.value)"
-                      name="check"
-                      class="ml-auto h-4 w-4 shrink-0 text-primary"
+                <div v-if="form.databaseEngine !== 'NONE'" class="flex flex-col gap-4">
+                  <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <BaseInput
+                      id="databaseName"
+                      label="DB 이름"
+                      placeholder="app_db"
+                      v-model="form.databaseName"
+                      :error="errors.databaseName"
                     />
-                  </button>
+
+                    <BaseInput
+                      id="databasePassword"
+                      type="password"
+                      label="DB 비밀번호 (필수)"
+                      placeholder="비밀번호를 입력하세요"
+                      v-model="form.databasePassword"
+                      :error="errors.databasePassword"
+                    />
+                  </div>
+
+                  <!-- JPA/Django처럼 자동으로 테이블을 만들어주는 스택에서는 아예 노출하지 않는다. -->
+                  <div v-if="selectedStack.manualMigration">
+                    <label class="mb-1 block text-sm font-medium text-ink-700">
+                      DB 초기화 SQL ({{ form.stack === "SPRING_MYBATIS" ? "필수" : "선택" }} - .sql)
+                    </label>
+                    <input
+                      type="file"
+                      accept=".sql"
+                      @change="handleSchemaFileChange"
+                      class="block w-full cursor-pointer rounded-md border border-border bg-background text-sm text-ink-500 file:mr-4 file:cursor-pointer file:border-0 file:bg-primary-light file:px-4 file:py-2 file:text-sm file:font-semibold file:text-primary hover:file:bg-primary/20"
+                    />
+                    <p v-if="errors.schemaFile" class="mt-1 text-xs text-danger">{{ errors.schemaFile }}</p>
+                    <p class="mt-1 text-xs text-ink-500">
+                      선택한 스택은 테이블을 자동으로 만들어주지 않습니다.
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">CREATE TABLE</code>
+                      구문이 담긴 .sql 파일을 올려주세요 - 배포 시 DB에 한 번 실행해 드립니다.
+                    </p>
+                  </div>
                 </div>
-              </div>
+
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-500">추가 백킹서비스</h3>
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <button
+                      v-for="opt in BACKING_SERVICE_OPTIONS"
+                      :key="opt.value"
+                      type="button"
+                      @click="toggleNeededService(opt.value)"
+                      :class="[
+                        'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                        form.neededServices.includes(opt.value)
+                          ? 'border-primary bg-primary-light ring-1 ring-primary'
+                          : 'border-border bg-background hover:border-primary/50',
+                      ]"
+                    >
+                      <TechIcon :kind="opt.icon" />
+                      <span class="flex flex-col">
+                        <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
+                        <span class="text-xs text-ink-500">{{ opt.description }}</span>
+                      </span>
+                      <AppIcon
+                        v-if="form.neededServices.includes(opt.value)"
+                        name="check"
+                        class="ml-auto h-4 w-4 shrink-0 text-primary"
+                      />
+                    </button>
+                  </div>
+                </div>
+              </template>
             </div>
 
             <!-- 6단계: 환경변수 -->
@@ -895,40 +1152,51 @@ async function handleRetry() {
                   <dd class="font-medium text-ink-900">{{ form.projectName || "-" }}</dd>
                 </div>
                 <div class="flex items-center justify-between gap-4 px-3 py-2">
-                  <dt class="text-ink-500">배포 구조</dt>
+                  <dt class="text-ink-500">배포 구성</dt>
                   <dd class="font-medium text-ink-900">
-                    {{ form.deploymentStructure === "SEPARATE" ? "프론트/백엔드 분리" : "하나로 통합" }}
+                    <template v-if="form.hasFrontend && form.hasBackend">프론트/백엔드 분리</template>
+                    <template v-else-if="form.hasBackend">백엔드만 (통합형)</template>
+                    <template v-else>프론트엔드만</template>
                   </dd>
                 </div>
-                <div class="flex items-center justify-between gap-4 px-3 py-2">
+                <div v-if="form.hasBackend" class="flex items-center justify-between gap-4 px-3 py-2">
                   <dt class="text-ink-500">백엔드 언어 / 프레임워크</dt>
                   <dd class="font-medium text-ink-900">
                     {{ selectedLanguage.label }} · {{ selectedStack.label }}
                   </dd>
                 </div>
-                <div class="flex items-center justify-between gap-4 px-3 py-2">
-                  <dt class="text-ink-500">런타임 / 포트 / 공개범위</dt>
+                <div v-if="form.hasBackend" class="flex items-center justify-between gap-4 px-3 py-2">
+                  <dt class="text-ink-500">백엔드 런타임 / 포트</dt>
                   <dd class="font-medium text-ink-900">
-                    {{ form.runtimeVersion }} · {{ form.internalPort }} · {{ form.visibility }}
+                    {{ form.runtimeVersion }} · {{ form.internalPort }}
+                  </dd>
+                </div>
+                <div v-if="form.hasFrontend" class="flex items-center justify-between gap-4 px-3 py-2">
+                  <dt class="text-ink-500">프론트엔드 프레임워크</dt>
+                  <dd class="font-medium text-ink-900">
+                    {{ selectedFrontendStack.label }}
+                    {{ selectedFrontendStack.needsBuild ? `(Node ${form.frontendRuntimeVersion})` : "" }}
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-4 px-3 py-2">
+                  <dt class="text-ink-500">공개범위</dt>
+                  <dd class="font-medium text-ink-900">{{ form.visibility }}</dd>
+                </div>
+                <div v-if="form.hasBackend" class="flex items-center justify-between gap-4 px-3 py-2">
                   <dt class="text-ink-500">백엔드 파일</dt>
                   <dd class="font-medium text-ink-900">{{ backendFile?.name || "-" }}</dd>
                 </div>
-                <div class="flex items-center justify-between gap-4 px-3 py-2">
+                <div v-if="form.hasFrontend" class="flex items-center justify-between gap-4 px-3 py-2">
                   <dt class="text-ink-500">프론트엔드 파일</dt>
-                  <dd class="font-medium text-ink-900">
-                    {{ form.deploymentStructure === "MONOLITHIC" ? "없음(통합형)" : frontendFile?.name || "-" }}
-                  </dd>
+                  <dd class="font-medium text-ink-900">{{ frontendFile?.name || "-" }}</dd>
                 </div>
-                <div class="flex items-center justify-between gap-4 px-3 py-2">
+                <div v-if="form.hasBackend" class="flex items-center justify-between gap-4 px-3 py-2">
                   <dt class="text-ink-500">데이터베이스</dt>
                   <dd class="font-medium text-ink-900">
                     {{ selectedDbEngineOption.label }}{{ form.databaseEngine !== "NONE" ? ` (${form.databaseName})` : "" }}
                   </dd>
                 </div>
-                <div class="flex items-center justify-between gap-4 px-3 py-2">
+                <div v-if="form.hasBackend" class="flex items-center justify-between gap-4 px-3 py-2">
                   <dt class="text-ink-500">추가 백킹서비스</dt>
                   <dd class="font-medium text-ink-900">
                     {{ form.neededServices.length ? form.neededServices.join(", ") : "없음" }}
