@@ -53,7 +53,7 @@ public enum ErrorCode {
     UNSUPPORTED_DATABASE_ENGINE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_008", "지원하지 않는 데이터베이스 엔진입니다. (지원: MYSQL)"),
     SCHEMA_REQUIRES_DATABASE(HttpStatus.BAD_REQUEST, "DEPLOYMENT_009", "DB 초기화 SQL 파일은 데이터베이스를 선택했을 때만 사용할 수 있습니다."),
     UNSUPPORTED_STACK(HttpStatus.BAD_REQUEST, "DEPLOYMENT_010",
-            "지원하지 않는 언어/프레임워크입니다. (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, EXPRESS)"),
+            "지원하지 않는 언어/프레임워크입니다. (지원: SPRING_JPA, SPRING_MYBATIS, DJANGO, FASTAPI, EXPRESS)"),
     STACK_ARTIFACT_MISMATCH(HttpStatus.BAD_REQUEST, "DEPLOYMENT_011",
             "백엔드 아티팩트 형식이 선택한 스택과 맞지 않습니다. (Java 계열: .jar, Python/Node.js: .zip)"),
     STACK_DOES_NOT_SUPPORT_SCHEMA_SQL(HttpStatus.BAD_REQUEST, "DEPLOYMENT_012",

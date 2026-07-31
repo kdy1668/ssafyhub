@@ -45,9 +45,13 @@ public class DeploymentService {
     private static final Set<String> SUPPORTED_DATABASE_ENGINES = Set.of("MYSQL");
     // Java 계열(.jar 아티팩트)과 Python/Node.js 계열(.zip 소스 아티팩트)을 구분해야 파일 확장자를 검증할 수 있다.
     private static final Set<String> JAR_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS");
-    private static final Set<String> SUPPORTED_STACKS = Set.of("SPRING_JPA", "SPRING_MYBATIS", "DJANGO", "EXPRESS");
-    // 테이블을 스스로 만들어주지 않는 스택만 DB 초기화 SQL 업로드를 허용한다.
-    private static final Set<String> MANUAL_MIGRATION_STACKS = Set.of("SPRING_MYBATIS", "EXPRESS");
+    private static final Set<String> SUPPORTED_STACKS =
+            Set.of("SPRING_JPA", "SPRING_MYBATIS", "DJANGO", "FASTAPI", "EXPRESS");
+    // 테이블을 스스로 만들어주지 않는 스택만 DB 초기화 SQL 업로드를 허용한다. 언어별로 "자동 마이그레이션"과
+    // "수동 마이그레이션"을 골고루 대응시킨다: Java는 JPA(자동)/MyBatis(수동), Python은 Django(자동,
+    // 내장 ORM+migrate)/FastAPI(수동, 내장 마이그레이션 관례가 없음), Node.js는 관례상 내장 마이그레이션이
+    // 없어 Express 등은 전부 수동으로만 취급한다.
+    private static final Set<String> MANUAL_MIGRATION_STACKS = Set.of("SPRING_MYBATIS", "FASTAPI", "EXPRESS");
 
     private final MemberRepository memberRepository;
     private final ArtifactRepository artifactRepository;
