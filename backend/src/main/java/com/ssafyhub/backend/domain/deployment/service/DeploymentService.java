@@ -97,6 +97,10 @@ public class DeploymentService {
         String databaseEngine = validateDatabaseEngine(databaseName, request.databaseEngine());
         String neededServices = validateAndJoinNeededServices(request.neededServices());
 
+        if ("SPRING_MYBATIS".equals(stack) && databaseName != null && request.schemaArtifactId() == null) {
+            throw new BusinessException(ErrorCode.SCHEMA_REQUIRED_FOR_MYBATIS);
+        }
+
         Artifact schemaArtifact = null;
         if (request.schemaArtifactId() != null) {
             if (databaseName == null) {

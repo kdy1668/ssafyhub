@@ -248,6 +248,29 @@ class DeploymentServiceTest {
         assertThat(deploymentCaptor.getValue().getFrontendArtifact()).isNull();
     }
 
+    @Test
+    void Spring_MyBatis에서_MySQL을_사용하면_스키마_SQL이_필수다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", 1L, 2L, "SPRING_MYBATIS", "21", 8080, "app_db", "db-password",
+                "MYSQL", null, null,
+                List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
+                null, null
+        );
+
+        assertThatThrownBy(() -> deploymentService.createDeployment(11L, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.SCHEMA_REQUIRED_FOR_MYBATIS);
+
+        verify(deploymentRepository, never()).saveAndFlush(any());
+        verify(deploymentOutboxRepository, never()).save(any());
+    }
+
     private DeploymentCreateRequest validRequest() {
         return new DeploymentCreateRequest(
                 "demo-service",

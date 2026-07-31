@@ -343,6 +343,12 @@ function validateFiles() {
 
 function validateDatabase() {
   if (
+    form.stack === "SPRING_MYBATIS" &&
+    form.databaseEngine !== "NONE" &&
+    !schemaFile.value
+  ) {
+    errors.schemaFile = "Spring MyBatis에서 MySQL을 사용하려면 DB 초기화 SQL 파일이 필요합니다.";
+  } else if (
     selectedStack.value.manualMigration &&
     schemaFile.value &&
     !schemaFile.value.name.toLowerCase().endsWith(".sql")
@@ -826,7 +832,7 @@ async function handleRetry() {
                 <!-- JPA/Django처럼 자동으로 테이블을 만들어주는 스택에서는 아예 노출하지 않는다. -->
                 <div v-if="selectedStack.manualMigration">
                   <label class="mb-1 block text-sm font-medium text-ink-700">
-                    DB 초기화 SQL (선택 - .sql)
+                    DB 초기화 SQL ({{ form.stack === "SPRING_MYBATIS" ? "필수" : "선택" }} - .sql)
                   </label>
                   <input
                     type="file"

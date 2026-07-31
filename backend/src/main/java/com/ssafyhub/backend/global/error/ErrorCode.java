@@ -58,6 +58,8 @@ public enum ErrorCode {
             "백엔드 아티팩트 형식이 선택한 스택과 맞지 않습니다. (Java 계열: .jar, Python/Node.js: .zip)"),
     STACK_DOES_NOT_SUPPORT_SCHEMA_SQL(HttpStatus.BAD_REQUEST, "DEPLOYMENT_012",
             "선택한 스택은 테이블을 자동으로 생성하므로 DB 초기화 SQL을 사용할 수 없습니다."),
+    SCHEMA_REQUIRED_FOR_MYBATIS(HttpStatus.BAD_REQUEST, "DEPLOYMENT_013",
+            "Spring MyBatis에서 MySQL을 사용하려면 DB 초기화 SQL 파일이 필요합니다."),
 
     SHOWCASE_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOWCASE_001", "존재하지 않는 서비스입니다."),
     ;
