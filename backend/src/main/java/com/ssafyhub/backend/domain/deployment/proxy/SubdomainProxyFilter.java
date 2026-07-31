@@ -82,7 +82,16 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
         String suffix = request.getQueryString() != null ? "?" + request.getQueryString() : "";
 
         String target;
-        if (uri.equals("/api") || uri.startsWith("/api/")) {
+        if (deployment.get().getFrontendArtifact() == null) {
+            // 별도 프론트 배포가 없는 모놀리식 구조(백엔드가 정적 리소스까지 직접 서빙) -
+            // /api 분리 없이 요청 경로를 그대로 백엔드로 전달한다.
+            String backendBase = deployment.get().getEndpointUrl();
+            if (backendBase == null || backendBase.isBlank()) {
+                response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "백엔드가 아직 준비되지 않았습니다.");
+                return;
+            }
+            target = backendBase + uri + suffix;
+        } else if (uri.equals("/api") || uri.startsWith("/api/")) {
             // /api/* → 백엔드(E206). "/api"를 떼고 endpoint_url로 전달(백엔드 앱은 /messages 등 원경로 유지).
             String backendBase = deployment.get().getEndpointUrl();
             if (backendBase == null || backendBase.isBlank()) {

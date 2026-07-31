@@ -8,7 +8,7 @@ public record PresignedUrlResponse(
         @Schema(description = "백엔드 산출물 업로드 정보")
         ArtifactUploadResponse backendArtifact,
 
-        @Schema(description = "프론트엔드 산출물 업로드 정보")
+        @Schema(description = "프론트엔드 산출물 업로드 정보 (요청 시에만 존재)", nullable = true)
         ArtifactUploadResponse frontendArtifact,
 
         @Schema(description = "DB 초기화 SQL 업로드 정보 (요청 시에만 존재)", nullable = true)

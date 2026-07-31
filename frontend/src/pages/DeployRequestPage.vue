@@ -105,6 +105,13 @@ const STACK_OPTIONS = [
   },
 ];
 
+// 배포 구조 - 분리형(백엔드/프론트 각각 업로드) vs 통합형(백엔드가 프론트를 직접 서빙,
+// 예: Spring static 리소스, express.static). 통합형이면 프론트 업로드 자체를 받지 않는다.
+const DEPLOYMENT_STRUCTURE_OPTIONS = [
+  { value: "SEPARATE", label: "프론트/백엔드 분리", description: "각각 따로 빌드해서 업로드" },
+  { value: "MONOLITHIC", label: "하나로 통합", description: "백엔드가 프론트도 직접 서빙" },
+];
+
 const VISIBILITY_OPTIONS = [
   { value: "PUBLIC", label: "공개 (PUBLIC)" },
   { value: "PRIVATE", label: "비공개 (PRIVATE)" },
@@ -132,6 +139,7 @@ const schemaFile = ref(null);
 // 텍스트/설정 폼 상태
 const form = reactive({
   projectName: "",
+  deploymentStructure: "SEPARATE", // SEPARATE | MONOLITHIC
   language: "JAVA",
   stack: "SPRING_JPA",
   runtimeVersion: "17",
@@ -179,6 +187,14 @@ const errors = reactive({
 // 백엔드 검증 규칙과 동일
 const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 const DB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,99}$/;
+
+function selectDeploymentStructure(value) {
+  form.deploymentStructure = value;
+  if (value === "MONOLITHIC") {
+    frontendFile.value = null;
+    errors.frontendFile = "";
+  }
+}
 
 function selectLanguage(value) {
   form.language = value;
@@ -237,10 +253,16 @@ function validate() {
     errors.backendFile = `백엔드 파일은 ${selectedStack.value.artifactAccept} 형식이어야 합니다.`;
   else errors.backendFile = "";
 
-  if (!frontendFile.value) errors.frontendFile = "프론트엔드 ZIP 파일을 업로드하세요.";
-  else if (!frontendFile.value.name.toLowerCase().endsWith(".zip"))
+  // 통합형(백엔드가 프론트 직접 서빙)이면 프론트 파일 자체를 받지 않는다.
+  if (form.deploymentStructure === "MONOLITHIC") {
+    errors.frontendFile = "";
+  } else if (!frontendFile.value) {
+    errors.frontendFile = "프론트엔드 ZIP 파일을 업로드하세요.";
+  } else if (!frontendFile.value.name.toLowerCase().endsWith(".zip")) {
     errors.frontendFile = "프론트엔드 파일은 .zip 형식이어야 합니다.";
-  else errors.frontendFile = "";
+  } else {
+    errors.frontendFile = "";
+  }
 
   // DB 초기화 SQL은 수동 마이그레이션 스택에서만 의미가 있고, 올렸다면 확장자를 지켜야 한다.
   if (selectedStack.value.manualMigration && schemaFile.value
@@ -300,7 +322,8 @@ function buildPayload() {
   const canUseSchemaFile = needDatabase && selectedStack.value.manualMigration;
   return {
     backendFile: backendFile.value,
-    frontendFile: frontendFile.value,
+    // 통합형이면 프론트 파일 자체가 없다 - null로 보내 백엔드가 "별도 프론트 없음"으로 처리하게 한다.
+    frontendFile: form.deploymentStructure === "MONOLITHIC" ? null : frontendFile.value,
     // 수동 마이그레이션 스택 + DB 사용 중 + 실제로 파일을 고른 경우에만 올린다.
     schemaFile: canUseSchemaFile ? schemaFile.value : null,
     projectName: form.projectName,
@@ -390,6 +413,30 @@ async function handleRetry() {
             v-model="form.projectName"
             :error="errors.projectName"
           />
+
+          <!-- 배포 구조 선택 -->
+          <div class="flex flex-col gap-3">
+            <span class="text-sm font-bold text-ink-900">배포 구조</span>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                v-for="opt in DEPLOYMENT_STRUCTURE_OPTIONS"
+                :key="opt.value"
+                type="button"
+                @click="selectDeploymentStructure(opt.value)"
+                :class="[
+                  'flex items-center gap-3 rounded-lg border p-3 text-left transition-colors',
+                  form.deploymentStructure === opt.value
+                    ? 'border-primary bg-primary-light ring-1 ring-primary'
+                    : 'border-border bg-background hover:border-primary/50',
+                ]"
+              >
+                <span class="flex flex-col">
+                  <span class="text-sm font-semibold text-ink-900">{{ opt.label }}</span>
+                  <span class="text-xs text-ink-500">{{ opt.description }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
 
           <!-- 언어 선택 -->
           <div class="flex flex-col gap-3">
@@ -505,7 +552,7 @@ async function handleRetry() {
               ><code>{{ selectedStack.zipExample }}</code></pre>
             </div>
 
-            <div>
+            <div v-if="form.deploymentStructure === 'SEPARATE'">
               <label class="mb-1 block text-sm font-medium text-ink-700">프론트엔드 아티팩트 (.zip)</label>
               <input
                 type="file"
@@ -525,6 +572,10 @@ async function handleRetry() {
 │   └── index-xxxx.css
 └── ...</code></pre>
             </div>
+            <p v-else class="text-xs text-ink-500">
+              선택하신 "하나로 통합" 구조는 백엔드 아티팩트 안에 정적 리소스가 이미 포함돼 있다고 보고,
+              별도 프론트 업로드 없이 백엔드 컨테이너가 모든 요청(API + 정적 자원)을 그대로 받습니다.
+            </p>
           </div>
 
           <!-- DB / 백킹서비스 설정 영역 -->
