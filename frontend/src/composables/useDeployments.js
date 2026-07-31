@@ -96,14 +96,17 @@ export function useCreateDeployment() {
 
     deployError.value = null;
     resetUpload(uploads.backend, backendFile.name);
-    resetUpload(uploads.frontend, frontendFile.name);
+    resetUpload(uploads.frontend, frontendFile ? frontendFile.name : "");
     resetUpload(uploads.schema, schemaFile ? schemaFile.name : "");
 
     try {
-      // [STEP 1] Presigned URL 발급 (schemaFile은 선택 - DB 초기화 SQL을 올릴 때만)
+      // [STEP 1] Presigned URL 발급 (frontendFile은 통합형 구조일 때, schemaFile은 자동
+      // 마이그레이션이 아닌 스택일 때만 선택적으로 보낸다)
       phase.value = "preparing";
       const presignedRes = await getPresignedUrls(
-        backendFile.name, frontendFile.name, schemaFile ? schemaFile.name : undefined
+        backendFile.name,
+        frontendFile ? frontendFile.name : undefined,
+        schemaFile ? schemaFile.name : undefined
       );
       const { backendArtifact, frontendArtifact, schemaArtifact } = presignedRes.data;
 
@@ -135,8 +138,10 @@ export function useCreateDeployment() {
         : "application/java-archive";
       const uploadTasks = [
         uploadOne(uploads.backend, backendArtifact.uploadUrl, backendFile, backendContentType),
-        uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip"),
       ];
+      if (frontendFile && frontendArtifact) {
+        uploadTasks.push(uploadOne(uploads.frontend, frontendArtifact.uploadUrl, frontendFile, "application/zip"));
+      }
       if (schemaFile && schemaArtifact) {
         uploadTasks.push(uploadOne(uploads.schema, schemaArtifact.uploadUrl, schemaFile, "application/sql"));
       }
@@ -154,7 +159,7 @@ export function useCreateDeployment() {
       const deployment = await apiCreateDeployment({
         projectName,
         backendArtifactId: backendArtifact.artifactId,
-        frontendArtifactId: frontendArtifact.artifactId,
+        frontendArtifactId: frontendFile ? frontendArtifact?.artifactId : undefined,
         stack,
         runtimeVersion,
         internalPort: Number(internalPort),

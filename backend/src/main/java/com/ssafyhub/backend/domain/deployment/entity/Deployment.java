@@ -64,10 +64,11 @@ public class Deployment {
     )
     private Artifact backendArtifact;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    // 백엔드가 프론트를 직접 서빙하는 모놀리식 구조(예: Spring static 리소스, express.static)도
+    // 있어서 nullable - null이면 "별도 프론트 배포 없음(SubdomainProxyFilter가 전부 백엔드로 전달)"을 뜻한다.
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
             name = "frontend_artifact_id",
-            nullable = false,
             foreignKey = @ForeignKey(name = "fk_deployments_frontend_artifact")
     )
     private Artifact frontendArtifact;

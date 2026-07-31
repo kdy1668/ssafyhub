@@ -24,8 +24,8 @@ public record DeploymentCreateRequest(
         @Positive(message = "백엔드 Artifact ID는 양수여야 합니다.")
         Long backendArtifactId,
 
-        @Schema(description = "사전에 발급받은 프론트엔드 산출물 Artifact ID", example = "2")
-        @NotNull(message = "프론트엔드 Artifact ID는 필수입니다.")
+        @Schema(description = "사전에 발급받은 프론트엔드 산출물 Artifact ID. 백엔드가 프론트를 직접 서빙하는 " +
+                "모놀리식 구조라면 비워두세요.", example = "2", nullable = true)
         @Positive(message = "프론트엔드 Artifact ID는 양수여야 합니다.")
         Long frontendArtifactId,
 

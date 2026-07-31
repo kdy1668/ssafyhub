@@ -11,8 +11,8 @@ public record PresignedUrlRequest(
         @Size(max = 255, message = "백엔드 파일 이름은 255자를 초과할 수 없습니다.")
         String backendFileName,
 
-        @Schema(description = "프론트엔드 산출물 파일 이름 (.zip)", example = "frontend.zip")
-        @NotBlank(message = "프론트엔드 파일 이름은 필수입니다.")
+        @Schema(description = "프론트엔드 산출물 파일 이름 (.zip, 선택 - 백엔드가 프론트를 직접 서빙하는 " +
+                "모놀리식 구조라면 비워두세요)", example = "frontend.zip", nullable = true)
         @Size(max = 255, message = "프론트엔드 파일 이름은 255자를 초과할 수 없습니다.")
         String frontendFileName,
 

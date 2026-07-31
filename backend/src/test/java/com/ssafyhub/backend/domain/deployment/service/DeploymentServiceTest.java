@@ -199,7 +199,6 @@ class DeploymentServiceTest {
         given(memberRepository.findById(11L)).willReturn(Optional.of(member));
         given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
         given(artifactRepository.findById(1L)).willReturn(Optional.of(otherArtifact));
-        given(artifactRepository.findById(2L)).willReturn(Optional.of(frontendArtifact));
 
         assertThatThrownBy(() -> deploymentService.createDeployment(11L, validRequest()))
                 .isInstanceOf(BusinessException.class)
@@ -218,6 +217,35 @@ class DeploymentServiceTest {
         );
         ReflectionTestUtils.setField(artifact, "id", id);
         return artifact;
+    }
+
+    @Test
+    void 프론트엔드_아티팩트_없이도_배포를_생성한다() {
+        given(memberRepository.findById(11L)).willReturn(Optional.of(member));
+        given(deploymentRepository.existsByMemberId(11L)).willReturn(false);
+        given(artifactRepository.findById(1L)).willReturn(Optional.of(backendArtifact));
+        given(deploymentRepository.saveAndFlush(any(Deployment.class))).willAnswer(invocation -> {
+            Deployment deployment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(deployment, "id", 100L);
+            return deployment;
+        });
+
+        DeploymentCreateRequest request = new DeploymentCreateRequest(
+                "demo-service", 1L, null, "SPRING_JPA", "21", 8080, "app_db", "db-password",
+                null, null, null,
+                List.of(new DeploymentEnvRequest("JWT_SECRET", "secret-value")),
+                null, null
+        );
+
+        DeploymentCreateResponse response = deploymentService.createDeployment(11L, request);
+
+        assertThat(response.deploymentId()).isEqualTo(100L);
+        verify(artifactRepository, never()).findById(2L);
+        verify(s3ObjectVerifier, never()).verifyExists("ssafyhub-artifacts", "frontend/dist.zip");
+
+        ArgumentCaptor<Deployment> deploymentCaptor = ArgumentCaptor.forClass(Deployment.class);
+        verify(deploymentRepository).saveAndFlush(deploymentCaptor.capture());
+        assertThat(deploymentCaptor.getValue().getFrontendArtifact()).isNull();
     }
 
     private DeploymentCreateRequest validRequest() {

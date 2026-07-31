@@ -43,12 +43,9 @@ public class ArtifactService {
         // 백엔드: .jar(플랫폼이 표준 Dockerfile 자동 생성) 또는 .zip(Dockerfile 포함 BYO 빌드) 둘 다 허용.
         String backendFileName = validateFileName(
                 request.backendFileName(), List.of(".jar", ".zip"), ErrorCode.INVALID_BACKEND_FILE);
-        String frontendFileName = validateFileName(
-                request.frontendFileName(), List.of(".zip"), ErrorCode.INVALID_FRONTEND_FILE);
 
         String requestId = UUID.randomUUID().toString();
         String backendObjectKey = createObjectKey(memberId, requestId, "backend", backendFileName);
-        String frontendObjectKey = createObjectKey(memberId, requestId, "frontend", frontendFileName);
         Duration signatureDuration = Duration.ofMinutes(expirationMinutes);
         LocalDateTime expiresAt = LocalDateTime.now().plus(signatureDuration);
 
@@ -60,14 +57,23 @@ public class ArtifactService {
                 backendObjectKey,
                 expiresAt
         );
-        Artifact frontendArtifact = new Artifact(
-                member,
-                ArtifactType.FRONTEND_ZIP,
-                frontendFileName,
-                bucket,
-                frontendObjectKey,
-                expiresAt
-        );
+
+        // 프론트엔드는 선택 사항 - 백엔드가 프론트를 직접 서빙하는 모놀리식 구조라면 안 보낸다.
+        boolean needsFrontend = request.frontendFileName() != null && !request.frontendFileName().isBlank();
+        Artifact frontendArtifact = null;
+        if (needsFrontend) {
+            String frontendFileName = validateFileName(
+                    request.frontendFileName(), List.of(".zip"), ErrorCode.INVALID_FRONTEND_FILE);
+            String frontendObjectKey = createObjectKey(memberId, requestId, "frontend", frontendFileName);
+            frontendArtifact = new Artifact(
+                    member,
+                    ArtifactType.FRONTEND_ZIP,
+                    frontendFileName,
+                    bucket,
+                    frontendObjectKey,
+                    expiresAt
+            );
+        }
 
         // DB 초기화 SQL은 선택 사항 - MyBatis 등 자동 테이블 생성이 안 되는 프레임워크를 쓸 때만 보낸다.
         boolean needsSchema = request.schemaFileName() != null && !request.schemaFileName().isBlank();
@@ -86,13 +92,21 @@ public class ArtifactService {
             );
         }
 
-        List<Artifact> artifacts = needsSchema
-                ? List.of(backendArtifact, frontendArtifact, schemaArtifact)
-                : List.of(backendArtifact, frontendArtifact);
+        List<Artifact> artifacts = new java.util.ArrayList<>(List.of(backendArtifact));
+        if (needsFrontend) {
+            artifacts.add(frontendArtifact);
+        }
+        if (needsSchema) {
+            artifacts.add(schemaArtifact);
+        }
         artifactRepository.saveAll(artifacts);
 
         String backendUploadUrl = createUploadUrl(backendObjectKey, signatureDuration);
-        String frontendUploadUrl = createUploadUrl(frontendObjectKey, signatureDuration);
+        ArtifactUploadResponse frontendUploadResponse = null;
+        if (needsFrontend) {
+            String frontendUploadUrl = createUploadUrl(frontendArtifact.getObjectKey(), signatureDuration);
+            frontendUploadResponse = new ArtifactUploadResponse(frontendArtifact.getId(), frontendUploadUrl);
+        }
         ArtifactUploadResponse schemaUploadResponse = null;
         if (needsSchema) {
             String schemaUploadUrl = createUploadUrl(schemaArtifact.getObjectKey(), signatureDuration);
@@ -101,7 +115,7 @@ public class ArtifactService {
 
         return new PresignedUrlResponse(
                 new ArtifactUploadResponse(backendArtifact.getId(), backendUploadUrl),
-                new ArtifactUploadResponse(frontendArtifact.getId(), frontendUploadUrl),
+                frontendUploadResponse,
                 schemaUploadResponse,
                 expiresAt
         );

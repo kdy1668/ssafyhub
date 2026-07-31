@@ -72,10 +72,14 @@ public class DeploymentService {
         }
 
         Artifact backendArtifact = getArtifact(request.backendArtifactId());
-        Artifact frontendArtifact = getArtifact(request.frontendArtifactId());
-
         validateArtifact(backendArtifact, memberId, ArtifactType.BACKEND_JAR);
-        validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
+
+        // 프론트엔드는 선택 사항 - 백엔드가 프론트를 직접 서빙하는 모놀리식 구조라면 안 보낸다.
+        Artifact frontendArtifact = null;
+        if (request.frontendArtifactId() != null) {
+            frontendArtifact = getArtifact(request.frontendArtifactId());
+            validateArtifact(frontendArtifact, memberId, ArtifactType.FRONTEND_ZIP);
+        }
         validateUniqueEnvKeys(request.env());
 
         String stack = validateStack(request.stack(), backendArtifact);
@@ -102,7 +106,9 @@ public class DeploymentService {
         }
 
         s3ObjectVerifier.verifyExists(backendArtifact.getBucket(), backendArtifact.getObjectKey());
-        s3ObjectVerifier.verifyExists(frontendArtifact.getBucket(), frontendArtifact.getObjectKey());
+        if (frontendArtifact != null) {
+            s3ObjectVerifier.verifyExists(frontendArtifact.getBucket(), frontendArtifact.getObjectKey());
+        }
         if (schemaArtifact != null) {
             s3ObjectVerifier.verifyExists(schemaArtifact.getBucket(), schemaArtifact.getObjectKey());
         }
@@ -150,8 +156,11 @@ public class DeploymentService {
         ));
 
         backendArtifact.markUsed();
-        frontendArtifact.markUsed();
-        List<Artifact> usedArtifacts = new java.util.ArrayList<>(List.of(backendArtifact, frontendArtifact));
+        List<Artifact> usedArtifacts = new java.util.ArrayList<>(List.of(backendArtifact));
+        if (frontendArtifact != null) {
+            frontendArtifact.markUsed();
+            usedArtifacts.add(frontendArtifact);
+        }
         if (schemaArtifact != null) {
             schemaArtifact.markUsed();
             usedArtifacts.add(schemaArtifact);
