@@ -954,15 +954,11 @@ async function handleRetry() {
                       {{ showDbEnvKeyAdvanced ? "▾" : "▸" }} 고급: 환경변수 이름 커스터마이즈
                     </button>
                     <p v-if="!showDbEnvKeyAdvanced" class="text-xs text-ink-500">
-                      아래 5가지 값을 컨테이너 환경변수로 넣어줍니다 - 호스트/포트/사용자명은
-                      플랫폼이 정하는 고정값이고, DB 이름/비밀번호는 위에서 입력한 값 그대로예요.
-                      <br />기본 이름: <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_HOST</code>(값: 배포마다 자동 생성되는 내부 주소),
-                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_PORT</code>(값: 3306 고정),
-                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_NAME</code>(값: 위에서 입력한 DB 이름),
-                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_USERNAME</code>(값: root 고정),
-                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_PASSWORD</code>(값: 위에서 입력한 비밀번호).
-                      내 앱이 이 이름들이 아니라 다른 이름을 읽는다면(예: DBUSER) 펼쳐서
-                      이름표만 바꿔주세요 - 값 자체는 그대로입니다.
+                      호스트·포트·사용자명은 저희가 자동으로 만들어서 컨테이너에 넣어드려요
+                      (DB 이름·비밀번호는 위에서 입력한 값 그대로 넣어드리고요). 내 앱이 이 값들을
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_HOST</code>/<code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_USERNAME</code> 같은
+                      기본 이름이 아니라 다른 환경변수 이름으로 읽는다면(예: DBUSER), 펼쳐서 그
+                      이름만 알려주세요.
                     </p>
                     <div v-else class="grid grid-cols-1 gap-4 rounded-lg border border-border bg-background p-3 sm:grid-cols-2">
                       <div class="flex flex-col gap-1">
