@@ -406,7 +406,12 @@ public class DeploymentService {
 
         validateUniqueEnvKeys(env);
 
+        // deleteByDeployment_Id는 파생 삭제라 엔티티를 조회해 remove()로 스케줄만 해두는데,
+        // Hibernate의 기본 플러시 순서는 삭제보다 삽입을 먼저 실행한다. flush() 없이 바로
+        // saveAll을 하면 같은 env_key를 가진 새 행의 INSERT가 옛 행의 DELETE보다 먼저 나가
+        // uk_deployment_envs_key 유니크 제약을 위반한다(실제로 겪은 500 에러).
         deploymentEnvRepository.deleteByDeployment_Id(deployment.getId());
+        deploymentEnvRepository.flush();
         List<DeploymentEnv> deploymentEnvs = env.stream()
                 .map(e -> new DeploymentEnv(deployment, e.key(), secretEncryptor.encrypt(e.value())))
                 .toList();
