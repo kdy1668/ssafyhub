@@ -90,7 +90,9 @@ export function useCreateDeployment() {
     const {
       backendFile, frontendFile, schemaFile,
       projectName, stack, runtimeVersion, internalPort,
-      databaseName, databasePassword, databaseEngine, manualMigration, neededServices, envList,
+      databaseName, databasePassword, databaseEngine,
+      dbHostEnvKey, dbPortEnvKey, dbNameEnvKey, dbUsernameEnvKey, dbPasswordEnvKey,
+      manualMigration, neededServices, envList,
       visibility, description,
     } = args;
 
@@ -168,6 +170,11 @@ export function useCreateDeployment() {
         databaseName,
         databasePassword,
         databaseEngine,
+        dbHostEnvKey,
+        dbPortEnvKey,
+        dbNameEnvKey,
+        dbUsernameEnvKey,
+        dbPasswordEnvKey,
         manualMigration,
         schemaArtifactId: schemaFile ? schemaArtifact?.artifactId : undefined,
         neededServices,

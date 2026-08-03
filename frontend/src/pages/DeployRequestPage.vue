@@ -181,6 +181,9 @@ const schemaFile = ref(null);
 const currentStep = ref(1);
 const maxVisitedStep = ref(1);
 
+// DB 접속 정보 환경변수 이름 커스터마이즈는 대부분 안 써도 되는 고급 옵션이라 기본 접어둔다.
+const showDbEnvKeyAdvanced = ref(false);
+
 // 텍스트/설정 폼 상태. hasFrontend/hasBackend는 1단계의 3카드 선택(DEPLOYMENT_TOPOLOGY_OPTIONS)
 // 결과로 함께 세팅된다 - 화면에는 "프론트만/분리 배포/통합 배포"로 보이지만 내부적으로는
 // 이 두 불리언 조합으로 표현해서 2단계 이후 로직(어떤 그리드를 보여줄지 등)을 단순하게 유지한다.
@@ -195,6 +198,13 @@ const form = reactive({
   databaseEngine: "NONE", // NONE | MYSQL
   databaseName: "",
   databasePassword: "",
+  // DB 접속 정보를 어떤 환경변수 이름으로 받을지 - 비워두면 플랫폼 기본 이름(DB_HOST 등)을 쓴다.
+  // 자기 앱이 다른 이름(예: DBUSER)을 기대하면 여기서 지정할 수 있다.
+  dbHostEnvKey: "",
+  dbPortEnvKey: "",
+  dbNameEnvKey: "",
+  dbUsernameEnvKey: "",
+  dbPasswordEnvKey: "",
   // 테이블 자동 생성 여부 - null(미답변) | false(자동) | true(수동, DB 초기화 SQL 필요).
   // 프레임워크에서 추론하지 않고 직접 물어본다(같은 프레임워크도 쓰기 나름이라).
   manualMigration: null,
@@ -492,6 +502,11 @@ function buildPayload() {
     databaseName: needDatabase ? form.databaseName : "",
     databasePassword: needDatabase ? form.databasePassword : "",
     databaseEngine: needDatabase ? form.databaseEngine : undefined,
+    dbHostEnvKey: needDatabase ? form.dbHostEnvKey || undefined : undefined,
+    dbPortEnvKey: needDatabase ? form.dbPortEnvKey || undefined : undefined,
+    dbNameEnvKey: needDatabase ? form.dbNameEnvKey || undefined : undefined,
+    dbUsernameEnvKey: needDatabase ? form.dbUsernameEnvKey || undefined : undefined,
+    dbPasswordEnvKey: needDatabase ? form.dbPasswordEnvKey || undefined : undefined,
     manualMigration: needDatabase ? form.manualMigration : undefined,
     neededServices: form.hasBackend ? form.neededServices : [],
     envList: form.envVars.filter((v) => v.key && v.value),
@@ -928,6 +943,52 @@ async function handleRetry() {
                       v-model="form.databasePassword"
                       :error="errors.databasePassword"
                     />
+                  </div>
+
+                  <div class="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      class="w-fit text-left text-xs font-medium text-primary"
+                      @click="showDbEnvKeyAdvanced = !showDbEnvKeyAdvanced"
+                    >
+                      {{ showDbEnvKeyAdvanced ? "▾" : "▸" }} 고급: 환경변수 이름 커스터마이즈
+                    </button>
+                    <p v-if="!showDbEnvKeyAdvanced" class="text-xs text-ink-500">
+                      기본값(DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD)을 그대로 컨테이너에
+                      주입합니다. 내 앱이 다른 이름을 기대한다면(예: DBUSER) 펼쳐서 지정하세요.
+                    </p>
+                    <div v-else class="grid grid-cols-1 gap-4 rounded-lg border border-border bg-background p-3 sm:grid-cols-2">
+                      <BaseInput
+                        id="dbHostEnvKey"
+                        label="호스트 환경변수 이름"
+                        placeholder="DB_HOST"
+                        v-model="form.dbHostEnvKey"
+                      />
+                      <BaseInput
+                        id="dbPortEnvKey"
+                        label="포트 환경변수 이름"
+                        placeholder="DB_PORT"
+                        v-model="form.dbPortEnvKey"
+                      />
+                      <BaseInput
+                        id="dbNameEnvKey"
+                        label="DB 이름 환경변수 이름"
+                        placeholder="DB_NAME"
+                        v-model="form.dbNameEnvKey"
+                      />
+                      <BaseInput
+                        id="dbUsernameEnvKey"
+                        label="사용자명 환경변수 이름"
+                        placeholder="DB_USERNAME"
+                        v-model="form.dbUsernameEnvKey"
+                      />
+                      <BaseInput
+                        id="dbPasswordEnvKey"
+                        label="비밀번호 환경변수 이름"
+                        placeholder="DB_PASSWORD"
+                        v-model="form.dbPasswordEnvKey"
+                      />
+                    </div>
                   </div>
 
                   <!-- 테이블 자동 생성 여부는 프레임워크에서 추측하지 않고 직접 물어본다 - 같은
