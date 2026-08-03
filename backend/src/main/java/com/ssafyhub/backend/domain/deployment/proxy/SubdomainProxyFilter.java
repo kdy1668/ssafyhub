@@ -37,10 +37,12 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(SubdomainProxyFilter.class);
 
     // 업스트림으로 넘기면 안 되는 요청 헤더(hop-by-hop) + 압축 유발 방지(accept-encoding).
+    // x-forwarded-*는 클라이언트가 스스로 보낸 값을 그대로 믿으면 위조될 수 있어서 일단 걷어내고,
+    // 아래 send()에서 이 필터가 실제로 확인한 값으로 다시 채워 넣는다.
     private static final Set<String> REQUEST_SKIP = Set.of(
             "host", "connection", "content-length", "transfer-encoding", "keep-alive",
             "upgrade", "te", "trailer", "proxy-authenticate", "proxy-authorization",
-            "expect", "accept-encoding");
+            "expect", "accept-encoding", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port");
     // 클라이언트로 되돌리면 안 되는 응답 헤더(컨테이너가 관리).
     private static final Set<String> RESPONSE_SKIP = Set.of(
             "connection", "content-length", "transfer-encoding", "keep-alive",
@@ -177,6 +179,15 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
                 }
             }
         });
+
+        // 백엔드에 "실제 공개 주소"를 알려준다 - 안 그러면 백엔드가 절대 URL(리다이렉트 등)을
+        // 만들 때 이 필터가 백엔드로 보낸 내부 주소(예: 13.124.149.32)를 자기가 받은 요청인 줄
+        // 알고 그대로 써버린다. Spring Boot는 server.forward-headers-strategy가 켜져 있어야
+        // 이 헤더들을 신뢰하므로, 배포 시 SPRING_BOOT 스택에 그 설정을 같이 주입해둔다
+        // (deploy-engine DeploymentProcessor 참고).
+        builder.header("X-Forwarded-Host", request.getServerName());
+        builder.header("X-Forwarded-Proto", request.getScheme());
+        builder.header("X-Forwarded-Port", String.valueOf(request.getServerPort()));
 
         return httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
     }
