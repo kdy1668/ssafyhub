@@ -104,6 +104,24 @@ public class Deployment {
     @Column(name = "database_engine", length = 20)
     private String databaseEngine;
 
+    // DB 접속 정보를 어떤 환경변수 이름으로 컨테이너에 주입할지. 플랫폼 기본 이름(DB_HOST 등)을
+    // 앱이 안 쓰는 경우(예: DBUSER, MYSQL_HOST처럼 직접 지은 이름)를 위한 탈출구 - 비어있으면
+    // getEffectiveXxxEnvKey()가 기본 이름을 대신 돌려준다.
+    @Column(name = "db_host_env_key", length = 100)
+    private String dbHostEnvKey;
+
+    @Column(name = "db_port_env_key", length = 100)
+    private String dbPortEnvKey;
+
+    @Column(name = "db_name_env_key", length = 100)
+    private String dbNameEnvKey;
+
+    @Column(name = "db_username_env_key", length = 100)
+    private String dbUsernameEnvKey;
+
+    @Column(name = "db_password_env_key", length = 100)
+    private String dbPasswordEnvKey;
+
     // DB 초기화(테이블 생성) SQL - MyBatis 등 자동 생성이 안 되는 프레임워크를 쓸 때만 선택 업로드.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
@@ -150,6 +168,11 @@ public class Deployment {
             String databaseName,
             String encryptedDatabasePassword,
             String databaseEngine,
+            String dbHostEnvKey,
+            String dbPortEnvKey,
+            String dbNameEnvKey,
+            String dbUsernameEnvKey,
+            String dbPasswordEnvKey,
             Artifact schemaArtifact,
             String neededServices,
             LocalDateTime requestedAt,
@@ -167,6 +190,11 @@ public class Deployment {
         this.databaseName = databaseName;
         this.encryptedDatabasePassword = encryptedDatabasePassword;
         this.databaseEngine = databaseEngine;
+        this.dbHostEnvKey = dbHostEnvKey;
+        this.dbPortEnvKey = dbPortEnvKey;
+        this.dbNameEnvKey = dbNameEnvKey;
+        this.dbUsernameEnvKey = dbUsernameEnvKey;
+        this.dbPasswordEnvKey = dbPasswordEnvKey;
         this.schemaArtifact = schemaArtifact;
         this.neededServices = neededServices;
         this.requestedAt = requestedAt;
@@ -185,6 +213,26 @@ public class Deployment {
             return null;
         }
         return (databaseEngine == null || databaseEngine.isBlank()) ? "MYSQL" : databaseEngine;
+    }
+
+    public String getEffectiveDbHostEnvKey() {
+        return (dbHostEnvKey == null || dbHostEnvKey.isBlank()) ? "DB_HOST" : dbHostEnvKey;
+    }
+
+    public String getEffectiveDbPortEnvKey() {
+        return (dbPortEnvKey == null || dbPortEnvKey.isBlank()) ? "DB_PORT" : dbPortEnvKey;
+    }
+
+    public String getEffectiveDbNameEnvKey() {
+        return (dbNameEnvKey == null || dbNameEnvKey.isBlank()) ? "DB_NAME" : dbNameEnvKey;
+    }
+
+    public String getEffectiveDbUsernameEnvKey() {
+        return (dbUsernameEnvKey == null || dbUsernameEnvKey.isBlank()) ? "DB_USERNAME" : dbUsernameEnvKey;
+    }
+
+    public String getEffectiveDbPasswordEnvKey() {
+        return (dbPasswordEnvKey == null || dbPasswordEnvKey.isBlank()) ? "DB_PASSWORD" : dbPasswordEnvKey;
     }
 
     public void changeVisibility(Visibility visibility) {

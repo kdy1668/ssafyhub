@@ -60,6 +60,32 @@ public record DeploymentCreateRequest(
                 example = "MYSQL", nullable = true)
         String databaseEngine,
 
+        @Schema(description = "DB 호스트를 주입할 환경변수 이름. 비워두면 DB_HOST를 쓴다. 앱이 DB_HOST가 " +
+                "아닌 다른 이름(예: MYSQL_HOST)을 기대하면 여기 지정하세요.", example = "DB_HOST", nullable = true)
+        @Size(max = 100, message = "환경변수 이름은 100자를 초과할 수 없습니다.")
+        String dbHostEnvKey,
+
+        @Schema(description = "DB 포트를 주입할 환경변수 이름. 비워두면 DB_PORT를 쓴다.",
+                example = "DB_PORT", nullable = true)
+        @Size(max = 100, message = "환경변수 이름은 100자를 초과할 수 없습니다.")
+        String dbPortEnvKey,
+
+        @Schema(description = "DB 이름을 주입할 환경변수 이름. 비워두면 DB_NAME을 쓴다.",
+                example = "DB_NAME", nullable = true)
+        @Size(max = 100, message = "환경변수 이름은 100자를 초과할 수 없습니다.")
+        String dbNameEnvKey,
+
+        @Schema(description = "DB 사용자명을 주입할 환경변수 이름. 비워두면 DB_USERNAME을 쓴다(DB_USER도 " +
+                "항상 같이 주입되긴 하지만, 그 외 이름을 쓰는 앱이면 여기 지정하세요).",
+                example = "DB_USER", nullable = true)
+        @Size(max = 100, message = "환경변수 이름은 100자를 초과할 수 없습니다.")
+        String dbUsernameEnvKey,
+
+        @Schema(description = "DB 비밀번호를 주입할 환경변수 이름. 비워두면 DB_PASSWORD를 쓴다.",
+                example = "DB_PASSWORD", nullable = true)
+        @Size(max = 100, message = "환경변수 이름은 100자를 초과할 수 없습니다.")
+        String dbPasswordEnvKey,
+
         @Schema(description = "테이블이 앱 시작 시 자동으로 생성되는지 여부(JPA의 ddl-auto, Django의 migrate, " +
                 "Sequelize의 sync() 등을 쓰면 true). databaseName을 입력했다면(=DB를 쓴다면) 필수입니다. " +
                 "false면 schemaArtifactId가 필수이고, true면 사용할 수 없습니다.", example = "false", nullable = true)

@@ -164,6 +164,7 @@ class DeploymentServiceTest {
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "app_db", "db-password",
                 null,
+                null, null, null, null, null,
                 false,
                 null,
                 null,
@@ -233,7 +234,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, null, "SPRING_BOOT", "21", 8080, "app_db", "db-password",
-                null, false, null, null,
+                null, null, null, null, null, null, false, null, null,
                 List.of(new DeploymentEnvRequest("JWT_SECRET", "secret-value")),
                 null, null
         );
@@ -262,7 +263,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", null, 2L, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null,
                 List.of(new DeploymentEnvRequest("VITE_API_BASE", "https://api.example.com")),
                 null, null
         );
@@ -284,7 +285,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null,
                 List.of(new DeploymentEnvRequest("A", "b")),
                 null, null
         );
@@ -306,7 +307,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "app_db", "db-password",
-                "MYSQL", true, null, null,
+                "MYSQL", null, null, null, null, null, true, null, null,
                 List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
                 null, null
         );
@@ -329,7 +330,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "app_db", "db-password",
-                "MYSQL", false, 9L, null,
+                "MYSQL", null, null, null, null, null, false, 9L, null,
                 List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
                 null, null
         );
@@ -352,7 +353,7 @@ class DeploymentServiceTest {
 
         DeploymentCreateRequest request = new DeploymentCreateRequest(
                 "demo-service", 1L, 2L, "SPRING_BOOT", "21", 8080, "app_db", "db-password",
-                "MYSQL", null, null, null,
+                "MYSQL", null, null, null, null, null, null, null, null,
                 List.of(new DeploymentEnvRequest("SPRING_PROFILES_ACTIVE", "prod")),
                 null, null
         );
@@ -376,6 +377,11 @@ class DeploymentServiceTest {
                 8080,
                 "app_db",
                 "db-password",
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 false,
                 null,
