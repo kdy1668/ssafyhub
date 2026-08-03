@@ -954,40 +954,62 @@ async function handleRetry() {
                       {{ showDbEnvKeyAdvanced ? "▾" : "▸" }} 고급: 환경변수 이름 커스터마이즈
                     </button>
                     <p v-if="!showDbEnvKeyAdvanced" class="text-xs text-ink-500">
-                      기본값(DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD)을 그대로 컨테이너에
-                      주입합니다. 내 앱이 다른 이름을 기대한다면(예: DBUSER) 펼쳐서 지정하세요.
+                      아래 5가지 값을 컨테이너 환경변수로 넣어줍니다 - 호스트/포트/사용자명은
+                      플랫폼이 정하는 고정값이고, DB 이름/비밀번호는 위에서 입력한 값 그대로예요.
+                      <br />기본 이름: <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_HOST</code>(값: 배포마다 자동 생성되는 내부 주소),
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_PORT</code>(값: 3306 고정),
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_NAME</code>(값: 위에서 입력한 DB 이름),
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_USERNAME</code>(값: root 고정),
+                      <code class="rounded bg-ink-900 px-1 py-0.5 text-white">DB_PASSWORD</code>(값: 위에서 입력한 비밀번호).
+                      내 앱이 이 이름들이 아니라 다른 이름을 읽는다면(예: DBUSER) 펼쳐서
+                      이름표만 바꿔주세요 - 값 자체는 그대로입니다.
                     </p>
                     <div v-else class="grid grid-cols-1 gap-4 rounded-lg border border-border bg-background p-3 sm:grid-cols-2">
-                      <BaseInput
-                        id="dbHostEnvKey"
-                        label="호스트 환경변수 이름"
-                        placeholder="DB_HOST"
-                        v-model="form.dbHostEnvKey"
-                      />
-                      <BaseInput
-                        id="dbPortEnvKey"
-                        label="포트 환경변수 이름"
-                        placeholder="DB_PORT"
-                        v-model="form.dbPortEnvKey"
-                      />
-                      <BaseInput
-                        id="dbNameEnvKey"
-                        label="DB 이름 환경변수 이름"
-                        placeholder="DB_NAME"
-                        v-model="form.dbNameEnvKey"
-                      />
-                      <BaseInput
-                        id="dbUsernameEnvKey"
-                        label="사용자명 환경변수 이름"
-                        placeholder="DB_USERNAME"
-                        v-model="form.dbUsernameEnvKey"
-                      />
-                      <BaseInput
-                        id="dbPasswordEnvKey"
-                        label="비밀번호 환경변수 이름"
-                        placeholder="DB_PASSWORD"
-                        v-model="form.dbPasswordEnvKey"
-                      />
+                      <div class="flex flex-col gap-1">
+                        <BaseInput
+                          id="dbHostEnvKey"
+                          label="호스트 환경변수 이름"
+                          placeholder="DB_HOST"
+                          v-model="form.dbHostEnvKey"
+                        />
+                        <p class="text-xs text-ink-500">값: 배포마다 자동 생성되는 내부 접속 주소(직접 입력 불가)</p>
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <BaseInput
+                          id="dbPortEnvKey"
+                          label="포트 환경변수 이름"
+                          placeholder="DB_PORT"
+                          v-model="form.dbPortEnvKey"
+                        />
+                        <p class="text-xs text-ink-500">값: 3306 고정</p>
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <BaseInput
+                          id="dbNameEnvKey"
+                          label="DB 이름 환경변수 이름"
+                          placeholder="DB_NAME"
+                          v-model="form.dbNameEnvKey"
+                        />
+                        <p class="text-xs text-ink-500">값: 위 "DB 이름"에 입력한 값 그대로</p>
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <BaseInput
+                          id="dbUsernameEnvKey"
+                          label="사용자명 환경변수 이름"
+                          placeholder="DB_USERNAME"
+                          v-model="form.dbUsernameEnvKey"
+                        />
+                        <p class="text-xs text-ink-500">값: root 고정</p>
+                      </div>
+                      <div class="flex flex-col gap-1">
+                        <BaseInput
+                          id="dbPasswordEnvKey"
+                          label="비밀번호 환경변수 이름"
+                          placeholder="DB_PASSWORD"
+                          v-model="form.dbPasswordEnvKey"
+                        />
+                        <p class="text-xs text-ink-500">값: 위 "DB 비밀번호"에 입력한 값 그대로</p>
+                      </div>
                     </div>
                   </div>
 
