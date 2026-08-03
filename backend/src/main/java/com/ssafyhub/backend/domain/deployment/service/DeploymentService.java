@@ -311,9 +311,12 @@ public class DeploymentService {
         DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
 
-        // 실제로 떠 있을 때(endpoint_url 존재)만 접속 주소를 서브도메인으로 노출한다.
-        // endpoint_url(IP+경로)은 프록시 내부 타깃이라 그대로 두고, 사용자에겐 {학번}.도메인 을 보여준다.
-        String accessUrl = deployment.getEndpointUrl() != null
+        // 실제로 떠서(RUNNING) 접속 가능할 때만 접속 주소를 서브도메인으로 노출한다.
+        // endpoint_url(IP+경로)은 백엔드가 있을 때만 채워지는 프록시 내부 타깃이라, 프론트만
+        // 배포한 경우(hasBackend=false)는 절대 채워지지 않는다 - endpoint_url 존재 여부로
+        // 판단하면 프론트만 있는 배포는 정상적으로 떠 있어도 URL이 영원히 안 보이게 된다.
+        // 실제 접속 가능 여부는 최신 로그 상태(RUNNING)로 판단해야 한다.
+        String accessUrl = latestLog.getStatus() == DeploymentStatus.RUNNING
                 ? "https://%s.%s".formatted(deployment.getSlug(), publicDomain)
                 : null;
 
