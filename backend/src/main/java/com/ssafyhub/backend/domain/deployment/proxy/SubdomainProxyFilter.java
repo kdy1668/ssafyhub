@@ -114,8 +114,15 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
             }
             proxy(request, response, backendBase + backendUri + suffix, backendBase + uri + suffix);
         } else {
-            // 그 외 전부 → 프론트 정적(S3 정적 웹 호스팅)의 {slug}/... 로. 루트/없는 경로는 S3가 index.html로 폴백.
-            proxy(request, response, frontendWebsiteBase + "/" + slug + uri + suffix, null);
+            // 그 외 전부 → 프론트 정적(S3 정적 웹 호스팅)의 {slug}/... 로.
+            // S3 정적 웹 호스팅의 ErrorDocument는 버킷 전체에 하나만(버킷 루트 기준 "index.html")
+            // 걸 수 있어서, 이 버킷처럼 슬러그 폴더 하나에 여러 프로젝트를 같이 담는 구조에서는
+            // 동작하지 않는다(엉뚱하게 버킷 루트의 index.html을 찾다가 또 404). 그래서 SPA
+            // 클라이언트 라우팅(예: /login 새로고침)을 지원하려면 여기서 직접 404를 감지해
+            // 같은 슬러그의 index.html로 폴백해야 한다.
+            String target = frontendWebsiteBase + "/" + slug + uri + suffix;
+            String fallback = frontendWebsiteBase + "/" + slug + "/index.html";
+            proxy(request, response, target, fallback);
         }
     }
 
