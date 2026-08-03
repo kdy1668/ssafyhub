@@ -5,8 +5,13 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
+    defer-datasource-initialization: true
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:update}
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/allow-frontend-only-deployments.sql
 
 jwt:
   secret: ${JWT_SECRET}
