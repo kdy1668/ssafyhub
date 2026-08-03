@@ -127,6 +127,10 @@ const statusConfig = computed(() => {
 
 // 현재 배포가 성공(실행 중) 상태인지 판별
 const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "RUNNING");
+// 환경변수 수정은 진행 중(PENDING/BUILDING/DEPLOYING)이 아닐 때만 가능 - 백엔드 게이팅과 동일한 조건.
+const canEditEnv = computed(() =>
+  ["RUNNING", "FAILED"].includes(currentDeployment.value?.status)
+);
 </script>
 
 <template>
@@ -194,6 +198,16 @@ const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "R
             >
               <AppIcon name="chart" class="h-4 w-4" />
               리소스
+            </button>
+
+            <!-- 진행 중이 아닐 때만 환경변수 수정 버튼 노출(백엔드 게이팅과 동일) -->
+            <button
+              v-if="canEditEnv"
+              @click="router.push('/deployments/env')"
+              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+            >
+              <AppIcon name="settings" class="h-4 w-4" />
+              환경변수
             </button>
           </div>
         </div>

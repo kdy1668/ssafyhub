@@ -375,6 +375,46 @@ public class DeploymentService {
         return DeploymentStatusResponse.of(deployment, latestLog, accessUrl);
     }
 
+    /** 현재 설정된 환경변수 목록을 복호화해 반환한다(수정 화면 초기값 채우기용). 본인 배포만 조회 가능. */
+    public List<com.ssafyhub.backend.domain.deployment.dto.DeploymentEnvResponse> getDeploymentEnv(
+            Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        return deploymentEnvRepository.findByDeployment_IdOrderByIdAsc(deployment.getId()).stream()
+                .map(env -> new com.ssafyhub.backend.domain.deployment.dto.DeploymentEnvResponse(
+                        env.getEnvKey(), secretEncryptor.decrypt(env.getEncryptedValue())))
+                .toList();
+    }
+
+    /**
+     * 환경변수만 새 값으로 교체하고 같은 아티팩트로 재배포를 트리거한다(아티팩트 재업로드 불필요).
+     * deploy-engine의 /redeploy는 새 배포와 동일한 파이프라인을 다시 돌리므로, 여기서는 DB의
+     * 환경변수 행만 갈아끼우고 트리거만 호출하면 된다 - 실제 반영(컨테이너 재기동)은 그쪽 스케줄러 몫.
+     * 이미 배포가 진행 중(PENDING/BUILDING/DEPLOYING)이면 값이 꼬일 수 있어 거부한다.
+     */
+    @Transactional
+    public void updateDeploymentEnv(Long memberId, Long deploymentId, List<DeploymentEnvRequest> env) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+        if (latestLog.getStatus() != DeploymentStatus.RUNNING && latestLog.getStatus() != DeploymentStatus.FAILED) {
+            throw new BusinessException(ErrorCode.DEPLOYMENT_IN_PROGRESS);
+        }
+
+        validateUniqueEnvKeys(env);
+
+        deploymentEnvRepository.deleteByDeployment_Id(deployment.getId());
+        List<DeploymentEnv> deploymentEnvs = env.stream()
+                .map(e -> new DeploymentEnv(deployment, e.key(), secretEncryptor.encrypt(e.value())))
+                .toList();
+        deploymentEnvRepository.saveAll(deploymentEnvs);
+
+        devOpsDeploymentClient.redeploy(deployment.getId());
+    }
+
     /**
      * 배포를 삭제한다. 실행 중인 사용자 서버(k8s Deployment/Service/Ingress/Middleware)를 먼저
      * 내리고, 성공한 뒤에 DB 행을 지운다.
