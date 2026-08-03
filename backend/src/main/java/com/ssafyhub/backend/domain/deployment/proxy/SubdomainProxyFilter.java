@@ -53,7 +53,14 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
     private final DeploymentRepository deploymentRepository;
     private final String publicDomain;
     private final String frontendWebsiteBase; // S3 정적 웹 호스팅 엔드포인트(끝에 슬래시 없음)
+    // version을 명시하지 않으면 JDK 기본값(HTTP/2 우선)이 적용되어, cleartext(http://) 대상에도
+    // 매 연결마다 h2c 업그레이드(Connection: Upgrade, Upgrade: h2c, HTTP2-Settings 헤더)를 얹어
+    // 보낸다. 배포되는 백엔드는 전부 평범한 HTTP/1.1만 쓰는데, uvicorn(h11)처럼 업그레이드
+    // 요청을 엄격하게 처리하는 서버는 이 얹힌 헤더 때문에 특히 body가 있는 POST에서 파싱이
+    // 깨져 "Invalid HTTP request received"를 응답하거나, 커넥션 재사용 시 다음 요청 바디가
+    // 오염되는 문제가 있었다(Spring/Node는 조용히 무시하고 넘어가서 드러나지 않았음).
     private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(5))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
@@ -114,8 +121,15 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
             }
             proxy(request, response, backendBase + backendUri + suffix, backendBase + uri + suffix);
         } else {
-            // 그 외 전부 → 프론트 정적(S3 정적 웹 호스팅)의 {slug}/... 로. 루트/없는 경로는 S3가 index.html로 폴백.
-            proxy(request, response, frontendWebsiteBase + "/" + slug + uri + suffix, null);
+            // 그 외 전부 → 프론트 정적(S3 정적 웹 호스팅)의 {slug}/... 로.
+            // S3 정적 웹 호스팅의 ErrorDocument는 버킷 전체에 하나만(버킷 루트 기준 "index.html")
+            // 걸 수 있어서, 이 버킷처럼 슬러그 폴더 하나에 여러 프로젝트를 같이 담는 구조에서는
+            // 동작하지 않는다(엉뚱하게 버킷 루트의 index.html을 찾다가 또 404). 그래서 SPA
+            // 클라이언트 라우팅(예: /login 새로고침)을 지원하려면 여기서 직접 404를 감지해
+            // 같은 슬러그의 index.html로 폴백해야 한다.
+            String target = frontendWebsiteBase + "/" + slug + uri + suffix;
+            String fallback = frontendWebsiteBase + "/" + slug + "/index.html";
+            proxy(request, response, target, fallback);
         }
     }
 
