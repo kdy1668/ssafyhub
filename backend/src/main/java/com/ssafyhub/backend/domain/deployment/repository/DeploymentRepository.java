@@ -1,13 +1,11 @@
 package com.ssafyhub.backend.domain.deployment.repository;
 
 import com.ssafyhub.backend.domain.deployment.entity.Deployment;
-import com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentResponse;
+import com.ssafyhub.backend.domain.deployment.enums.Visibility;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 public interface DeploymentRepository extends JpaRepository<Deployment, Long> {
 
@@ -20,22 +18,10 @@ public interface DeploymentRepository extends JpaRepository<Deployment, Long> {
 
     Optional<Deployment> findByMember_Id(Long memberId);
 
-    @Query("""
-            SELECT new com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentResponse(
-                d.id, d.member.teamName, d.projectName, d.description, d.endpointUrl, d.updatedAt
-            )
-            FROM Deployment d
-            WHERE d.visibility = com.ssafyhub.backend.domain.deployment.enums.Visibility.PUBLIC
-            ORDER BY d.updatedAt DESC
-            """)
-    Page<PublicDeploymentResponse> findPublicDeployments(Pageable pageable);
+    // 쇼케이스 목록/상세 조회용. endpoint_url(내부 프록시 타깃, 예: http://13.124.149.32/team-xxx/slug)은
+    // 방문자가 직접 들어가면 안 되는 내부 주소라 여기서 노출하지 않는다 - 공개 접속 주소는
+    // ShowcaseService에서 slug로 서브도메인 URL을 만들어 채운다.
+    Page<Deployment> findByVisibilityOrderByUpdatedAtDesc(Visibility visibility, Pageable pageable);
 
-    @Query("""
-            SELECT new com.ssafyhub.backend.domain.showcase.dto.PublicDeploymentResponse(
-                d.id, d.member.teamName, d.projectName, d.description, d.endpointUrl, d.updatedAt
-            )
-            FROM Deployment d
-            WHERE d.id = :id AND d.visibility = com.ssafyhub.backend.domain.deployment.enums.Visibility.PUBLIC
-            """)
-    Optional<PublicDeploymentResponse> findPublicDeploymentById(@Param("id") Long id);
+    Optional<Deployment> findByIdAndVisibility(Long id, Visibility visibility);
 }
