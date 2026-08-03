@@ -53,7 +53,14 @@ public class SubdomainProxyFilter extends OncePerRequestFilter {
     private final DeploymentRepository deploymentRepository;
     private final String publicDomain;
     private final String frontendWebsiteBase; // S3 정적 웹 호스팅 엔드포인트(끝에 슬래시 없음)
+    // version을 명시하지 않으면 JDK 기본값(HTTP/2 우선)이 적용되어, cleartext(http://) 대상에도
+    // 매 연결마다 h2c 업그레이드(Connection: Upgrade, Upgrade: h2c, HTTP2-Settings 헤더)를 얹어
+    // 보낸다. 배포되는 백엔드는 전부 평범한 HTTP/1.1만 쓰는데, uvicorn(h11)처럼 업그레이드
+    // 요청을 엄격하게 처리하는 서버는 이 얹힌 헤더 때문에 특히 body가 있는 POST에서 파싱이
+    // 깨져 "Invalid HTTP request received"를 응답하거나, 커넥션 재사용 시 다음 요청 바디가
+    // 오염되는 문제가 있었다(Spring/Node는 조용히 무시하고 넘어가서 드러나지 않았음).
     private final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(5))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
