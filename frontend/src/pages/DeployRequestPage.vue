@@ -868,6 +868,26 @@ async function handleRetry() {
                 <label class="mb-1 block text-sm font-medium text-ink-700">
                   프론트엔드 아티팩트 (.zip, 빌드 완료)
                 </label>
+
+                <!-- 프론트+백엔드 분리 배포일 때 제일 흔하게 겪는 실수를 미리 막는 안내.
+                     zip을 만들기 "전에" 코드를 고치도록, 업로드 입력 위에 눈에 띄게 배치한다. -->
+                <div v-if="form.hasBackend" class="mb-3 rounded-lg border border-primary/30 bg-primary-light p-3">
+                  <p class="text-xs font-semibold text-primary">
+                    ⚠ zip으로 압축하기 전에 프론트 코드에서 백엔드를 호출하는 부분을 확인하세요
+                  </p>
+                  <p class="mt-1 text-xs text-ink-700">
+                    <code class="rounded bg-ink-900 px-1 py-0.5 text-white">http://localhost:8080</code>처럼
+                    절대주소로 백엔드를 호출하게 짜여 있다면, 배포 후에는 접속한 사람 자신의
+                    컴퓨터로 요청이 가버려서 항상 실패해요(프론트 JS는 서버가 아니라 접속한 사람의
+                    브라우저에서 실행되기 때문). 대신 <code class="rounded bg-ink-900 px-1 py-0.5 text-white">/api/...</code>처럼
+                    <strong>상대경로</strong>로 호출하도록 고쳐서 빌드해주세요 - 그러면 실제 배포
+                    주소로 자동으로 연결됩니다.
+                  </p>
+                  <pre class="mt-2 overflow-x-auto rounded bg-ink-900 p-2 text-[11px] leading-relaxed text-white"><code>// 예시(axios)
+axios.create({ baseURL: "/api/" })   // O
+axios.create({ baseURL: "http://localhost:8080/" })   // X</code></pre>
+                </div>
+
                 <input
                   type="file"
                   accept=".zip"
