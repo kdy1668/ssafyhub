@@ -247,6 +247,10 @@ public class DeploymentService {
 
         int cpuPercent = 0;
         long memoryUsedMb = 0;
+        long networkReceiveBytes = 0;
+        long networkTransmitBytes = 0;
+        long diskUsageBytes = 0;
+        long requestsTotal = 0;
         if (metrics != null) {
             if (metrics.cpuCores() != null) {
                 cpuPercent = (int) Math.round(metrics.cpuCores() * 100); // 코어 사용량 → % (1코어=100%)
@@ -254,12 +258,26 @@ public class DeploymentService {
             if (metrics.memoryBytes() != null) {
                 memoryUsedMb = metrics.memoryBytes() / (1024 * 1024);
             }
+            if (metrics.networkReceiveBytes() != null) {
+                networkReceiveBytes = metrics.networkReceiveBytes();
+            }
+            if (metrics.networkTransmitBytes() != null) {
+                networkTransmitBytes = metrics.networkTransmitBytes();
+            }
+            if (metrics.diskUsageBytes() != null) {
+                diskUsageBytes = metrics.diskUsageBytes();
+            }
+            if (metrics.requestsTotal() != null) {
+                requestsTotal = metrics.requestsTotal();
+            }
         }
         // deploy-engine이 컨테이너 메모리 상한을 512Mi 고정으로 배포하므로 총량은 512로 본다.
         long memoryTotalMb = 512;
 
         return new com.ssafyhub.backend.domain.deployment.dto.ResourceUsageResponse(
-                deployment.getId(), cpuPercent, memoryUsedMb, memoryTotalMb, LocalDateTime.now());
+                deployment.getId(), cpuPercent, memoryUsedMb, memoryTotalMb,
+                networkReceiveBytes, networkTransmitBytes, diskUsageBytes, requestsTotal,
+                LocalDateTime.now());
     }
 
     /**
@@ -282,6 +300,14 @@ public class DeploymentService {
                 new java.util.ArrayList<>();
         java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> memory =
                 new java.util.ArrayList<>();
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> networkReceive =
+                new java.util.ArrayList<>();
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> networkTransmit =
+                new java.util.ArrayList<>();
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> disk =
+                new java.util.ArrayList<>();
+        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> requests =
+                new java.util.ArrayList<>();
         if (range != null) {
             if (range.cpuCores() != null) {
                 range.cpuCores().forEach(p -> cpu.add(
@@ -293,8 +319,29 @@ public class DeploymentService {
                         new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
                                 p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
             }
+            if (range.networkReceiveBytes() != null) {
+                range.networkReceiveBytes().forEach(p -> networkReceive.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
+            }
+            if (range.networkTransmitBytes() != null) {
+                range.networkTransmitBytes().forEach(p -> networkTransmit.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
+            }
+            if (range.diskUsageBytes() != null) {
+                range.diskUsageBytes().forEach(p -> disk.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
+            }
+            if (range.requestsTotal() != null) {
+                range.requestsTotal().forEach(p -> requests.add(
+                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
+                                p.epochSeconds(), p.value() != null ? p.value() : 0)));
+            }
         }
-        return new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse(cpu, memory);
+        return new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse(
+                cpu, memory, networkReceive, networkTransmit, disk, requests);
     }
 
     /** 배포 진행 로그(깃헙 액션식 단계별) - 본인 배포만 조회 가능. */
@@ -326,6 +373,46 @@ public class DeploymentService {
                 : null;
 
         return DeploymentStatusResponse.of(deployment, latestLog, accessUrl);
+    }
+
+    /** 현재 설정된 환경변수 목록을 복호화해 반환한다(수정 화면 초기값 채우기용). 본인 배포만 조회 가능. */
+    public List<com.ssafyhub.backend.domain.deployment.dto.DeploymentEnvResponse> getDeploymentEnv(
+            Long memberId, Long deploymentId) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        return deploymentEnvRepository.findByDeployment_IdOrderByIdAsc(deployment.getId()).stream()
+                .map(env -> new com.ssafyhub.backend.domain.deployment.dto.DeploymentEnvResponse(
+                        env.getEnvKey(), secretEncryptor.decrypt(env.getEncryptedValue())))
+                .toList();
+    }
+
+    /**
+     * 환경변수만 새 값으로 교체하고 같은 아티팩트로 재배포를 트리거한다(아티팩트 재업로드 불필요).
+     * deploy-engine의 /redeploy는 새 배포와 동일한 파이프라인을 다시 돌리므로, 여기서는 DB의
+     * 환경변수 행만 갈아끼우고 트리거만 호출하면 된다 - 실제 반영(컨테이너 재기동)은 그쪽 스케줄러 몫.
+     * 이미 배포가 진행 중(PENDING/BUILDING/DEPLOYING)이면 값이 꼬일 수 있어 거부한다.
+     */
+    @Transactional
+    public void updateDeploymentEnv(Long memberId, Long deploymentId, List<DeploymentEnvRequest> env) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+        if (latestLog.getStatus() != DeploymentStatus.RUNNING && latestLog.getStatus() != DeploymentStatus.FAILED) {
+            throw new BusinessException(ErrorCode.DEPLOYMENT_IN_PROGRESS);
+        }
+
+        validateUniqueEnvKeys(env);
+
+        deploymentEnvRepository.deleteByDeployment_Id(deployment.getId());
+        List<DeploymentEnv> deploymentEnvs = env.stream()
+                .map(e -> new DeploymentEnv(deployment, e.key(), secretEncryptor.encrypt(e.value())))
+                .toList();
+        deploymentEnvRepository.saveAll(deploymentEnvs);
+
+        devOpsDeploymentClient.redeploy(deployment.getId());
     }
 
     /**

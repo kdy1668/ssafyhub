@@ -56,4 +56,21 @@ public class SecretEncryptor {
             throw new IllegalStateException("Failed to encrypt secret value.", exception);
         }
     }
+
+    /** encrypt()로 저장한 "v1:{iv}:{암호문}" 형식의 값을 원문으로 복호화한다. */
+    public String decrypt(String encoded) {
+        String[] parts = encoded.split(":", 3);
+        if (parts.length != 3 || !VERSION.equals(parts[0])) {
+            throw new IllegalStateException("Unsupported encrypted value format.");
+        }
+        try {
+            byte[] iv = Base64.getDecoder().decode(parts[1]);
+            byte[] cipherText = Base64.getDecoder().decode(parts[2]);
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(TAG_LENGTH_BITS, iv));
+            return new String(cipher.doFinal(cipherText), StandardCharsets.UTF_8);
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Failed to decrypt secret value.", exception);
+        }
+    }
 }

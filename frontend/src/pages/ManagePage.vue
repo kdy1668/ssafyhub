@@ -7,7 +7,6 @@ import BaseSkeleton from "../components/common/BaseSkeleton.vue";
 import BaseCard from "../components/common/BaseCard.vue";
 import AppIcon from "../components/common/AppIcon.vue";
 import ConfirmModal from "../components/common/ConfirmModal.vue";
-import ResourceModal from "../components/manage/ResourceModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
 import { useMyDeployment } from "../composables/useDeployments";
@@ -34,9 +33,6 @@ const {
 // 아직 배포한 적이 없는 사용자(404)는 에러가 아니라 "배포 없음" 빈 상태로 취급
 const hasNoDeployment = computed(() => isError.value && error.value?.status === 404);
 const hasLoadError = computed(() => isError.value && error.value?.status !== 404);
-
-// 리소스 모달 열림 상태 관리
-const isResourceModalOpen = ref(false);
 
 // --- 서버 제어 + 확인 모달 ---
 const CONTROL_META = {
@@ -131,6 +127,10 @@ const statusConfig = computed(() => {
 
 // 현재 배포가 성공(실행 중) 상태인지 판별
 const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "RUNNING");
+// 환경변수 수정은 진행 중(PENDING/BUILDING/DEPLOYING)이 아닐 때만 가능 - 백엔드 게이팅과 동일한 조건.
+const canEditEnv = computed(() =>
+  ["RUNNING", "FAILED"].includes(currentDeployment.value?.status)
+);
 </script>
 
 <template>
@@ -193,11 +193,21 @@ const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "R
             <!-- 성공/실행 중 상태일 때만 리소스 보기 버튼 노출 -->
             <button
               v-if="isRunningOrSuccess"
-              @click="isResourceModalOpen = true"
+              @click="router.push('/deployments/resources')"
               class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
             >
               <AppIcon name="chart" class="h-4 w-4" />
               리소스
+            </button>
+
+            <!-- 진행 중이 아닐 때만 환경변수 수정 버튼 노출(백엔드 게이팅과 동일) -->
+            <button
+              v-if="canEditEnv"
+              @click="router.push('/deployments/env')"
+              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+            >
+              <AppIcon name="settings" class="h-4 w-4" />
+              환경변수
             </button>
           </div>
         </div>
@@ -259,14 +269,6 @@ const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "R
         />
       </div>
     </main>
-
-    <!-- 리소스 모달 컴포넌트 (타입 경고 방지를 위해 deployment-id를 문자열로 안전하게 변환) -->
-    <ResourceModal
-      :open="isResourceModalOpen"
-      :deployment-id="currentDeployment?.deploymentId ? String(currentDeployment.deploymentId) : undefined"
-      :project-name="currentDeployment?.projectName"
-      @close="isResourceModalOpen = false"
-    />
 
     <!-- 서버 제어 확인 모달 -->
     <ConfirmModal

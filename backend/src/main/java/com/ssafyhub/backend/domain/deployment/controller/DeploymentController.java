@@ -3,6 +3,8 @@ package com.ssafyhub.backend.domain.deployment.controller;
 import com.ssafyhub.backend.domain.auth.security.CustomUserDetails;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentCreateRequest;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentCreateResponse;
+import com.ssafyhub.backend.domain.deployment.dto.DeploymentEnvRequest;
+import com.ssafyhub.backend.domain.deployment.dto.DeploymentEnvResponse;
 import com.ssafyhub.backend.domain.deployment.dto.DeploymentStatusResponse;
 import com.ssafyhub.backend.domain.deployment.service.DeploymentService;
 import com.ssafyhub.backend.global.common.ApiResponse;
@@ -19,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -126,6 +129,41 @@ public class DeploymentController {
     ) {
         var logs = deploymentService.getDeploymentLogs(userDetails.getMemberId(), deploymentId);
         return ResponseEntity.ok(ApiResponse.success("배포 로그를 조회했습니다.", logs));
+    }
+
+    @Operation(
+            summary = "환경변수 조회",
+            description = "현재 배포에 설정된 환경변수 목록을 복호화해 반환합니다(수정 화면 초기값 채우기용). 본인 배포만 조회 가능."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @GetMapping("/{deploymentId}/env")
+    public ResponseEntity<ApiResponse<java.util.List<DeploymentEnvResponse>>> getEnv(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long deploymentId
+    ) {
+        var env = deploymentService.getDeploymentEnv(userDetails.getMemberId(), deploymentId);
+        return ResponseEntity.ok(ApiResponse.success("환경변수를 조회했습니다.", env));
+    }
+
+    @Operation(
+            summary = "환경변수 수정 후 재배포",
+            description = "아티팩트 재업로드 없이 환경변수만 새 값으로 교체하고, 같은 아티팩트로 재배포를 요청합니다. "
+                    + "서비스가 정상 실행 중이거나 실패 상태일 때만 가능하며, 배포가 진행 중일 때는 거부됩니다."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @SecurityRequirement(name = OpenApiConfig.CSRF_TOKEN_AUTH)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @ApiErrorCodeExample(ErrorCode.DUPLICATE_ENV_KEY)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_IN_PROGRESS)
+    @PatchMapping("/{deploymentId}/env")
+    public ResponseEntity<ApiResponse<Void>> updateEnv(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long deploymentId,
+            @RequestBody java.util.List<@Valid DeploymentEnvRequest> env
+    ) {
+        deploymentService.updateDeploymentEnv(userDetails.getMemberId(), deploymentId, env);
+        return ResponseEntity.ok(ApiResponse.success("환경변수를 반영하고 재배포를 요청했습니다.", null));
     }
 
     @Operation(

@@ -17,6 +17,18 @@ public record ResourceUsageResponse(
         @Schema(description = "메모리 상한(MB)", example = "512")
         long memoryTotalMb,
 
+        @Schema(description = "네트워크 누적 수신량(바이트, 파드 시작 시점부터)", example = "10485760")
+        long networkReceiveBytes,
+
+        @Schema(description = "네트워크 누적 송신량(바이트, 파드 시작 시점부터)", example = "5242880")
+        long networkTransmitBytes,
+
+        @Schema(description = "디스크 사용량(바이트)", example = "104857600")
+        long diskUsageBytes,
+
+        @Schema(description = "누적 요청 수(Traefik 기준)", example = "1024")
+        long requestsTotal,
+
         @Schema(description = "샘플 시각")
         LocalDateTime sampledAt
 ) {

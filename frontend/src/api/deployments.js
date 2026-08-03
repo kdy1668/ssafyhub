@@ -23,17 +23,41 @@ export async function deleteDeployment(deploymentId) {
 }
 
 export async function fetchDeploymentResources(deploymentId) {
-  // 백엔드: ApiResponse { data: { id, cpuPercent, memoryUsedMb, memoryTotalMb, sampledAt } }
+  // 백엔드: ApiResponse { data: { id, cpuPercent, memoryUsedMb, memoryTotalMb,
+  //   networkReceiveBytes, networkTransmitBytes, diskUsageBytes, requestsTotal, sampledAt } }
   const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/resources`);
   return data?.data;
 }
 
-// 배포 리소스 사용량 시계열(그래프용). { cpu: [{time,value%}], memory: [{time,valueMB}] }
+// 배포 리소스 사용량 시계열(그래프용). 지표별로 [{time,value}] 배열
+// (cpu %, memory MB, networkReceive/networkTransmit/disk MB, requests 건수).
 export async function fetchDeploymentResourceHistory(deploymentId, minutes = 30) {
   const { data } = await apiClient.get(
     `/api/v1/deployments/${deploymentId}/resources/history?minutes=${minutes}`
   );
-  return data?.data ?? { cpu: [], memory: [] };
+  return (
+    data?.data ?? {
+      cpu: [],
+      memory: [],
+      networkReceive: [],
+      networkTransmit: [],
+      disk: [],
+      requests: [],
+    }
+  );
+}
+
+// 현재 배포에 설정된 환경변수 목록 조회(복호화된 값, 수정 화면 초기값 채우기용).
+export async function fetchDeploymentEnv(deploymentId) {
+  const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/env`);
+  return data?.data ?? [];
+}
+
+// 환경변수만 새 값으로 교체하고 같은 아티팩트로 재배포 요청(아티팩트 재업로드 불필요).
+// env: [{ key, value }, ...]
+export async function updateDeploymentEnv(deploymentId, env) {
+  const { data } = await apiClient.patch(`/api/v1/deployments/${deploymentId}/env`, env);
+  return data?.data;
 }
 
 // 배포 진행 로그(깃헙 액션식 단계별). LogViewer가 쓰는 { time, status, message } 형태로 정규화.

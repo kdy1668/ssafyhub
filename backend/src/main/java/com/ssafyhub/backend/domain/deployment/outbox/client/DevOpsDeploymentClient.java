@@ -41,6 +41,14 @@ public class DevOpsDeploymentClient {
                 .toBodilessEntity();
     }
 
+    /** 이미 존재하는 배포를 최신 상태(아티팩트/DB/환경변수)로 다시 빌드·배포하도록 요청한다. */
+    public void redeploy(Long deploymentId) {
+        restClient.post()
+                .uri("/api/deployments/{deploymentId}/redeploy", deploymentId)
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     /**
      * deploy-engine에 k8s 리소스(Deployment/Service/Ingress/Middleware) 정리를 요청한다.
      * deploy-engine은 deploymentId로 namespace(팀)와 appName(slug)을 역추적하므로
