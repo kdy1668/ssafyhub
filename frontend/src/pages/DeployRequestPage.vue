@@ -133,23 +133,38 @@ const STACK_OPTIONS = [
 ];
 
 // 1단계 "무엇을 배포할까요?" - AWS EC2 콘솔의 "로드밸런서 유형 선택" 화면(ALB/NLB/GWLB/Classic을
-// 각각 다이어그램이 있는 카드로 늘어놓고 하나를 고르게 하는 패턴)을 참고했다. 두 개의 독립
-// 스위치 대신, 실제로 나올 수 있는 3가지 결과를 이름표 붙은 카드로 직접 고르게 한다.
+// 각각 아이콘 카드로 늘어놓고 하나를 고르게 하는 패턴)을 참고했다. 두 개의 독립 스위치 대신,
+// 실제로 나올 수 있는 3가지 결과를 이름표 붙은 카드로 직접 고르게 한다. flow는 카드 안에
+// "사용자 → 정적 사이트" 처럼 아이콘 칩을 나열할 순서 - 텍스트는 SVG가 아니라 일반 HTML로
+// 그려서(아래 템플릿) 폰트/줄바꿈이 항상 앱 디자인 시스템을 따르게 한다.
 const DEPLOYMENT_TOPOLOGY_OPTIONS = [
   {
     value: "FRONTEND_ONLY",
     title: "프론트엔드만",
     description: "정적 사이트만 배포합니다. API 서버가 필요 없는 경우.",
+    flow: [
+      { icon: "user", label: "사용자" },
+      { icon: "browser", label: "정적 사이트" },
+    ],
   },
   {
     value: "SEPARATE",
     title: "분리 배포",
     description: "프론트엔드와 백엔드를 각각 독립적으로 배포합니다. 프론트가 API를 호출합니다.",
+    flow: [
+      { icon: "user", label: "사용자" },
+      { icon: "browser", label: "프론트" },
+      { icon: "server", label: "백엔드" },
+    ],
   },
   {
     value: "MONOLITHIC",
     title: "통합 배포",
     description: "백엔드 하나가 화면과 API를 모두 처리합니다(타임리프, 정적 리소스 서빙 등).",
+    flow: [
+      { icon: "user", label: "사용자" },
+      { icon: "server", label: "백엔드\n(화면+API)" },
+    ],
   },
 ];
 
@@ -674,44 +689,33 @@ async function handleRetry() {
                       : 'border-border bg-background hover:border-primary/50',
                   ]"
                 >
-                  <!-- 다이어그램: 실제 트래픽이 어디로 흐르는지 한눈에 보여준다(AWS 로드밸런서
-                       유형 카드의 간단한 선그림 아이콘 참고) -->
-                  <svg viewBox="0 0 120 60" class="h-14 w-full">
-                    <defs>
-                      <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
-                        <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" />
-                      </marker>
-                    </defs>
-                    <g :class="selectedTopology === opt.value ? 'text-primary' : 'text-ink-300'">
-                      <template v-if="opt.value === 'FRONTEND_ONLY'">
-                        <rect x="4" y="22" width="34" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
-                        <text x="21" y="32.5" font-size="8" text-anchor="middle" fill="currentColor">사용자</text>
-                        <line x1="40" y1="30" x2="80" y2="30" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
-                        <rect x="82" y="20" width="34" height="20" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
-                        <text x="99" y="27" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">정적</text>
-                        <text x="99" y="35" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">사이트</text>
-                      </template>
-                      <template v-else-if="opt.value === 'SEPARATE'">
-                        <rect x="2" y="22" width="26" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
-                        <text x="15" y="32.5" font-size="7" text-anchor="middle" fill="currentColor">사용자</text>
-                        <line x1="28" y1="30" x2="52" y2="30" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
-                        <rect x="54" y="16" width="28" height="18" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
-                        <text x="68" y="27.5" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">프론트</text>
-                        <line x1="68" y1="34" x2="68" y2="46" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
-                        <text x="72" y="44" font-size="6" text-anchor="start" fill="currentColor">/api</text>
-                        <rect x="82" y="40" width="32" height="18" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
-                        <text x="98" y="51.5" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">백엔드</text>
-                      </template>
-                      <template v-else>
-                        <rect x="4" y="22" width="34" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
-                        <text x="21" y="32.5" font-size="8" text-anchor="middle" fill="currentColor">사용자</text>
-                        <line x1="40" y1="30" x2="80" y2="30" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" />
-                        <rect x="82" y="18" width="34" height="24" rx="3" :fill="selectedTopology === opt.value ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.5" />
-                        <text x="99" y="27.5" font-size="7" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">백엔드</text>
-                        <text x="99" y="36" font-size="6.5" text-anchor="middle" :fill="selectedTopology === opt.value ? '#fff' : 'currentColor'">(화면+API)</text>
-                      </template>
-                    </g>
-                  </svg>
+                  <!-- 흐름 아이콘: 실제 트래픽이 어디로 흐르는지 아이콘 칩 나열로 보여준다
+                       (AWS 콘솔의 아키텍처 아이콘 카드 참고). 라벨은 일반 HTML 텍스트라
+                       폰트/줄바꿈이 항상 앱 디자인 시스템을 따른다. -->
+                  <div class="flex h-14 items-start justify-center gap-1.5">
+                    <template v-for="(node, idx) in opt.flow" :key="node.label">
+                      <div class="flex w-16 flex-col items-center gap-1.5">
+                        <div
+                          class="flex h-10 w-10 items-center justify-center rounded-lg border transition-colors"
+                          :class="
+                            selectedTopology === opt.value
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-border bg-surface text-ink-400'
+                          "
+                        >
+                          <AppIcon :name="node.icon" class="h-5 w-5" />
+                        </div>
+                        <span
+                          class="whitespace-pre-line text-center text-[11px] leading-tight text-ink-600"
+                        >{{ node.label }}</span>
+                      </div>
+                      <AppIcon
+                        v-if="idx < opt.flow.length - 1"
+                        name="arrow"
+                        class="mt-3 h-3.5 w-3.5 shrink-0 text-ink-300"
+                      />
+                    </template>
+                  </div>
 
                   <span class="text-sm font-semibold text-ink-900">{{ opt.title }}</span>
                   <span class="text-xs text-ink-500">{{ opt.description }}</span>
