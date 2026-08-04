@@ -37,7 +37,7 @@ const memPercent = computed(() => {
 });
 
 // 상단 스탯 카드 정의. CPU/메모리는 상한이 있어 진행률 바를 곁들이고,
-// 네트워크/디스크/요청수는 고정 상한이 없는 누적값이라 큰 숫자 위주(Prometheus stat 패널 스타일).
+// 네트워크/요청수는 고정 상한이 없는 누적값이라 큰 숫자 위주(Prometheus stat 패널 스타일).
 const stats = computed(() => {
   const d = data.value;
   return [
@@ -62,11 +62,6 @@ const stats = computed(() => {
       key: "netTx",
       label: "네트워크 송신 (누적)",
       value: formatBytes(d?.networkTransmitBytes),
-    },
-    {
-      key: "disk",
-      label: "디스크 사용량",
-      value: formatBytes(d?.diskUsageBytes),
     },
     {
       key: "requests",
@@ -102,7 +97,6 @@ const charts = computed(() => [
     max: 0,
     points: history.value?.networkTransmit || [],
   },
-  { key: "disk", label: "디스크 사용량", unit: "MB", color: "#f59e0b", max: 0, points: history.value?.disk || [] },
   { key: "requests", label: "누적 요청 수", unit: "회", color: "#ec4899", max: 0, points: history.value?.requests || [] },
 ]);
 

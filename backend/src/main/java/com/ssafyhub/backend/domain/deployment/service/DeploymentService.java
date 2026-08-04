@@ -249,7 +249,6 @@ public class DeploymentService {
         long memoryUsedMb = 0;
         long networkReceiveBytes = 0;
         long networkTransmitBytes = 0;
-        long diskUsageBytes = 0;
         long requestsTotal = 0;
         if (metrics != null) {
             if (metrics.cpuCores() != null) {
@@ -264,9 +263,6 @@ public class DeploymentService {
             if (metrics.networkTransmitBytes() != null) {
                 networkTransmitBytes = metrics.networkTransmitBytes();
             }
-            if (metrics.diskUsageBytes() != null) {
-                diskUsageBytes = metrics.diskUsageBytes();
-            }
             if (metrics.requestsTotal() != null) {
                 requestsTotal = metrics.requestsTotal();
             }
@@ -276,7 +272,7 @@ public class DeploymentService {
 
         return new com.ssafyhub.backend.domain.deployment.dto.ResourceUsageResponse(
                 deployment.getId(), cpuPercent, memoryUsedMb, memoryTotalMb,
-                networkReceiveBytes, networkTransmitBytes, diskUsageBytes, requestsTotal,
+                networkReceiveBytes, networkTransmitBytes, requestsTotal,
                 LocalDateTime.now());
     }
 
@@ -304,8 +300,6 @@ public class DeploymentService {
                 new java.util.ArrayList<>();
         java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> networkTransmit =
                 new java.util.ArrayList<>();
-        java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> disk =
-                new java.util.ArrayList<>();
         java.util.List<com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint> requests =
                 new java.util.ArrayList<>();
         if (range != null) {
@@ -329,11 +323,6 @@ public class DeploymentService {
                         new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
                                 p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
             }
-            if (range.diskUsageBytes() != null) {
-                range.diskUsageBytes().forEach(p -> disk.add(
-                        new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
-                                p.epochSeconds(), p.value() != null ? p.value() / (1024.0 * 1024.0) : 0)));
-            }
             if (range.requestsTotal() != null) {
                 range.requestsTotal().forEach(p -> requests.add(
                         new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse.SeriesPoint(
@@ -341,7 +330,19 @@ public class DeploymentService {
             }
         }
         return new com.ssafyhub.backend.domain.deployment.dto.ResourceHistoryResponse(
-                cpu, memory, networkReceive, networkTransmit, disk, requests);
+                cpu, memory, networkReceive, networkTransmit, requests);
+    }
+
+    /** 배포된 앱의 런타임 로그(stdout/stderr) 최근 tail줄 스냅샷 - 본인 배포만 조회 가능. */
+    public String getRuntimeLogs(Long memberId, Long deploymentId, int tail) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        try {
+            return devOpsDeploymentClient.getRuntimeLogs(deployment.getId(), tail);
+        } catch (RestClientException exception) {
+            return "(로그를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.)";
+        }
     }
 
     /** 배포 진행 로그(깃헙 액션식 단계별) - 본인 배포만 조회 가능. */

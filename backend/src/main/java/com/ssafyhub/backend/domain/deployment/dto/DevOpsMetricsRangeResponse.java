@@ -11,7 +11,6 @@ public record DevOpsMetricsRangeResponse(
         List<Point> memoryBytes,
         List<Point> networkReceiveBytes,
         List<Point> networkTransmitBytes,
-        List<Point> diskUsageBytes,
         List<Point> requestsTotal
 ) {
     public record Point(long epochSeconds, Double value) {

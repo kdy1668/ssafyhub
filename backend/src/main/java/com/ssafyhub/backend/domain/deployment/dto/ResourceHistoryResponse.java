@@ -17,9 +17,6 @@ public record ResourceHistoryResponse(
         @Schema(description = "네트워크 누적 송신량(MB) 시계열")
         List<SeriesPoint> networkTransmit,
 
-        @Schema(description = "디스크 사용량(MB) 시계열")
-        List<SeriesPoint> disk,
-
         @Schema(description = "누적 요청 수 시계열")
         List<SeriesPoint> requests
 ) {

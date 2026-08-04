@@ -49,6 +49,14 @@ public class DevOpsDeploymentClient {
                 .toBodilessEntity();
     }
 
+    /** 배포된 앱의 런타임 로그(stdout/stderr) 최근 tail줄 스냅샷을 가져온다. */
+    public String getRuntimeLogs(Long deploymentId, int tail) {
+        return restClient.get()
+                .uri("/api/deployments/{deploymentId}/runtime-logs?tail={tail}", deploymentId, tail)
+                .retrieve()
+                .body(String.class);
+    }
+
     /**
      * deploy-engine에 k8s 리소스(Deployment/Service/Ingress/Middleware) 정리를 요청한다.
      * deploy-engine은 deploymentId로 namespace(팀)와 appName(slug)을 역추적하므로
