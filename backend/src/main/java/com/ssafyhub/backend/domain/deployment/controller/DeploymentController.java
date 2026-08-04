@@ -117,6 +117,23 @@ public class DeploymentController {
     }
 
     @Operation(
+            summary = "백엔드 런타임 로그 조회",
+            description = "배포된 앱 컨테이너의 stdout/stderr 최근 로그를 반환합니다(AWS 콘솔의 로그 보기와 유사). "
+                    + "실시간이 아니라 폴링 방식이며, 본인 배포만 조회 가능합니다."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @GetMapping("/{deploymentId}/runtime-logs")
+    public ResponseEntity<ApiResponse<String>> getRuntimeLogs(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long deploymentId,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "200") int tail
+    ) {
+        String logs = deploymentService.getRuntimeLogs(userDetails.getMemberId(), deploymentId, tail);
+        return ResponseEntity.ok(ApiResponse.success("런타임 로그를 조회했습니다.", logs));
+    }
+
+    @Operation(
             summary = "배포 진행 로그 조회",
             description = "배포의 단계별 진행 로그(PENDING→BUILDING→DEPLOYING→RUNNING/FAILED)를 시간순으로 반환합니다. 본인 배포만 조회 가능."
     )

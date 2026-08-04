@@ -9,7 +9,6 @@ public record DevOpsMetricsResponse(
         Long memoryBytes,
         Long networkReceiveBytes,
         Long networkTransmitBytes,
-        Long diskUsageBytes,
         Long requestsTotal
 ) {
 }

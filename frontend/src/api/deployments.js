@@ -24,13 +24,13 @@ export async function deleteDeployment(deploymentId) {
 
 export async function fetchDeploymentResources(deploymentId) {
   // 백엔드: ApiResponse { data: { id, cpuPercent, memoryUsedMb, memoryTotalMb,
-  //   networkReceiveBytes, networkTransmitBytes, diskUsageBytes, requestsTotal, sampledAt } }
+  //   networkReceiveBytes, networkTransmitBytes, requestsTotal, sampledAt } }
   const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/resources`);
   return data?.data;
 }
 
 // 배포 리소스 사용량 시계열(그래프용). 지표별로 [{time,value}] 배열
-// (cpu %, memory MB, networkReceive/networkTransmit/disk MB, requests 건수).
+// (cpu %, memory MB, networkReceive/networkTransmit MB, requests 건수).
 export async function fetchDeploymentResourceHistory(deploymentId, minutes = 30) {
   const { data } = await apiClient.get(
     `/api/v1/deployments/${deploymentId}/resources/history?minutes=${minutes}`
@@ -41,10 +41,17 @@ export async function fetchDeploymentResourceHistory(deploymentId, minutes = 30)
       memory: [],
       networkReceive: [],
       networkTransmit: [],
-      disk: [],
       requests: [],
     }
   );
+}
+
+// 배포된 앱의 백엔드 런타임 로그(stdout/stderr) 최근 tail줄 스냅샷(AWS 콘솔 로그 보기 방식).
+export async function fetchRuntimeLogs(deploymentId, tail = 300) {
+  const { data } = await apiClient.get(
+    `/api/v1/deployments/${deploymentId}/runtime-logs?tail=${tail}`
+  );
+  return data?.data ?? "";
 }
 
 // 현재 배포에 설정된 환경변수 목록 조회(복호화된 값, 수정 화면 초기값 채우기용).

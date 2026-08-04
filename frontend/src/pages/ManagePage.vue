@@ -209,6 +209,16 @@ const canEditEnv = computed(() =>
               <AppIcon name="settings" class="h-4 w-4" />
               환경변수
             </button>
+
+            <!-- 실행 중일 때만 백엔드 런타임 로그 보기 버튼 노출(리소스와 동일 게이팅) -->
+            <button
+              v-if="isRunningOrSuccess"
+              @click="router.push('/deployments/logs')"
+              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+            >
+              <AppIcon name="terminal" class="h-4 w-4" />
+              로그
+            </button>
           </div>
         </div>
 
