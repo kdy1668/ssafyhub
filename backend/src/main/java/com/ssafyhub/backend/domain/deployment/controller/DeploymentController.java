@@ -184,6 +184,26 @@ public class DeploymentController {
     }
 
     @Operation(
+            summary = "배포 이름/설명 수정",
+            description = "배포된 서비스의 프로젝트 이름/설명/공개여부를 수정합니다. 실행 중인 컨테이너에 영향이 없어 "
+                    + "재배포 없이 즉시 반영됩니다. 공개 URL(학번 기반)은 이름을 바꿔도 그대로입니다. 본인 배포만 수정 가능."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @SecurityRequirement(name = OpenApiConfig.CSRF_TOKEN_AUTH)
+    @ApiErrorCodeExample(ErrorCode.VALIDATION_FAILED)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @PatchMapping("/{deploymentId}")
+    public ResponseEntity<ApiResponse<DeploymentStatusResponse>> updateDeployment(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long deploymentId,
+            @Valid @RequestBody com.ssafyhub.backend.domain.deployment.dto.DeploymentUpdateRequest request
+    ) {
+        DeploymentStatusResponse response =
+                deploymentService.updateDeployment(userDetails.getMemberId(), deploymentId, request);
+        return ResponseEntity.ok(ApiResponse.success("배포 정보를 수정했습니다.", response));
+    }
+
+    @Operation(
             summary = "배포 삭제",
             description = "배포를 삭제합니다. 실행 중인 서버(k8s Deployment/Service/Ingress)를 함께 내리고 "
                     + "배포 이력까지 제거하므로 되돌릴 수 없습니다. 본인의 배포만 삭제할 수 있습니다."

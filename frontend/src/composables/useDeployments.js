@@ -1,10 +1,11 @@
 import { ref, reactive, computed } from "vue";
-import { useQuery } from "@tanstack/vue-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/vue-query";
 import {
   fetchDeployments,
   fetchMyDeployment,
   getPresignedUrls,
   createDeployment as apiCreateDeployment,
+  updateDeployment as apiUpdateDeployment,
   putFileToS3WithProgress,
 } from "../api/deployments";
 
@@ -39,6 +40,17 @@ export function useMyDeployment() {
       const status = query.state.data?.status;
       const inProgress = status && status !== "RUNNING" && status !== "FAILED";
       return inProgress ? POLL_INTERVAL_MS : false;
+    },
+  });
+}
+
+// 1-2. 배포 이름/설명/공개여부 수정 (재배포 없이 즉시 반영). 성공 시 내 배포 상태를 다시 불러온다.
+export function useUpdateDeployment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ deploymentId, payload }) => apiUpdateDeployment(deploymentId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deployments", "me"] });
     },
   });
 }
