@@ -100,9 +100,9 @@ public record DeploymentCreateRequest(
                 "필요 없으면 비워두세요.", example = "[\"REDIS\"]", nullable = true)
         List<String> neededServices,
 
-        @Schema(description = "환경변수 목록 (1개 이상 20개 이하)")
+        @Schema(description = "환경변수 목록 (0개 이상 20개 이하)")
         @NotNull(message = "환경변수 목록은 필수입니다.")
-        @Size(min = 1, max = 20, message = "환경변수는 1개 이상 20개 이하로 입력해주세요.")
+        @Size(max = 20, message = "환경변수는 최대 20개까지 입력할 수 있습니다.")
         List<@Valid DeploymentEnvRequest> env,
 
         @Schema(description = "공개 여부. 미입력 시 서비스 기본값 적용", example = "PUBLIC")

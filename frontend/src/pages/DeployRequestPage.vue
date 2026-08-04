@@ -452,9 +452,7 @@ function validateDatabase() {
 
 function validateEnvVars() {
   const list = form.envVars.filter((v) => v.key || v.value);
-  if (list.length === 0) {
-    errors.env = "환경변수를 최소 1개 이상 입력해주세요.";
-  } else if (list.length > 20) {
+  if (list.length > 20) {
     errors.env = "환경변수는 최대 20개까지 입력할 수 있습니다.";
   } else if (list.some((v) => !v.key || !v.value)) {
     errors.env = "환경변수의 KEY와 VALUE를 모두 입력해주세요.";
@@ -1124,7 +1122,8 @@ axios.create({ baseURL: "http://localhost:8080/" })   // X</code></pre>
 
             <!-- 6단계: 환경변수 -->
             <div v-show="currentStep === 6" class="flex flex-col gap-3">
-              <h2 class="text-sm font-bold text-ink-900">환경변수를 입력하세요</h2>
+              <h2 class="text-sm font-bold text-ink-900">환경변수를 입력하세요 (선택)</h2>
+              <p class="text-xs text-ink-500">앱에 필요한 추가 환경변수가 없다면 비워두세요.</p>
               <EnvVarsEditor v-model="form.envVars" />
               <p v-if="errors.env" class="mt-1 text-xs text-danger">{{ errors.env }}</p>
             </div>
