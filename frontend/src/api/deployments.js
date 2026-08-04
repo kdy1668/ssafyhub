@@ -67,6 +67,13 @@ export async function updateDeploymentEnv(deploymentId, env) {
   return data?.data;
 }
 
+// 배포 메타데이터(프로젝트 이름/설명/공개여부) 수정. 재배포 없이 즉시 반영(컨테이너 영향 없음).
+// payload: { projectName?, description?, visibility? } — 보내지 않은 필드는 그대로 유지.
+export async function updateDeployment(deploymentId, payload) {
+  const { data } = await apiClient.patch(`/api/v1/deployments/${deploymentId}`, payload);
+  return data?.data;
+}
+
 // 배포 진행 로그(깃헙 액션식 단계별). LogViewer가 쓰는 { time, status, message } 형태로 정규화.
 export async function fetchDeploymentLogs(deploymentId) {
   // 백엔드: ApiResponse.data = [{ logMessage, status, createdAt }, ...] (시간순)

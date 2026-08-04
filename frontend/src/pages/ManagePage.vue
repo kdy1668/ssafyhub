@@ -9,7 +9,7 @@ import AppIcon from "../components/common/AppIcon.vue";
 import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
-import { useMyDeployment } from "../composables/useDeployments";
+import { useMyDeployment, useUpdateDeployment } from "../composables/useDeployments";
 import { useDeploymentLogs } from "../composables/useDeploymentLogs";
 import { deleteDeployment } from "../api/deployments";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -54,6 +54,45 @@ const confirmState = reactive({
 
 // 진행 중인 액션 (버튼 로딩 표시용)
 const loadingAction = ref("");
+
+// --- 이름/설명/공개여부 수정 (재배포 없이 즉시 반영) ---
+const { mutateAsync: updateDeploymentMutate, isPending: isUpdating } = useUpdateDeployment();
+const isEditing = ref(false);
+const editForm = reactive({ projectName: "", description: "", visibility: "PRIVATE" });
+
+function startEdit() {
+  editForm.projectName = currentDeployment.value?.projectName || "";
+  editForm.description = currentDeployment.value?.description || "";
+  editForm.visibility = currentDeployment.value?.visibility || "PRIVATE";
+  isEditing.value = true;
+}
+
+function cancelEdit() {
+  isEditing.value = false;
+}
+
+async function saveEdit() {
+  const id = currentDeployment.value?.deploymentId;
+  if (!id) return;
+  if (!editForm.projectName.trim()) {
+    toastStore.showToast("프로젝트 이름을 입력해주세요.", "error");
+    return;
+  }
+  try {
+    await updateDeploymentMutate({
+      deploymentId: id,
+      payload: {
+        projectName: editForm.projectName.trim(),
+        description: editForm.description,
+        visibility: editForm.visibility,
+      },
+    });
+    toastStore.showToast("배포 정보를 수정했습니다.", "success");
+    isEditing.value = false;
+  } catch (e) {
+    toastStore.showToast(e?.response?.data?.message || e?.message || "수정에 실패했습니다.", "error");
+  }
+}
 
 const confirmMeta = computed(() => CONTROL_META[confirmState.action] || {});
 
@@ -219,10 +258,21 @@ const canEditEnv = computed(() =>
               <AppIcon name="terminal" class="h-4 w-4" />
               로그
             </button>
+
+            <!-- 이름/설명/공개여부 수정 (재배포 없이 즉시 반영) -->
+            <button
+              v-if="!isEditing"
+              @click="startEdit"
+              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+            >
+              <AppIcon name="settings" class="h-4 w-4" />
+              수정
+            </button>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+        <!-- 읽기 전용 정보 -->
+        <div v-if="!isEditing" class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
           <div>
             <span class="block text-xs font-medium text-ink-500 mb-1">공개 범위</span>
             <span class="text-sm font-semibold text-ink-900">{{ currentDeployment.visibility }}</span>
@@ -241,6 +291,56 @@ const canEditEnv = computed(() =>
           <div class="sm:col-span-2">
             <span class="block text-xs font-medium text-ink-500 mb-1">설명</span>
             <p class="text-sm text-ink-900">{{ currentDeployment.description || "등록된 설명이 없습니다." }}</p>
+          </div>
+        </div>
+
+        <!-- 수정 폼: 이름은 slug(공개 URL=학번)와 무관하므로 바꿔도 접속 주소는 그대로. 재배포 없이 즉시 반영. -->
+        <div v-else class="mb-6 flex flex-col gap-4">
+          <div>
+            <label class="block text-xs font-medium text-ink-500 mb-1">프로젝트 이름</label>
+            <input
+              v-model="editForm.projectName"
+              type="text"
+              maxlength="100"
+              placeholder="프로젝트 이름"
+              class="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink-900 focus:border-primary focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-ink-500 mb-1">설명</label>
+            <textarea
+              v-model="editForm.description"
+              rows="4"
+              maxlength="2000"
+              placeholder="서비스 설명"
+              class="w-full resize-y rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink-900 focus:border-primary focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-ink-500 mb-1">공개 범위</label>
+            <select
+              v-model="editForm.visibility"
+              class="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink-900 focus:border-primary focus:outline-none"
+            >
+              <option value="PRIVATE">PRIVATE (비공개)</option>
+              <option value="PUBLIC">PUBLIC (쇼케이스 공개)</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              @click="saveEdit"
+              :disabled="isUpdating"
+              class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+            >
+              {{ isUpdating ? "저장 중..." : "저장" }}
+            </button>
+            <button
+              @click="cancelEdit"
+              :disabled="isUpdating"
+              class="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-ink-700 hover:bg-black/5"
+            >
+              취소
+            </button>
           </div>
         </div>
 

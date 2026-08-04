@@ -422,6 +422,36 @@ public class DeploymentService {
     }
 
     /**
+     * 배포 메타데이터(프로젝트 이름/설명/공개여부)를 수정한다. 본인 배포만 가능.
+     * 이 값들은 실행 중인 컨테이너 동작과 무관하므로 재배포 없이 DB만 갱신하면 즉시 반영된다
+     * (env 수정과 달리 deploy-engine 호출이 필요 없다). null/공백 필드는 건드리지 않는 부분 수정.
+     * projectName은 NOT NULL 컬럼이라 공백으로는 바꾸지 않는다.
+     */
+    @Transactional
+    public DeploymentStatusResponse updateDeployment(Long memberId, Long deploymentId,
+            com.ssafyhub.backend.domain.deployment.dto.DeploymentUpdateRequest request) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        if (request.projectName() != null && !request.projectName().isBlank()) {
+            deployment.changeProjectName(request.projectName().trim());
+        }
+        if (request.description() != null) {
+            deployment.changeDescription(request.description());
+        }
+        if (request.visibility() != null) {
+            deployment.changeVisibility(request.visibility());
+        }
+
+        DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+        String accessUrl = latestLog.getStatus() == DeploymentStatus.RUNNING
+                ? "https://%s.%s".formatted(deployment.getSlug(), publicDomain)
+                : null;
+        return DeploymentStatusResponse.of(deployment, latestLog, accessUrl);
+    }
+
+    /**
      * 배포를 삭제한다. 실행 중인 사용자 서버(k8s Deployment/Service/Ingress/Middleware)를 먼저
      * 내리고, 성공한 뒤에 DB 행을 지운다.
      *

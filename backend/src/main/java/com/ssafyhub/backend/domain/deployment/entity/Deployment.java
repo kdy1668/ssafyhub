@@ -242,4 +242,12 @@ public class Deployment {
     public void changeDescription(String description) {
         this.description = description;
     }
+
+    /**
+     * 프로젝트 이름을 변경한다. slug(공개 URL)는 학번 기반이라 이름을 바꿔도 접속 주소는 그대로다.
+     * NOT NULL 컬럼이라 빈 값으로는 바꾸지 않는다(호출부에서 검증).
+     */
+    public void changeProjectName(String projectName) {
+        this.projectName = projectName;
+    }
 }
