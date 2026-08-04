@@ -73,24 +73,53 @@ function goDetail(id) {
 
       <!-- 카드 그리드 -->
       <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <button
+        <!-- iframe을 품어야 해서 button 대신 role=button div 사용(button 안엔 iframe 불가) -->
+        <div
           v-for="item in items"
           :key="item.deploymentId"
-          type="button"
-          class="flex flex-col gap-2 rounded-lg border border-border bg-surface p-5 text-left shadow-card transition hover:-translate-y-0.5 hover:border-primary/40"
+          role="button"
+          tabindex="0"
+          class="group flex cursor-pointer flex-col overflow-hidden rounded-lg border border-border bg-surface text-left shadow-card transition hover:-translate-y-0.5 hover:border-primary/40"
           @click="goDetail(item.deploymentId)"
+          @keydown.enter="goDetail(item.deploymentId)"
+          @keydown.space.prevent="goDetail(item.deploymentId)"
         >
-          <div class="flex items-center justify-between gap-2">
-            <span class="font-mono text-sm font-semibold text-ink-900">{{ item.projectName }}</span>
-            <span class="shrink-0 rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-medium text-primary">
-              {{ item.teamName }}
-            </span>
+          <!-- 라이브 미리보기 썸네일: 데스크톱 폭으로 렌더한 뒤 축소(scale)해 미니 화면처럼 보이게.
+               pointer-events-none로 클릭은 카드(상세 이동)로 통과. 차단 시 뒤 플레이스홀더가 보임. -->
+          <div
+            v-if="item.endpointUrl"
+            class="relative h-40 w-full overflow-hidden border-b border-ink-900/10 bg-ink-900/5"
+          >
+            <div class="absolute inset-0 flex items-center justify-center">
+              <AppIcon name="cube" class="h-7 w-7 text-ink-300" />
+            </div>
+            <iframe
+              :src="item.endpointUrl"
+              class="pointer-events-none absolute left-0 top-0 origin-top-left border-0"
+              style="width: 300%; height: 300%; transform: scale(0.3333)"
+              loading="lazy"
+              scrolling="no"
+              tabindex="-1"
+              aria-hidden="true"
+              referrerpolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin"
+              title="서비스 미리보기"
+            ></iframe>
           </div>
-          <p class="line-clamp-2 text-xs leading-relaxed text-ink-500">
-            {{ item.description || "설명이 없습니다." }}
-          </p>
-          <p class="mt-1 text-[11px] text-ink-400">업데이트 {{ formatDate(item.updatedAt) }}</p>
-        </button>
+
+          <div class="flex flex-col gap-2 p-5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-sm font-semibold text-ink-900">{{ item.projectName }}</span>
+              <span class="shrink-0 rounded-full bg-primary-light px-2 py-0.5 text-[11px] font-medium text-primary">
+                {{ item.teamName }}
+              </span>
+            </div>
+            <p class="line-clamp-2 text-xs leading-relaxed text-ink-500">
+              {{ item.description || "설명이 없습니다." }}
+            </p>
+            <p class="mt-1 text-[11px] text-ink-400">업데이트 {{ formatDate(item.updatedAt) }}</p>
+          </div>
+        </div>
       </div>
 
       <!-- 페이지네이션 -->
