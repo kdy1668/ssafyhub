@@ -37,9 +37,7 @@ const isSubmitting = ref(false);
 
 function validate() {
   const list = envVars.value.filter((v) => v.key || v.value);
-  if (list.length === 0) {
-    errorMessage.value = "환경변수를 최소 1개 이상 입력해주세요.";
-  } else if (list.length > 20) {
+  if (list.length > 20) {
     errorMessage.value = "환경변수는 최대 20개까지 입력할 수 있습니다.";
   } else if (list.some((v) => !v.key || !v.value)) {
     errorMessage.value = "환경변수의 KEY와 VALUE를 모두 입력해주세요.";
