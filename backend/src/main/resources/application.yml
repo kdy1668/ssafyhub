@@ -41,3 +41,18 @@ devops:
   was:
     connect-timeout-ms: ${DEVOPS_WAS_CONNECT_TIMEOUT_MS:3000}
     read-timeout-ms: ${DEVOPS_WAS_READ_TIMEOUT_MS:5000}
+
+# AI 기능(배포 실패 진단 / 런타임 로그 이상 감지) 설정.
+# enabled=false 이거나 api-key가 비어 있으면 Claude 클라이언트 빈이 생성되지 않고,
+# AI 엔드포인트만 AI_001을 반환한다. 그 외 기존 기능은 전혀 영향받지 않는다.
+ai:
+  enabled: ${AI_ENABLED:false}
+  api-key: ${ANTHROPIC_API_KEY:}
+  model: ${AI_MODEL:claude-opus-5}
+  max-tokens: ${AI_MAX_TOKENS:16000}
+  timeout-ms: ${AI_TIMEOUT_MS:60000}
+  failure-diagnosis:
+    max-log-lines: ${AI_DIAGNOSIS_MAX_LOG_LINES:400}
+  runtime-log-detection:
+    cooldown-seconds: ${AI_RUNTIME_LOG_COOLDOWN_SECONDS:30}
+    tail: ${AI_RUNTIME_LOG_TAIL:300}

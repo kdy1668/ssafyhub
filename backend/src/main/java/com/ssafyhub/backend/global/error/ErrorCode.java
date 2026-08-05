@@ -73,6 +73,15 @@ public enum ErrorCode {
             "배포가 진행 중일 때는 환경변수를 수정할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 
     SHOWCASE_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOWCASE_001", "존재하지 않는 서비스입니다."),
+
+    // AI 기능(배포 실패 진단 / 런타임 로그 이상 감지) 전용. 기존 코드에 영향을 주지 않도록
+    // 맨 뒤에 추가한다 - 앞쪽에 끼워 넣으면 기존 상수의 ordinal이 밀린다.
+    AI_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "AI_001", "AI 기능이 현재 비활성 상태입니다."),
+    AI_CALL_FAILED(HttpStatus.BAD_GATEWAY, "AI_002",
+            "AI 분석에 일시적으로 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    AI_TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "AI_003",
+            "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요."),
+    AI_NOT_ANALYZABLE(HttpStatus.BAD_REQUEST, "AI_004", "분석할 수 있는 상태가 아닙니다."),
     ;
 
     private final HttpStatus status;
