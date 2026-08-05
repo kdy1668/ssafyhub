@@ -296,8 +296,13 @@ X-XSRF-TOKEN: ...
         "description": "환경변수를 저장하면 같은 파일로 자동 재배포됩니다. 파일을 다시 올릴 필요는 없습니다."
       }
     ],
-    "logLineNumbers": [47, 48, 52],
+    "logLineNumbers": [2],
     "confidence": "HIGH",
+    "analyzedLog": [
+      { "lineNumber": 1, "status": "PENDING", "message": "배포 요청이 접수되었습니다." },
+      { "lineNumber": 2, "status": "FAILED", "message": "  Caused by: com.mysql.cj.jdbc.exceptions.CommunicationsException" }
+    ],
+    "omittedLeadingLines": 0,
     "model": "claude-opus-5",
     "cached": false,
     "createdAt": "2026-08-05T14:22:31"
@@ -307,14 +312,23 @@ X-XSRF-TOKEN: ...
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `sourceLogId` | long | 진단 대상 실패 로그 id. 프론트 캐시 키 |
+| `sourceLogId` | long | 진단 대상 실패 로그 id |
 | `summary` | string | 원인 한 줄 |
 | `detail` | string | 왜 그런지 (비전공자 기준) |
 | `actions[].title` | string | 조치 제목 |
 | `actions[].description` | string | 조치 상세 |
-| `logLineNumbers` | int[] | 근거 로그 줄 번호 (1-based, 전송 구간 기준) |
+| `logLineNumbers` | int[] | 근거 로그 줄 번호 (`analyzedLog[].lineNumber`와 같은 기준) |
 | `confidence` | enum | `HIGH` / `MEDIUM` / `LOW` |
+| `analyzedLog[]` | array | **분석에 사용한 로그 발췌(마스킹 후).** 프론트가 근거를 자체 렌더링한다 |
+| `omittedLeadingLines` | int | 줄 수 상한으로 앞에서 생략된 줄 수 |
 | `cached` | bool | `true`면 이번 요청에서 LLM을 호출하지 않았음 |
+
+**`analyzedLog`를 응답에 담는 것이 설계의 핵심이다.** 이것 덕분에 프론트엔드는 기존
+`/logs` API의 응답 형식에도, `LogViewer` 컴포넌트에도 의존하지 않는다 — 즉 기존 파일을
+수정하지 않아도 근거 줄 표시(UI-3)가 성립한다.
+
+DB에는 `analyzedLog`를 저장하지 않는다. 실패 사이클 로그는 더 이상 바뀌지 않으므로
+조회 시점에 같은 규칙으로 다시 잘라내면 동일한 결과가 나온다.
 
 ### 3.3 F1-2 진단 조회
 
@@ -450,20 +464,33 @@ public record FailureDiagnosis(
 }
 ```
 
-### 3.7 삭제 정합성
+### 3.7 삭제 정합성 — FK 없이 고아 정리
 
-`DeploymentService.deleteDeployment()`의 정리 순서에 진단을 추가한다.
+`DeploymentService.deleteDeployment()`를 **수정하지 않는다**(제약 C6). 그 경로는 팀 검증이
+끝난 삭제 로직이므로, 부가 기능 때문에 손대지 않는다.
+
+대신 `deployment_id`에 FK를 두지 않는다. FK가 없으면 배포 삭제가 진단 행 때문에 실패할 수
+없고, 기존 삭제 순서를 그대로 둘 수 있다.
 
 ```
-deployment_outbox
-→ deployment_diagnoses   ← 추가
-→ deployment_envs
-→ deployment_logs
-→ deployments
+기존 삭제 순서 (변경 없음)
+deployment_outbox → deployment_envs → deployment_logs → deployments
+
+deployment_diagnoses 는 남는다 → 스케줄러가 정리
 ```
 
-`deployment_diagnoses`는 `deployments`에 FK/CASCADE가 걸려 있으나, 다른 자식 테이블과
-동일하게 명시적으로 정리해 순서 의존을 없앤다.
+#### 고아 정리 스케줄러
+
+| 항목 | 값 |
+| --- | --- |
+| 주기 | `ai.failure-diagnosis.orphan-cleanup-cron` (기본 `0 30 4 * * *`, 매일 04:30) |
+| 동작 | `deployment_id`가 `deployments`에 없는 진단 행을 삭제 |
+| 등록 조건 | `ai.enabled=true`일 때만. 꺼져 있으면 진단이 생기지 않으므로 스케줄러도 없다 |
+| 실패 시 | 로그만 남기고 다음 주기에 재시도. 애플리케이션에 영향 없음 |
+
+지울 것이 없으면 `DELETE` 한 번으로 끝나므로 상시 비용이 없다.
+
+> `@EnableScheduling`은 기존 `DevOpsConfig`에 이미 선언되어 있어 추가 설정이 필요 없다.
 
 ---
 
@@ -691,16 +718,25 @@ public record RuntimeLogInsight(
 | `staleTime` | `Infinity` |
 | `retry` | `false` |
 
-**`sourceLogId`를 쿼리 키에 포함하는 것이 핵심이다.** 재배포로 새 실패가 발생하면
-키가 바뀌어 자동으로 새 진단을 가져오고, 같은 실패에서는 화면을 몇 번 오가도
-서버 요청이 발생하지 않는다.
+`sourceLogId`는 프론트가 미리 알 수 없다 — 그것을 알려면 `/logs` 응답에 로그 `id`가
+있어야 하고, 그러면 기존 DTO를 수정해야 한다(제약 C6 위반).
 
-`ManagePage`는 `deploymentLogs`에서 마지막 `FAILED` 항목을 찾아 `sourceLogId`를 구한다.
+**대신 프론트는 `sourceLogId`를 모른 채 요청하고, 서버가 캐시한다.**
 
-> **선행 작업** — 현재 `fetchDeploymentLogs()`는 백엔드 응답을
-> `{ time, status, message }`로 정규화하며 `id`를 버린다. `sourceLogId` 판별을 위해
-> 정규화 결과에 `id`를 추가해야 하고, `DeploymentLogResponse`에도 `id` 필드가 필요하다.
-> `LogViewer`는 추가 필드를 무시하므로 기존 화면에 영향이 없다.
+| 항목 | 값 |
+| --- | --- |
+| 쿼리 키 | `["deployments", id, "diagnosis"]` |
+| 활성 조건 | `enabled && deploymentId && status === "FAILED"` |
+| `refetchInterval` | `false` (**폴링 금지**) |
+| `staleTime` | `Infinity` |
+| `retry` | `false` |
+| 무효화 | 상태가 `FAILED`로 새로 전이될 때 (`queryClient.invalidateQueries`) |
+
+응답의 `sourceLogId`로 그 진단이 어느 실패에 대한 것인지 확인할 수 있다.
+
+**비용은 그대로 보장된다.** 최악의 경우 화면을 10번 오가면 HTTP 요청이 10번 나가지만,
+서버가 `(deployment_id, source_log_id)`로 캐시하므로 **LLM 호출은 1회다**(NFR-1.1).
+프론트 쿼리 키는 애초에 HTTP 왕복을 줄이는 최적화였을 뿐, 비용 상한의 근거가 아니었다.
 
 #### `useRuntimeLogDetection(deploymentId)`
 
@@ -811,14 +847,36 @@ backend/src/main/java/com/ssafyhub/backend/
 
 ### 6.2 백엔드 수정
 
-| 파일 | 변경 |
+기존 파일 수정은 **공통 기반(S0)의 3건뿐이며, 모두 추가만 했다**(제약 C6).
+
+| 파일 | 변경 | 단계 |
+| --- | --- | :---: |
+| `build.gradle` | 의존성 6줄 추가 | S0 |
+| `application.yml` | `ai:` 블록 15줄 추가 | S0 |
+| `global/error/ErrorCode.java` | enum 맨 뒤에 상수 4개 추가 | S0 |
+
+**F1(S1)과 F2(S3)는 기존 파일을 전혀 수정하지 않는다.** 당초 수정이 필요했던 3곳은
+아래 방식으로 우회했다.
+
+| 원래 필요했던 수정 | 우회 방법 |
 | --- | --- |
-| `build.gradle` | Claude API 클라이언트 의존성 추가 |
-| `application.yml` | `ai.*` 설정 블록 추가 |
-| `global/error/ErrorCode.java` | `AI_001`~`AI_004` 추가 |
-| `domain/deployment/controller/DeploymentController.java` | 엔드포인트 3개 추가 |
-| `domain/deployment/service/DeploymentService.java` | `deleteDeployment()`에 진단 정리 추가 |
-| `domain/deployment/dto/DeploymentLogResponse.java` | `id` 필드 추가 |
+| `DeploymentController` | `DeploymentDiagnosisController`로 분리. `/{id}/diagnosis`는 기존에 없는 경로라 매핑 충돌 없음 |
+| `DeploymentService.deleteDeployment()` | FK 미설정 + 고아 정리 스케줄러([§3.7](#37-삭제-정합성--fk-없이-고아-정리)) |
+| `DeploymentLogResponse` | 진단 응답에 `analyzedLog` 포함([§3.2](#32-f1-1-진단-생성)) |
+
+#### 진단 빈은 `ai.enabled=true`일 때만 등록된다
+
+`DeploymentDiagnosisService` / `DeploymentDiagnosisController` / `OrphanDiagnosisCleaner`에
+`@ConditionalOnProperty(name = "ai.enabled", havingValue = "true")`를 붙인다.
+
+이유가 두 가지다.
+
+1. **AI를 끄면 흔적이 없어야 한다.** 서비스도, 매핑도, 스케줄러도 만들지 않는다.
+2. **기존 컨텍스트 테스트를 깨지 않는다.** `SsafyhubBackendApplicationTests`는 JPA 자동설정을
+   제외하고 필요한 리포지토리만 `@MockitoBean`으로 채운다. 진단 리포지토리를 무조건 요구하면
+   그 테스트의 컨텍스트 생성이 실패하는데, 해결하려면 그 테스트 파일을 고쳐야 한다(C6 위반).
+
+`GET /api/v1/ai/availability`는 JPA에 의존하지 않으므로 토글과 무관하게 항상 등록된다.
 
 ### 6.3 프론트엔드
 
@@ -850,7 +908,8 @@ frontend/src/
 | 상황 | 코드 | HTTP | 사용자에게 보이는 결과 |
 | --- | --- | :---: | --- |
 | 타인/없는 배포 id | `DEPLOYMENT_004` | 404 | 접근 불가 안내 |
-| 기능 토글 off | `AI_001` | 503 | AI 영역을 렌더링하지 않음 |
+| `ai.enabled=false` | – | 404 | 경로 자체가 없다. 프론트는 `/ai/availability`로 먼저 확인해 AI 영역을 렌더링하지 않으므로 이 응답을 만나지 않는다 |
+| 토글은 켰으나 API 키 미주입 | `AI_001` | 503 | AI 영역을 렌더링하지 않음 |
 | Claude 타임아웃·5xx·429 | `AI_002` | 502 | 안내 + 재시도 버튼. 기존 화면 유지 |
 | 응답 스키마 불일치 | `AI_002` | 502 | 동일 |
 | 안전 정책상 응답 거부 | `AI_002` | 502 | 동일 |

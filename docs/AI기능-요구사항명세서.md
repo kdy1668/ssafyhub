@@ -276,11 +276,21 @@ LLM을 호출하지 않는다.
 | | |
 | --- | --- |
 | **설정** | `ai.enabled` (기본 `false`) |
-| **자동 비활성** | API 키가 주입되지 않으면 `ai.enabled` 값과 무관하게 비활성 |
-| **비활성 시 동작** | AI 엔드포인트는 `AI_001`(사용 불가)을 반환. **그 외 모든 기존 기능은 영향받지 않는다** |
+| **자동 비활성** | API 키가 주입되지 않으면 `ai.enabled` 값과 무관하게 Claude 호출이 비활성 |
+| **비활성 시 동작** | AI 기능이 애플리케이션에 흔적을 남기지 않는다. **그 외 모든 기존 기능은 영향받지 않는다** |
 
 이 요구사항의 목적은 **키를 넣지 않은 상태로 배포해도 현재 프로덕션 동작이 그대로여야 한다**는
 것이다.
+
+비활성 시 응답은 두 갈래다.
+
+| 상황 | 응답 |
+| --- | --- |
+| `ai.enabled=false` | AI 기능 빈이 등록되지 않아 해당 경로가 존재하지 않는다 → **404** |
+| `ai.enabled=true` + API 키 미주입 | 경로는 있으나 Claude 호출이 불가 → **`AI_001`** |
+
+`GET /api/v1/ai/availability`는 **토글과 무관하게 항상 응답한다.** 프론트엔드는 이 값으로
+AI UI 렌더링 여부를 판단하므로(UI-8), 위 404를 실제로 만나지 않는다.
 
 #### FR-C.2 AI 실패가 기존 기능을 깨지 않는다
 
@@ -382,7 +392,7 @@ F1의 진단 결과를 저장한다. 스키마는 엔티티에서 `JPA_DDL_AUTO=
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | `id` | bigint | PK, auto | |
-| `deployment_id` | bigint | FK → `deployments`, NOT NULL, `ON DELETE CASCADE` | |
+| `deployment_id` | bigint | NOT NULL, **FK 없음** | [§6.3](#63-fk를-두지-않는-이유) 참조 |
 | `source_log_id` | bigint | NOT NULL | 진단 대상이 된 `deployment_logs.id` (캐시 키) |
 | `payload_json` | TEXT | NOT NULL | [FR-1.3](#fr-13-진단-출력-형식) 구조를 직렬화한 JSON |
 | `model` | varchar(60) | | 사용한 모델 식별자 |
@@ -403,31 +413,39 @@ F1의 진단 결과를 저장한다. 스키마는 엔티티에서 `JPA_DDL_AUTO=
 ```mermaid
 erDiagram
     deployments ||--o{ deployment_logs : "진행 로그"
-    deployments ||--o{ deployment_diagnoses : "실패 진단"
+    deployments ||..o{ deployment_diagnoses : "실패 진단 (FK 없는 논리 참조)"
     deployment_logs ||..o| deployment_diagnoses : "source_log_id (논리 참조)"
 ```
 
-`source_log_id`는 FK를 걸지 않는다. `deployment_logs`는 배포 삭제 시 함께 정리되는
-이력 테이블이고, 진단은 배포 단위 CASCADE로 이미 정리되기 때문이다.
+### 6.3 FK를 두지 않는 이유
 
-### 6.3 F2의 데이터 요구사항
+`deployment_id`에 FK를 걸면 배포 삭제 시 이 테이블을 먼저 비워야 하고, 그러려면
+`DeploymentService.deleteDeployment()`를 수정해야 한다. **그 경로는 이미 팀 검증이 끝난
+삭제 로직이므로, 부가 기능 때문에 손대지 않는다**([C6](#102-기술-제약)).
+
+같은 이유로 FK를 두지 않은 `deployment_outbox`와 동일한 방식이다.
+
+| 항목 | 처리 |
+| --- | --- |
+| 배포 삭제 시 | 진단 행이 남는다. 삭제는 절대 실패하지 않는다 |
+| 고아 행 정리 | 전용 스케줄러가 하루 1회 `deployment_id`가 존재하지 않는 행을 삭제한다 |
+| 정리 실패 시 | 로그만 남기고 다음 주기에 재시도한다. 애플리케이션에 영향 없음 |
+
+`source_log_id`도 FK를 걸지 않는다. 논리 참조로만 쓰인다.
+
+### 6.4 F2의 데이터 요구사항
 
 **없다.** 감지 결과를 저장하지 않는다([FR-2.7](#fr-27-결과는-저장하지-않는다)).
 쿨다운 상태는 인메모리로 관리한다.
 
-### 6.4 기존 테이블 변경
+### 6.5 기존 테이블 변경
 
-| 테이블 | 변경 | 이유 |
-| --- | --- | --- |
-| `deployments` | 없음 | |
-| `deployment_logs` | 없음 (**API 응답 DTO에 `id` 노출 필요**) | 프론트가 진단 캐시 키(`source_log_id`)를 판별해야 한다 |
-| `deployment_envs` | 없음 | |
+**없다.** 기존 테이블과 응답 DTO를 모두 그대로 둔다.
 
-### 6.5 삭제 정합성
-
-`DeploymentService.deleteDeployment()`는 현재 `deployment_outbox` →
-`deployment_envs` → `deployment_logs` → `deployments` 순으로 정리한다.
-**`deployment_diagnoses` 정리를 이 순서에 추가해야 한다.**
+당초 `deployment_logs` 응답에 `id`를 노출해 프론트가 캐시 키를 판별하게 하려 했으나,
+**진단 응답이 분석에 사용한 로그 발췌를 직접 담는 방식으로 대체했다.** 프론트는 `/logs`
+API에도 `LogViewer` 컴포넌트에도 의존하지 않으며, 비용 상한은 서버 측 캐시가 그대로 보장한다
+([§7.3](#73-기존-api-변경) 참조).
 
 ---
 
@@ -458,9 +476,18 @@ erDiagram
 
 ### 7.3 기존 API 변경
 
-| 엔드포인트 | 변경 | 하위 호환 |
-| --- | --- | :---: |
-| `GET /api/v1/deployments/{id}/logs` | 응답 항목에 `id` 필드 **추가** | O (필드 추가만) |
+**없다.**
+
+진단 응답이 `analyzedLog`(마스킹된 로그 발췌 + 줄 번호)와 `sourceLogId`를 함께 담으므로,
+프론트엔드는 기존 `/logs` 응답에서 로그 id를 얻을 필요가 없다.
+
+| 당초 설계 | 대체 방식 |
+| --- | --- |
+| 프론트가 `/logs`의 `id`로 `sourceLogId`를 판별해 쿼리 키에 넣는다 | 프론트는 상태가 `FAILED`일 때 진단을 1회 요청한다. **서버가 `sourceLogId`로 캐시**하므로 여러 번 호출해도 LLM 호출은 늘지 않는다 |
+| 근거 줄 클릭 시 `LogViewer`의 해당 줄로 이동 | 진단 카드가 `analyzedLog` 발췌를 자체 렌더링한다. `LogViewer`를 수정하지 않는다 |
+
+비용 요구사항(NFR-1.1)은 서버 캐시가 전적으로 보장한다. 프론트 쿼리 키는 애초에
+HTTP 왕복을 줄이는 최적화였을 뿐이다.
 
 ---
 
@@ -545,10 +572,30 @@ UI-6은 [FR-2.5](#fr-25-정상일-때-정상이라고-말한다)의 화면 대�
 | ID | 제약 |
 | --- | --- |
 | C1 | deploy-engine을 수정하지 않는다 ([§3.2](#32-결론-deploy-engine-변경-없음)) |
-| C2 | 기존 API 응답 스키마를 파괴적으로 변경하지 않는다 (필드 추가만 허용) |
+| C2 | 기존 API 응답 스키마를 변경하지 않는다 |
 | C3 | 기존 폴링 주기(로그 3초, 런타임 로그 5초)를 변경하지 않는다 |
 | C4 | 기존 배포 검증 로직을 AI 결과로 대체하지 않는다 |
 | C5 | 백엔드는 Java 21 / Spring Boot 3.5.16 기준 |
+| **C6** | **기존 파일을 수정하지 않는다.** 팀원이 기능 테스트를 완료한 코드이므로, AI 기능은 신규 파일로만 구성한다 |
+
+#### C6의 적용 범위와 예외
+
+C6은 **가장 강한 제약**이며 설계 선택을 지배한다. 다음 3건은 C6 때문에 당초 설계를 바꾼 것이다.
+
+| 원래 필요했던 수정 | 우회 방법 |
+| --- | --- |
+| `DeploymentController`에 엔드포인트 추가 | 별도 컨트롤러로 분리. `/{id}/diagnosis` 경로는 기존에 없어 매핑 충돌이 없다 |
+| `DeploymentService.deleteDeployment()`에 진단 정리 추가 | FK를 두지 않아 삭제가 실패할 수 없게 한다([§6.3](#63-fk를-두지-않는-이유)) |
+| `DeploymentLogResponse`에 `id` 추가 | 진단 응답이 로그 발췌를 직접 담는다([§7.3](#73-기존-api-변경)) |
+
+**예외 3건** — 공통 기반(S0) 단계에서 아래 파일에 **삭제·수정 없이 추가만** 했다.
+새 라이브러리와 에러 코드는 추가 없이 도입할 방법이 없다.
+
+| 파일 | 추가 | 성격 |
+| --- | ---: | --- |
+| `build.gradle` | 6줄 | 의존성 선언 |
+| `application.yml` | 15줄 | `ai:` 블록 (기존 키 미변경) |
+| `global/error/ErrorCode.java` | 9줄 | enum 맨 뒤에 상수 4개 (기존 상수의 ordinal 불변) |
 
 ### 10.3 개발 환경 참고
 
