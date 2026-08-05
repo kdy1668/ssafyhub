@@ -9,7 +9,7 @@ import AppIcon from "../components/common/AppIcon.vue";
 import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
-import { useMyDeployment, useUpdateDeployment } from "../composables/useDeployments";
+import { useMyDeployment, useUpdateDeployment, useRedeployWithArtifacts } from "../composables/useDeployments";
 import { useDeploymentLogs } from "../composables/useDeploymentLogs";
 import { deleteDeployment } from "../api/deployments";
 import { useQueryClient } from "@tanstack/vue-query";
@@ -91,6 +91,56 @@ async function saveEdit() {
     isEditing.value = false;
   } catch (e) {
     toastStore.showToast(e?.response?.data?.message || e?.message || "수정에 실패했습니다.", "error");
+  }
+}
+
+// --- 새 코드(zip/jar)만 올려 재배포 ---
+const {
+  phase: redeployPhase,
+  progress: redeployProgress,
+  redeployError,
+  isRedeploying,
+  run: runRedeploy,
+  reset: resetRedeploy,
+} = useRedeployWithArtifacts();
+const showRedeploy = ref(false);
+const redeployBackendFile = ref(null);
+const redeployFrontendFile = ref(null);
+
+// 백엔드 재업로드 형식: Java 계열(SPRING_*)은 .jar, 그 외(Django/FastAPI/Flask/Express)는 소스 .zip
+const backendAccept = computed(() =>
+  (currentDeployment.value?.techStack || "").startsWith("SPRING") ? ".jar" : ".zip"
+);
+
+function openRedeploy() {
+  isEditing.value = false;
+  redeployBackendFile.value = null;
+  redeployFrontendFile.value = null;
+  resetRedeploy();
+  showRedeploy.value = true;
+}
+function closeRedeploy() {
+  showRedeploy.value = false;
+}
+function onBackendFile(e) {
+  redeployBackendFile.value = e.target.files?.[0] || null;
+}
+function onFrontendFile(e) {
+  redeployFrontendFile.value = e.target.files?.[0] || null;
+}
+async function submitRedeploy() {
+  const id = currentDeployment.value?.deploymentId;
+  if (!id) return;
+  try {
+    await runRedeploy({
+      deploymentId: id,
+      backendFile: redeployBackendFile.value,
+      frontendFile: redeployFrontendFile.value,
+    });
+    toastStore.showToast("새 코드로 재배포를 요청했습니다.", "success");
+    showRedeploy.value = false;
+  } catch {
+    toastStore.showToast(redeployError.value || "재배포에 실패했습니다.", "error");
   }
 }
 
@@ -268,6 +318,16 @@ const canEditEnv = computed(() =>
               <AppIcon name="settings" class="h-4 w-4" />
               수정
             </button>
+
+            <!-- 새 코드(zip/jar)만 올려 재배포 (RUNNING/FAILED일 때만) -->
+            <button
+              v-if="canEditEnv && !showRedeploy"
+              @click="openRedeploy"
+              class="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary-light px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
+            >
+              <AppIcon name="terminal" class="h-4 w-4" />
+              새 코드 배포
+            </button>
           </div>
         </div>
 
@@ -342,6 +402,59 @@ const canEditEnv = computed(() =>
               취소
             </button>
           </div>
+        </div>
+
+        <!-- 새 코드로 재배포 패널 -->
+        <div v-if="showRedeploy" class="mb-6 rounded-lg border border-border bg-black/[0.015] p-4">
+          <div class="mb-2 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-ink-900">새 코드로 재배포</h3>
+            <button class="text-xs text-ink-500 hover:text-ink-700" @click="closeRedeploy">닫기</button>
+          </div>
+          <p class="mb-3 text-xs text-ink-500">
+            수정한 코드만 새로 올려 다시 배포합니다. 스택·포트·DB 설정은 그대로 유지되고, 교체한 파일만 반영됩니다.
+          </p>
+
+          <div v-if="currentDeployment.hasBackend" class="mb-3">
+            <label class="mb-1 block text-xs font-medium text-ink-500">
+              백엔드 코드 <span class="font-mono text-ink-400">({{ backendAccept }})</span>
+            </label>
+            <input
+              type="file"
+              :accept="backendAccept"
+              :disabled="isRedeploying"
+              class="block w-full text-xs text-ink-700 file:mr-3 file:rounded file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-primary"
+              @change="onBackendFile"
+            />
+            <div v-if="isRedeploying && redeployBackendFile" class="mt-1.5 h-1.5 overflow-hidden rounded bg-black/10">
+              <div class="h-full bg-primary transition-all" :style="{ width: redeployProgress.backend + '%' }" />
+            </div>
+          </div>
+
+          <div v-if="currentDeployment.hasFrontend" class="mb-3">
+            <label class="mb-1 block text-xs font-medium text-ink-500">
+              프론트엔드 정적 zip <span class="text-ink-400">(dist 내용물)</span>
+            </label>
+            <input
+              type="file"
+              accept=".zip"
+              :disabled="isRedeploying"
+              class="block w-full text-xs text-ink-700 file:mr-3 file:rounded file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-primary"
+              @change="onFrontendFile"
+            />
+            <div v-if="isRedeploying && redeployFrontendFile" class="mt-1.5 h-1.5 overflow-hidden rounded bg-black/10">
+              <div class="h-full bg-primary transition-all" :style="{ width: redeployProgress.frontend + '%' }" />
+            </div>
+          </div>
+
+          <p v-if="redeployError" class="mb-2 text-xs font-medium text-danger">{{ redeployError }}</p>
+
+          <button
+            :disabled="isRedeploying || (!redeployBackendFile && !redeployFrontendFile)"
+            class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover disabled:opacity-60"
+            @click="submitRedeploy"
+          >
+            {{ isRedeploying ? (redeployPhase === "uploading" ? "업로드 중..." : "재배포 요청 중...") : "업로드 후 재배포" }}
+          </button>
         </div>
 
         <div class="rounded-md bg-primary-light p-4 text-sm text-primary">

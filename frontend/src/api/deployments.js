@@ -74,6 +74,13 @@ export async function updateDeployment(deploymentId, payload) {
   return data?.data;
 }
 
+// 새 코드(zip/jar)만 올려 재배포. 아티팩트를 먼저 S3에 업로드해 받은 artifactId를 넘긴다.
+// payload: { backendArtifactId?, frontendArtifactId?, schemaArtifactId? } — 보낸 것만 교체.
+export async function redeployWithArtifacts(deploymentId, payload) {
+  const { data } = await apiClient.post(`/api/v1/deployments/${deploymentId}/redeploy`, payload);
+  return data?.data;
+}
+
 // 배포 진행 로그(깃헙 액션식 단계별). LogViewer가 쓰는 { time, status, message } 형태로 정규화.
 export async function fetchDeploymentLogs(deploymentId) {
   // 백엔드: ApiResponse.data = [{ logMessage, status, createdAt }, ...] (시간순)
