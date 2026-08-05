@@ -266,13 +266,13 @@ const canEditEnv = computed(() =>
       <!-- 단일 배포 상태 화면 -->
       <BaseCard v-else-if="currentDeployment" class="p-6 sm:p-8 shadow-card border border-border bg-surface rounded-lg">
 
-        <div class="flex items-center justify-between mb-6 border-b border-border pb-4">
-          <h2 class="text-xl font-bold text-ink-900">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6 border-b border-border pb-4">
+          <h2 class="shrink-0 text-xl font-bold text-ink-900">
             {{ currentDeployment.projectName }}
           </h2>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-2">
             <span
-              class="px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1.5"
+              class="shrink-0 whitespace-nowrap px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-1.5"
               :class="statusConfig.class"
             >
               <span class="h-1.5 w-1.5 rounded-full" :class="statusConfig.dot" />
@@ -283,7 +283,7 @@ const canEditEnv = computed(() =>
             <button
               v-if="isRunningOrSuccess"
               @click="router.push('/deployments/resources')"
-              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
             >
               <AppIcon name="chart" class="h-4 w-4" />
               리소스
@@ -293,7 +293,7 @@ const canEditEnv = computed(() =>
             <button
               v-if="canEditEnv"
               @click="router.push('/deployments/env')"
-              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
             >
               <AppIcon name="settings" class="h-4 w-4" />
               환경변수
@@ -303,7 +303,7 @@ const canEditEnv = computed(() =>
             <button
               v-if="isRunningOrSuccess"
               @click="router.push('/deployments/logs')"
-              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
             >
               <AppIcon name="terminal" class="h-4 w-4" />
               로그
@@ -313,7 +313,7 @@ const canEditEnv = computed(() =>
             <button
               v-if="!isEditing"
               @click="startEdit"
-              class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
             >
               <AppIcon name="settings" class="h-4 w-4" />
               수정
@@ -323,7 +323,7 @@ const canEditEnv = computed(() =>
             <button
               v-if="canEditEnv && !showRedeploy"
               @click="openRedeploy"
-              class="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary-light px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
+              class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-primary/40 bg-primary-light px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
             >
               <AppIcon name="terminal" class="h-4 w-4" />
               새 코드 배포
