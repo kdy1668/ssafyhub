@@ -613,9 +613,26 @@ LLM에 보내지 않는다.
 | --- | --- |
 | 저장 | 인메모리 `ConcurrentHashMap<Long, Instant>` (배포 id → 마지막 성공 호출 시각) |
 | 간격 | `ai.runtime-log-detection.cooldown-seconds` (기본 30초) |
-| 위반 응답 | `AI_003` (429), `data.retryAfterSeconds`에 남은 초 |
+| 위반 응답 | `AI_003` (429). **본문에 남은 초를 담지 않는다** (아래 참고) |
 | 갱신 시점 | **LLM 호출 성공 시에만** |
 | 정리 | 항목 수가 1000개를 넘으면 1시간 이상 경과 항목을 제거 |
+
+#### 남은 시간을 에러 응답에 담지 않는 이유
+
+기존 `GlobalExceptionHandler`는 `BusinessException`을 `ApiResponse.fail(code, message)`로
+변환하며 **`data`를 담지 않는다.** 여기에 `retryAfterSeconds`를 실으려면 그 핸들러를
+고쳐야 하는데, 모든 도메인의 에러 응답이 지나가는 공통 경로라 건드리지 않는다(제약 C6).
+
+대신 **간격 값을 `GET /api/v1/ai/availability`가 내려준다.**
+
+```json
+{ "enabled": true, "runtimeLogCooldownSeconds": 30 }
+```
+
+프론트엔드는 이 값으로 자체 카운트다운을 돌린다. 서버가 매번 남은 초를 알려주지 않아도
+"성공 시점 + 간격"으로 계산할 수 있고, `AI_003`을 받으면 카운트다운을 다시 시작하면 된다.
+
+이 엔드포인트는 설정값을 한 번만 받아오는 자리이므로 여기에 두는 것이 자연스럽다.
 
 #### 인메모리 선택 근거와 한계
 
@@ -691,7 +708,7 @@ public record RuntimeLogInsight(
 
 | 함수 | 호출 | 반환 |
 | --- | --- | --- |
-| `fetchAiAvailability()` | `GET /api/v1/ai/availability` | `{ enabled }` |
+| `fetchAiConfig()` | `GET /api/v1/ai/availability` | `{ enabled, runtimeLogCooldownSeconds }` |
 | `createFailureDiagnosis(deploymentId)` | `POST .../diagnosis` | 진단 객체 |
 | `fetchFailureDiagnosis(deploymentId)` | `GET .../diagnosis` | 진단 객체 \| `null` |
 | `detectRuntimeLogAnomalies(deploymentId)` | `POST .../runtime-logs/detection` | 감지 객체 |
@@ -744,10 +761,12 @@ public record RuntimeLogInsight(
 | --- | --- |
 | 형태 | `useMutation` (버튼 트리거) |
 | 반환 | `{ mutate, data, isPending, error, cooldownRemaining }` |
-| 쿨다운 표시 | `AI_003` 응답의 `retryAfterSeconds`로 카운트다운 |
-| 성공 시 | 로컬 쿨다운 타이머를 설정값(30초)으로 시작 |
+| 쿨다운 값 출처 | `useAiConfig()`의 `runtimeLogCooldownSeconds` |
+| 성공 시 | 그 값으로 로컬 카운트다운 시작 |
+| `AI_003` 수신 시 | 카운트다운을 그 값으로 다시 시작 (서버 쪽이 더 늦게 풀리는 경우 대비) |
 
 `cooldownRemaining`은 1초 간격 인터벌로 감소시키고, 컴포넌트 unmount 시 정리한다.
+에러 응답에는 남은 초가 없으므로([§4.3](#43-f2-2-쿨다운)) 클라이언트가 계산한다.
 
 ### 5.3 신규 컴포넌트
 
@@ -823,26 +842,50 @@ public record RuntimeLogInsight(
 
 ```
 backend/src/main/java/com/ssafyhub/backend/
-├── global/ai/
-│   ├── AiProperties.java                        # ai.* 설정 바인딩
-│   ├── AiConfig.java                            # AnthropicClient 빈 (키 있을 때만)
-│   ├── AiAvailability.java                      # F0-1 토글 판정
-│   ├── ClaudeClient.java                        # F0-2 호출 + 검증
-│   ├── AiResult.java                            # 결과 + 사용량
-│   ├── SecretRedactor.java                      # F0-3 마스킹
+├── global/ai/                                        # S0 공통 기반
+│   ├── AiProperties.java                             # ai.* 설정 바인딩
+│   ├── AiEnabledCondition.java                       # 토글 + 키 동시 판정
+│   ├── AiConfig.java                                 # AnthropicClient 빈 (조건 충족 시만)
+│   ├── AiAvailability.java                           # F0-1 활성 판정
+│   ├── ClaudeClient.java                             # F0-2 호출 + 검증 + 사용량 기록
+│   ├── AiResult.java                                 # 결과 + 사용량
+│   ├── AiPromptCommon.java                           # 두 기능 공유 프롬프트 조각
+│   ├── SecretRedactor.java                           # F0-3 마스킹
+│   ├── dto/AiAvailabilityResponse.java
 │   └── controller/AiAvailabilityController.java
 └── domain/deployment/
-    ├── entity/DeploymentDiagnosis.java
-    ├── repository/DeploymentDiagnosisRepository.java
-    ├── service/DeploymentDiagnosisService.java       # F1
-    ├── service/RuntimeLogDetectionService.java       # F2
-    ├── support/FailureLogSlicer.java                 # F1-4 구간 추출
-    ├── support/RuntimeLogCooldown.java               # F2-2
+    ├── entity/DeploymentDiagnosis.java                       # F1
+    ├── repository/DeploymentDiagnosisRepository.java         # F1
+    ├── service/DeploymentDiagnosisService.java               # F1
+    ├── service/OrphanDiagnosisCleaner.java                   # F1 고아 정리
+    ├── service/RuntimeLogDetectionService.java               # F2
+    ├── controller/DeploymentDiagnosisController.java         # F1
+    ├── controller/RuntimeLogDetectionController.java         # F2
+    ├── support/FailureLogSlicer.java                         # F1-4 구간 추출
+    ├── support/FailureLogSlice.java                          # F1-4 결과
+    ├── support/DiagnosisPromptBuilder.java                   # F1 프롬프트
+    ├── support/RuntimeLogCooldown.java                       # F2-2 쿨다운
+    ├── support/RuntimeLogPromptBuilder.java                  # F2 프롬프트
     └── dto/
-        ├── FailureDiagnosis.java                     # F1 LLM 출력 스키마
+        ├── FailureDiagnosis.java                             # F1 LLM 출력 스키마
+        ├── DiagnosisLogLine.java                             # F1 로그 발췌 한 줄
         ├── DeploymentDiagnosisResponse.java
-        ├── RuntimeLogInsight.java                    # F2 LLM 출력 스키마
+        ├── RuntimeLogInsight.java                            # F2 LLM 출력 스키마
         └── RuntimeLogDetectionResponse.java
+```
+
+테스트 (모두 신규):
+
+```
+backend/src/test/java/com/ssafyhub/backend/
+├── global/ai/SecretRedactorTest.java                     # 마스킹 R1~R6
+├── global/ai/AiAvailabilityTest.java                     # 토글 판정
+└── domain/deployment/
+    ├── AiFeatureBeanWiringTest.java                      # 토글별 빈 등록
+    ├── support/FailureLogSlicerTest.java                 # 실패 사이클 경계
+    ├── support/RuntimeLogCooldownTest.java               # 쿨다운
+    ├── service/DeploymentDiagnosisServiceTest.java       # F1
+    └── service/RuntimeLogDetectionServiceTest.java       # F2
 ```
 
 ### 6.2 백엔드 수정

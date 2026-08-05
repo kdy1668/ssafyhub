@@ -458,7 +458,11 @@ API에도 `LogViewer` 컴포넌트에도 의존하지 않으며, 비용 상한�
 | 1 | `POST` | `/api/v1/deployments/{id}/diagnosis` | F1 진단 생성 (캐시 우선) | O | O | 조건부 |
 | 2 | `GET` | `/api/v1/deployments/{id}/diagnosis` | F1 저장된 진단 조회 | O | – | **없음** |
 | 3 | `POST` | `/api/v1/deployments/{id}/runtime-logs/detection` | F2 이상 감지 | O | O | 조건부 |
-| 4 | `GET` | `/api/v1/ai/availability` | AI 기능 활성 여부 | O | – | **없음** |
+| 4 | `GET` | `/api/v1/ai/availability` | AI 활성 여부 + 클라이언트 설정값 | O | – | **없음** |
+
+4번 응답은 `{ enabled, runtimeLogCooldownSeconds }`다. 쿨다운 간격을 함께 내려주는 이유는
+기존 예외 핸들러가 에러 응답에 데이터를 담지 않아 `AI_003`에 남은 초를 실을 수 없기 때문이다
+(제약 C6 — 공통 예외 핸들러를 수정하지 않는다). 프론트엔드는 이 값으로 자체 카운트다운한다.
 
 응답은 기존 공통 포맷(`ApiResponse<T>`)을 따른다. 구현 완료 후 상세 스펙은
 [API 명세서](./API명세서.md)에 편입한다.
