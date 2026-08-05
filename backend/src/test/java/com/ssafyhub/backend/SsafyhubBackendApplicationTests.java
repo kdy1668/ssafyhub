@@ -27,7 +27,12 @@ import jakarta.servlet.http.Cookie;
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
         "jwt.secret=01234567890123456789012345678901",
         "security.encryption-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-        "deployment.outbox.enabled=false"
+        "deployment.outbox.enabled=false",
+        // AI를 명시적으로 끈다. 이 테스트는 JPA 자동설정을 제외하고 필요한 리포지토리만 목으로
+        // 채우는데, AI가 켜지면 DeploymentDiagnosisService가 등록되면서 목이 없는 진단 리포지토리를
+        // 요구해 컨텍스트 생성이 실패한다. 인라인 테스트 프로퍼티가 .env import보다 우선하므로
+        // 로컬 .env에 AI_ENABLED=true를 넣어두고 개발해도 이 테스트는 영향을 받지 않는다.
+        "ai.enabled=false"
 })
 @AutoConfigureMockMvc
 class SsafyhubBackendApplicationTests {

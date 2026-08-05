@@ -97,7 +97,11 @@ pipeline {
                         // Outbox 기능(34f80e3)에서 추가된 필수 값. 기본값이 없어
                         // 누락 시 Spring 컨텍스트 로딩 자체가 실패합니다.
                         string(credentialsId: 'ssafyhub-secret-encryption-key', variable: 'SECRET_ENCRYPTION_KEY'),
-                        string(credentialsId: 'ssafyhub-devops-was-base-url', variable: 'DEVOPS_WAS_BASE_URL')
+                        string(credentialsId: 'ssafyhub-devops-was-base-url', variable: 'DEVOPS_WAS_BASE_URL'),
+                        // AI 기능(배포 실패 진단 / 런타임 로그 이상 감지)용 SSAFY GMS 키.
+                        // 이 값이 비면 AI_ENABLED 와 무관하게 AI 기능만 조용히 꺼지고
+                        // 나머지 기능은 정상 동작한다(AiEnabledCondition).
+                        string(credentialsId: 'ssafyhub-openai-api-key', variable: 'OPENAI_API_KEY')
                         // S3 presigned URL 발급용 액세스 키 주입을 제거했다.
                         // EC2 에 IAM 롤(ssafyhub-backend-ec2-role)이 붙어 있어
                         // SDK 가 인스턴스 메타데이터에서 임시 자격증명을 받는다.
@@ -143,6 +147,8 @@ pipeline {
                             -e AWS_S3_BUCKET \
                             -e SECRET_ENCRYPTION_KEY \
                             -e DEVOPS_WAS_BASE_URL \
+                            -e AI_ENABLED=true \
+                            -e OPENAI_API_KEY \
                             "$IMAGE_NAME:$BUILD_NUMBER"
 
                         # Jenkins가 컨테이너로 구동되는 경우 이 sh 스텝의 localhost는
