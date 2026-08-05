@@ -413,6 +413,10 @@ const canEditEnv = computed(() =>
           <p class="mb-3 text-xs text-ink-500">
             수정한 코드만 새로 올려 다시 배포합니다. 스택·포트·DB 설정은 그대로 유지되고, 교체한 파일만 반영됩니다.
           </p>
+          <p class="mb-3 rounded-md bg-primary-light/60 px-3 py-2 text-[11px] leading-relaxed text-primary">
+            💡 프론트엔드 zip은 <b>dist 폴더 안의 내용물</b>을 압축해 <code>index.html</code>이 루트에 오게 하세요.
+            백엔드는 기존 스택과 같은 형식(Java=.jar / Python·Node=.zip)만 됩니다.
+          </p>
 
           <div v-if="currentDeployment.hasBackend" class="mb-3">
             <label class="mb-1 block text-xs font-medium text-ink-500">
