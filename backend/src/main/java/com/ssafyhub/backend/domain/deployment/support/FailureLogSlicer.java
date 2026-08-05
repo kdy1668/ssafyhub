@@ -68,13 +68,26 @@ public class FailureLogSlicer {
     }
 
     /**
-     * endIdx에서 역방향으로 스캔해 직전 종료 상태를 찾고, 그 다음 줄을 사이클 시작으로 본다.
-     * 없으면 첫 배포이므로 0.
+     * 사이클 시작 인덱스를 찾는다. 역방향으로 스캔해 가장 가까운 PENDING을 사이클 시작으로 본다.
+     *
+     * "FAILED를 만나면 경계"로 하면 안 된다. deploy-engine은 실패 시 파드 로그와 스택트레이스를
+     * 한 줄씩 모두 FAILED 상태로 기록하므로(DeploymentProcessor의 실패 진단 경로), 마지막 FAILED
+     * 바로 앞줄도 FAILED다. 그 규칙이면 첫 줄에서 멈춰 정작 원인이 담긴 줄들을 전부 버리게 된다.
+     * 실제 데이터로 확인한 버그다.
+     *
+     * PENDING을 기준으로 삼는 근거는 사이클이 항상 PENDING으로 시작한다는 점이다.
+     * 신규 배포는 DeploymentService가, 재배포는 deploy-engine이 PENDING을 남긴다
+     * (StaleDeploymentRecoveryService가 PENDING 개수로 재시도 횟수를 세는 것과 같은 전제).
+     *
+     * PENDING 없이 RUNNING을 먼저 만나면 이전 사이클이 성공으로 끝난 지점이므로 그 다음 줄부터다.
      */
     private int findCycleStart(List<DeploymentLog> logsAsc, int endIdx) {
-        for (int i = endIdx - 1; i >= 0; i--) {
+        for (int i = endIdx; i >= 0; i--) {
             DeploymentStatus status = logsAsc.get(i).getStatus();
-            if (status == DeploymentStatus.RUNNING || status == DeploymentStatus.FAILED) {
+            if (status == DeploymentStatus.PENDING) {
+                return i;
+            }
+            if (i < endIdx && status == DeploymentStatus.RUNNING) {
                 return i + 1;
             }
         }

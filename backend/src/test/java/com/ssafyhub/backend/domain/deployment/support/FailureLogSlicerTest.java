@@ -41,6 +41,33 @@ class FailureLogSlicerTest {
     }
 
     @Test
+    @DisplayName("실패 사이클이 FAILED를 여러 줄 남겨도 원인 줄을 모두 포함한다")
+    void includesAllFailedLinesOfCurrentCycle() {
+        // deploy-engine은 실패 시 파드 로그와 스택트레이스를 한 줄씩 모두 FAILED로 기록한다.
+        // 실제 데이터 형태다. "FAILED를 만나면 경계"로 구현하면 마지막 한 줄만 남고
+        // 정작 원인이 담긴 줄들이 전부 버려진다(실제로 겪은 버그).
+        List<DeploymentLog> logs = logs(
+                log(2L, DeploymentStatus.FAILED, "[이전 시도] 포트 오류로 실패"),
+                log(3L, DeploymentStatus.PENDING, "배포 요청이 접수되었습니다."),
+                log(4L, DeploymentStatus.BUILDING, "산출물 다운로드 완료"),
+                log(5L, DeploymentStatus.DEPLOYING, "앱 기동 대기 중"),
+                log(6L, DeploymentStatus.FAILED, "제한시간 내에 Ready 상태가 되지 않음:"),
+                log(7L, DeploymentStatus.FAILED, "  Caused by: CommunicationsException: Communications link failure"),
+                log(8L, DeploymentStatus.FAILED, "  url=jdbc:mysql://localhost:3306/mydb"),
+                log(9L, DeploymentStatus.FAILED, "상태 변경: FAILED"));
+
+        FailureLogSlice slice = slicer.slice(logs, 9L, 400);
+
+        // 이번 사이클 전체(PENDING·BUILDING·DEPLOYING + FAILED 4줄) 7줄이 들어와야 한다.
+        assertThat(slice.lines()).hasSize(7);
+        assertThat(slice.lines()).extracting(DiagnosisLogLine::message)
+                .anyMatch(message -> message.contains("CommunicationsException"));
+        // 이전 시도 로그는 섞이지 않는다.
+        assertThat(slice.lines()).extracting(DiagnosisLogLine::message)
+                .noneMatch(message -> message.contains("[이전 시도]"));
+    }
+
+    @Test
     @DisplayName("직전 RUNNING 이후부터 잘라낸다 (성공 후 재배포하다 실패한 경우)")
     void slicesAfterPreviousRunning() {
         List<DeploymentLog> logs = logs(

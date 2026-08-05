@@ -402,9 +402,10 @@ GET /api/v1/deployments/{deploymentId}/diagnosis
 
 ```
 1. deployment_logs를 id 오름차순으로 전체 조회
-2. 마지막 FAILED 로그의 인덱스를 endIdx로 잡는다
-3. endIdx - 1에서 역방향 스캔:
-   - RUNNING 또는 FAILED 상태를 만나면 → 그 다음 인덱스가 startIdx, 중단
+2. 진단 대상 FAILED 로그의 인덱스를 endIdx로 잡는다
+3. endIdx에서 역방향 스캔:
+   - PENDING을 만나면 → 그 인덱스가 startIdx (사이클 시작), 중단
+   - (endIdx가 아닌 위치에서) RUNNING을 만나면 → 그 다음 인덱스가 startIdx, 중단
    - 리스트 시작에 도달하면 → startIdx = 0
 4. [startIdx, endIdx] 구간을 사용한다
 5. 구간이 ai.failure-diagnosis.max-log-lines(기본 400줄)를 초과하면
@@ -412,20 +413,47 @@ GET /api/v1/deployments/{deploymentId}/diagnosis
    (실패 지점에 가까운 로그가 원인 판단에 더 중요하다)
 ```
 
-deploy-engine의 `StaleDeploymentRecoveryService`(:81-85)가 재시도 횟수를 셀 때 쓰는
-"가장 최근 `RUNNING`/`FAILED` 이후" 규칙과 동일한 경계를 사용한다.
+`PENDING`을 기준으로 삼는 근거는 **사이클이 항상 `PENDING`으로 시작한다**는 점이다.
+신규 배포는 `DeploymentService`가, 재배포는 deploy-engine이 `PENDING`을 남긴다
+(`StaleDeploymentRecoveryService`가 `PENDING` 개수로 재시도 횟수를 세는 것과 같은 전제).
+
+#### ⚠️ "FAILED를 만나면 경계"로 구현하면 안 된다
+
+이 문서의 초기 버전이 그렇게 규정했고, 그대로 구현했다가 **실제 데이터에서 버그로 드러났다.**
+
+deploy-engine은 실패 시 파드 로그와 스택트레이스를 **한 줄씩 모두 `FAILED` 상태로** 기록한다
+(`DeploymentProcessor.java:283-287`). 즉 마지막 `FAILED` 바로 앞줄도 `FAILED`다.
+그래서 역방향 스캔이 **첫 줄에서 즉시 멈추고**, 정작 원인이 담긴 줄을 전부 버렸다.
+
+| | 잘못된 규칙 | 수정된 규칙 |
+| --- | --- | --- |
+| 분석한 줄 수 | **1줄** (`상태 변경: FAILED`) | **14줄** (사이클 전체) |
+| 근거 줄 | `[1]` | `[11, 13]` (`CommunicationsException`, `jdbc://localhost`) |
+| 진단 내용 | 로그에 없는 내용을 **추측** | 로그에 근거한 원인 |
+
+**단위 테스트가 이걸 놓친 이유**도 기록해 둔다. 테스트 픽스처가 사이클당 `FAILED`를
+1줄만 넣었기 때문이다. `FailureLogSlicerTest`에 실제 로그 모양(FAILED 여러 줄)을
+재현하는 케이스를 추가했다.
 
 #### 예시
 
-| id | status | 구간 포함 |
-| --- | --- | :---: |
-| 1520 | PENDING | |
-| 1533 | BUILDING | |
-| 1544 | FAILED | ← 이전 사이클 경계 |
-| 1551 | PENDING | O ← `startIdx` |
-| 1560 | BUILDING | O |
-| 1568 | DEPLOYING | O |
-| 1573 | FAILED | O ← `endIdx`, `source_log_id` |
+실제 로그 모양을 그대로 반영한 예시다. 실패 진단 로그가 `FAILED` **여러 줄**로
+쌓이는 것이 핵심이다.
+
+| id | status | 메시지 | 구간 포함 |
+| --- | --- | --- | :---: |
+| 1533 | BUILDING | (이전 시도) 산출물 다운로드 | |
+| 1544 | FAILED | (이전 시도) 실패 | |
+| 1551 | PENDING | 배포 요청이 접수되었습니다. | O ← `startIdx` (역방향 스캔이 여기서 멈춘다) |
+| 1560 | BUILDING | 이미지 빌드 완료 | O |
+| 1568 | DEPLOYING | 앱 기동 대기 중 | O |
+| 1570 | FAILED | 제한시간 내에 Ready 상태가 되지 않음: | O |
+| 1571 | FAILED | `Caused by: CommunicationsException` | O ← **원인이 담긴 줄** |
+| 1572 | FAILED | `url=jdbc:mysql://localhost:3306/...` | O ← **원인이 담긴 줄** |
+| 1573 | FAILED | 상태 변경: FAILED | O ← `endIdx`, `source_log_id` |
+
+옛 규칙이었다면 1573에서 역방향으로 한 칸 가서 1572가 `FAILED`이므로 즉시 멈추고,
+구간이 1573 한 줄만 되어 위의 두 "원인이 담긴 줄"을 모두 잃는다.
 
 #### 절단 시 처리
 
