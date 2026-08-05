@@ -250,4 +250,17 @@ public class Deployment {
     public void changeProjectName(String projectName) {
         this.projectName = projectName;
     }
+
+    // 코드 수정 후 새 아티팩트로 재배포할 때 아티팩트 참조만 교체한다(스택/포트/DB 설정은 그대로).
+    public void changeBackendArtifact(Artifact backendArtifact) {
+        this.backendArtifact = backendArtifact;
+    }
+
+    public void changeFrontendArtifact(Artifact frontendArtifact) {
+        this.frontendArtifact = frontendArtifact;
+    }
+
+    public void changeSchemaArtifact(Artifact schemaArtifact) {
+        this.schemaArtifact = schemaArtifact;
+    }
 }

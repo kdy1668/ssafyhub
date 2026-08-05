@@ -6,6 +6,7 @@ import {
   getPresignedUrls,
   createDeployment as apiCreateDeployment,
   updateDeployment as apiUpdateDeployment,
+  redeployWithArtifacts as apiRedeployWithArtifacts,
   putFileToS3WithProgress,
 } from "../api/deployments";
 
@@ -53,6 +54,81 @@ export function useUpdateDeployment() {
       queryClient.invalidateQueries({ queryKey: ["deployments", "me"] });
     },
   });
+}
+
+// 1-3. 새 코드(zip/jar)만 올려 재배포. presigned 업로드 → artifactId로 재배포 트리거.
+//      기존 배포의 스택/포트/DB 설정은 그대로 두고 아티팩트만 교체한다.
+export function useRedeployWithArtifacts() {
+  const queryClient = useQueryClient();
+  // phase: idle | uploading | requesting | done | error
+  const phase = ref("idle");
+  const progress = reactive({ backend: 0, frontend: 0 });
+  const redeployError = ref(null);
+  const isRedeploying = computed(() => ["uploading", "requesting"].includes(phase.value));
+
+  async function run({ deploymentId, backendFile, frontendFile }) {
+    redeployError.value = null;
+    progress.backend = 0;
+    progress.frontend = 0;
+    if (!backendFile && !frontendFile) {
+      redeployError.value = "교체할 파일을 최소 하나 선택해주세요.";
+      phase.value = "error";
+      throw new Error(redeployError.value);
+    }
+    try {
+      // 1) presigned URL 발급 (교체할 것만)
+      const presignedRes = await getPresignedUrls(
+        backendFile ? backendFile.name : undefined,
+        frontendFile ? frontendFile.name : undefined,
+        undefined
+      );
+      const { backendArtifact, frontendArtifact } = presignedRes.data;
+
+      // 2) S3 업로드 (병렬, 진행률)
+      phase.value = "uploading";
+      const tasks = [];
+      if (backendFile && backendArtifact) {
+        const contentType = backendFile.name.toLowerCase().endsWith(".zip")
+          ? "application/zip"
+          : "application/java-archive";
+        tasks.push(
+          putFileToS3WithProgress(backendArtifact.uploadUrl, backendFile,
+            (p) => { progress.backend = p; }, { contentType })
+        );
+      }
+      if (frontendFile && frontendArtifact) {
+        tasks.push(
+          putFileToS3WithProgress(frontendArtifact.uploadUrl, frontendFile,
+            (p) => { progress.frontend = p; }, { contentType: "application/zip" })
+        );
+      }
+      await Promise.all(tasks);
+
+      // 3) 재배포 요청 (교체한 artifactId만)
+      phase.value = "requesting";
+      await apiRedeployWithArtifacts(deploymentId, {
+        backendArtifactId: backendFile ? backendArtifact?.artifactId : undefined,
+        frontendArtifactId: frontendFile ? frontendArtifact?.artifactId : undefined,
+      });
+
+      phase.value = "done";
+      queryClient.invalidateQueries({ queryKey: ["deployments", "me"] });
+    } catch (error) {
+      redeployError.value =
+        error?.response?.data?.message || error?.message || "재배포 중 오류가 발생했습니다.";
+      phase.value = "error";
+      throw error;
+    }
+  }
+
+  function reset() {
+    phase.value = "idle";
+    progress.backend = 0;
+    progress.frontend = 0;
+    redeployError.value = null;
+  }
+
+  return { phase, progress, redeployError, isRedeploying, run, reset };
 }
 
 // 2. S3 직접 업로드 + 진행률/재시도 지원 배포 실행 엔진

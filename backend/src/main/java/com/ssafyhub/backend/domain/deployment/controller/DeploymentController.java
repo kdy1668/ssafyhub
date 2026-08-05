@@ -204,6 +204,32 @@ public class DeploymentController {
     }
 
     @Operation(
+            summary = "새 코드로 재배포",
+            description = "이미 배포된 서비스에 수정한 코드(zip/jar)만 새로 올려 재배포합니다. 스택/포트/DB 설정은 유지되고 "
+                    + "아티팩트만 교체됩니다. 보낸 것만 교체(부분)하며 RUNNING 또는 FAILED 상태에서만 가능합니다. 본인 배포만 가능."
+    )
+    @SecurityRequirement(name = OpenApiConfig.ACCESS_TOKEN_COOKIE_AUTH)
+    @SecurityRequirement(name = OpenApiConfig.CSRF_TOKEN_AUTH)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_NOT_FOUND)
+    @ApiErrorCodeExample(ErrorCode.DEPLOYMENT_IN_PROGRESS)
+    @ApiErrorCodeExample(ErrorCode.NEED_AT_LEAST_ONE_ARTIFACT)
+    @ApiErrorCodeExample(ErrorCode.ARTIFACT_KIND_NOT_IN_DEPLOYMENT)
+    @ApiErrorCodeExample(ErrorCode.ARTIFACT_NOT_FOUND)
+    @ApiErrorCodeExample(ErrorCode.ARTIFACT_ACCESS_DENIED)
+    @ApiErrorCodeExample(ErrorCode.ARTIFACT_TYPE_MISMATCH)
+    @ApiErrorCodeExample(ErrorCode.ARTIFACT_ALREADY_USED)
+    @ApiErrorCodeExample(ErrorCode.STACK_ARTIFACT_MISMATCH)
+    @PostMapping("/{deploymentId}/redeploy")
+    public ResponseEntity<ApiResponse<Void>> redeploy(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long deploymentId,
+            @RequestBody com.ssafyhub.backend.domain.deployment.dto.DeploymentRedeployRequest request
+    ) {
+        deploymentService.redeployWithArtifacts(userDetails.getMemberId(), deploymentId, request);
+        return ResponseEntity.ok(ApiResponse.success("새 코드로 재배포를 요청했습니다.", null));
+    }
+
+    @Operation(
             summary = "배포 삭제",
             description = "배포를 삭제합니다. 실행 중인 서버(k8s Deployment/Service/Ingress)를 함께 내리고 "
                     + "배포 이력까지 제거하므로 되돌릴 수 없습니다. 본인의 배포만 삭제할 수 있습니다."
