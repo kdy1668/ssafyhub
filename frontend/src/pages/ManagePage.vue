@@ -9,8 +9,11 @@ import AppIcon from "../components/common/AppIcon.vue";
 import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
+import FailureDiagnosisCard from "../components/manage/FailureDiagnosisCard.vue";
 import { useMyDeployment, useUpdateDeployment, useRedeployWithArtifacts } from "../composables/useDeployments";
 import { useDeploymentLogs } from "../composables/useDeploymentLogs";
+import { useAiConfig } from "../composables/useAiConfig";
+import { useFailureDiagnosis } from "../composables/useFailureDiagnosis";
 import { deleteDeployment } from "../api/deployments";
 import { useQueryClient } from "@tanstack/vue-query";
 import { useToastStore } from "../stores/useToastStore";
@@ -29,6 +32,17 @@ const {
   isFetching: isLogsFetching,
   refetch: refetchLogs,
 } = useDeploymentLogs(deploymentId, computed(() => Boolean(deploymentId.value)));
+
+// 배포 실패 시 AI 진단 (상태가 FAILED일 때만 1회 요청, 폴링하지 않음).
+// 서버가 실패 건별로 캐시하므로 화면을 오가도 AI 호출 비용은 늘지 않는다.
+const { aiEnabled } = useAiConfig();
+const deploymentStatus = computed(() => currentDeployment.value?.status);
+const {
+  data: diagnosis,
+  isFetching: isDiagnosisFetching,
+  error: diagnosisError,
+  refetch: refetchDiagnosis,
+} = useFailureDiagnosis(deploymentId, deploymentStatus, aiEnabled);
 
 // 아직 배포한 적이 없는 사용자(404)는 에러가 아니라 "배포 없음" 빈 상태로 취급
 const hasNoDeployment = computed(() => isError.value && error.value?.status === 404);
@@ -486,6 +500,16 @@ const canEditEnv = computed(() =>
           />
         </div>
       </BaseCard>
+
+      <!-- 배포 실패 AI 진단 (실패 상태 + AI 활성일 때만) -->
+      <div v-if="currentDeployment?.status === 'FAILED' && aiEnabled" class="mt-6">
+        <FailureDiagnosisCard
+          :diagnosis="diagnosis"
+          :loading="isDiagnosisFetching && !diagnosis"
+          :error="diagnosisError"
+          @retry="refetchDiagnosis()"
+        />
+      </div>
 
       <!-- 배포 진행 로그 (깃헙 액션식) -->
       <div v-if="currentDeployment" class="mt-6">

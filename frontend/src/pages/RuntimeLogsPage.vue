@@ -4,8 +4,11 @@ import { useRouter } from "vue-router";
 import AppHeader from "../components/common/AppHeader.vue";
 import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
+import RuntimeLogDetectionPanel from "../components/manage/RuntimeLogDetectionPanel.vue";
 import { useMyDeployment } from "../composables/useDeployments";
 import { useRuntimeLogs } from "../composables/useRuntimeLogs";
+import { useAiConfig } from "../composables/useAiConfig";
+import { useRuntimeLogDetection } from "../composables/useRuntimeLogDetection";
 
 const TAIL_OPTIONS = [100, 300, 1000];
 
@@ -24,6 +27,16 @@ const { data: logs, isLoading: isLogsLoading, isFetching, refetch } = useRuntime
   isRunningOrSuccess,
   tail
 );
+
+// AI 이상 감지. 위 5초 폴링과 완전히 분리되어 버튼 클릭으로만 실행된다.
+const { aiEnabled, cooldownSeconds } = useAiConfig();
+const {
+  mutate: detectAnomalies,
+  data: detection,
+  isPending: isDetecting,
+  error: detectionError,
+  cooldownRemaining,
+} = useRuntimeLogDetection(deploymentId, cooldownSeconds);
 
 watch(logs, async () => {
   if (!autoScroll.value || !logBoxRef.value) return;
@@ -71,6 +84,16 @@ const isLoading = computed(() => isDeploymentLoading.value);
       </div>
 
       <div v-else class="flex flex-col gap-3">
+        <!-- AI 이상 감지 (버튼 클릭 시에만 호출 - 위 로그 폴링과 무관) -->
+        <RuntimeLogDetectionPanel
+          v-if="aiEnabled"
+          :detection="detection"
+          :loading="isDetecting"
+          :error="detectionError"
+          :cooldown-remaining="cooldownRemaining"
+          @detect="detectAnomalies()"
+        />
+
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5">
             <button

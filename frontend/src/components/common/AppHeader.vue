@@ -16,6 +16,9 @@ const BASE_NAV_ITEMS = [
   { label: "쇼케이스", to: "/showcase", icon: "eye", public: true },
   { label: "배포하기", to: "/deploy/new", icon: "upload" },
   { label: "내가 배포한 서비스", to: "/deployments", icon: "cube" },
+  // 런타임 로그는 배포 상세 안의 버튼으로만 갈 수 있었다. 그 버튼은 실행 중일 때만 보이므로
+  // 실패한 배포에서는 로그 화면(과 AI 이상 감지)에 도달할 방법이 아예 없다. 목차에 직접 노출한다.
+  { label: "런타임 로그", to: "/deployments/logs", icon: "terminal" },
   { label: "마이페이지", to: "/mypage", icon: "user" },
 ];
 
@@ -36,7 +39,15 @@ function navigate(item) {
 }
 
 function isActive(to) {
-  return route.path === to || route.path.startsWith(to + "/");
+  if (route.path === to) {
+    return true;
+  }
+  if (!route.path.startsWith(to + "/")) {
+    return false;
+  }
+  // 하위 경로에서는 상위 항목을 활성 표시한다(리소스/환경변수 화면에서 "내가 배포한 서비스"가 켜지는 동작).
+  // 단 그 하위 경로 자체가 목차에 있으면 그 항목만 켜야 두 개가 동시에 강조되지 않는다.
+  return !NAV_ITEMS.value.some((item) => item.to === route.path);
 }
 
 // 쿠키 삭제까지 끝난 뒤 이동해야 다음 화면의 요청이 만료된 쿠키를 보내지 않는다.
