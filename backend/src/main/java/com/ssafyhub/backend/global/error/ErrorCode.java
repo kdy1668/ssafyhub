@@ -71,6 +71,8 @@ public enum ErrorCode {
             "데이터베이스는 백엔드가 있을 때만 사용할 수 있습니다."),
     DEPLOYMENT_IN_PROGRESS(HttpStatus.CONFLICT, "DEPLOYMENT_021",
             "배포가 진행 중일 때는 환경변수를 수정할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+    ARTIFACT_KIND_NOT_IN_DEPLOYMENT(HttpStatus.BAD_REQUEST, "DEPLOYMENT_022",
+            "이 배포에 없는 종류의 아티팩트는 재배포로 추가할 수 없습니다. 기존과 같은 종류(백엔드/프론트/스키마)만 교체할 수 있습니다."),
 
     SHOWCASE_NOT_FOUND(HttpStatus.NOT_FOUND, "SHOWCASE_001", "존재하지 않는 서비스입니다."),
 

@@ -452,6 +452,79 @@ public class DeploymentService {
     }
 
     /**
+     * 코드(zip/jar)만 새로 올려 재배포한다. 이미 배포된 서비스의 소스만 고쳐 다시 올릴 때 사용.
+     * 스택/포트/DB 설정은 그대로 두고 아티팩트 참조만 새 것으로 교체한 뒤 재배포를 트리거한다.
+     * deploy-engine의 /redeploy는 배포행의 현재 아티팩트 ID를 다시 읽어 파이프라인을 재실행하므로,
+     * 여기서 아티팩트 ID만 갈아끼우고 트리거하면 새 코드로 빌드·배포된다.
+     * env 수정 재배포와 동일하게 RUNNING/FAILED 상태에서만 허용한다.
+     */
+    @Transactional
+    public void redeployWithArtifacts(Long memberId, Long deploymentId,
+            com.ssafyhub.backend.domain.deployment.dto.DeploymentRedeployRequest request) {
+        Deployment deployment = deploymentRepository.findByIdAndMember_Id(deploymentId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+
+        if (request.backendArtifactId() == null && request.frontendArtifactId() == null
+                && request.schemaArtifactId() == null) {
+            throw new BusinessException(ErrorCode.NEED_AT_LEAST_ONE_ARTIFACT);
+        }
+
+        DeploymentLog latestLog = deploymentLogRepository.findFirstByDeployment_IdOrderByIdDesc(deployment.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.DEPLOYMENT_NOT_FOUND));
+        if (latestLog.getStatus() != DeploymentStatus.RUNNING && latestLog.getStatus() != DeploymentStatus.FAILED) {
+            throw new BusinessException(ErrorCode.DEPLOYMENT_IN_PROGRESS);
+        }
+
+        List<Artifact> toMarkUsed = new java.util.ArrayList<>();
+
+        if (request.backendArtifactId() != null) {
+            // 원래 백엔드가 없던(프론트만) 배포에 백엔드를 새로 붙이는 건 스택/포트/DB 설정이 없어 불가.
+            if (deployment.getBackendArtifact() == null) {
+                throw new BusinessException(ErrorCode.ARTIFACT_KIND_NOT_IN_DEPLOYMENT);
+            }
+            Artifact backend = getArtifact(request.backendArtifactId());
+            validateArtifact(backend, memberId, ArtifactType.BACKEND_JAR);
+            // 새 아티팩트 확장자가 기존 스택(jar=Java / zip=Python·Node)과 맞는지 확인.
+            boolean isJavaStack = JAR_STACKS.contains(deployment.getEffectiveTechStack());
+            boolean isJarFile = backend.getOriginalFileName().toLowerCase(Locale.ROOT).endsWith(".jar");
+            if (isJavaStack != isJarFile) {
+                throw new BusinessException(ErrorCode.STACK_ARTIFACT_MISMATCH);
+            }
+            s3ObjectVerifier.verifyExists(backend.getBucket(), backend.getObjectKey());
+            deployment.changeBackendArtifact(backend);
+            toMarkUsed.add(backend);
+        }
+
+        if (request.frontendArtifactId() != null) {
+            if (deployment.getFrontendArtifact() == null) {
+                throw new BusinessException(ErrorCode.ARTIFACT_KIND_NOT_IN_DEPLOYMENT);
+            }
+            Artifact frontend = getArtifact(request.frontendArtifactId());
+            validateArtifact(frontend, memberId, ArtifactType.FRONTEND_ZIP);
+            s3ObjectVerifier.verifyExists(frontend.getBucket(), frontend.getObjectKey());
+            deployment.changeFrontendArtifact(frontend);
+            toMarkUsed.add(frontend);
+        }
+
+        if (request.schemaArtifactId() != null) {
+            // 스키마 교체는 원래 수동 마이그레이션(스키마 아티팩트 보유) 배포에서만 의미가 있다.
+            if (deployment.getSchemaArtifact() == null) {
+                throw new BusinessException(ErrorCode.ARTIFACT_KIND_NOT_IN_DEPLOYMENT);
+            }
+            Artifact schema = getArtifact(request.schemaArtifactId());
+            validateArtifact(schema, memberId, ArtifactType.SCHEMA_SQL);
+            s3ObjectVerifier.verifyExists(schema.getBucket(), schema.getObjectKey());
+            deployment.changeSchemaArtifact(schema);
+            toMarkUsed.add(schema);
+        }
+
+        toMarkUsed.forEach(Artifact::markUsed);
+        artifactRepository.saveAll(toMarkUsed);
+
+        devOpsDeploymentClient.redeploy(deployment.getId());
+    }
+
+    /**
      * 배포를 삭제한다. 실행 중인 사용자 서버(k8s Deployment/Service/Ingress/Middleware)를 먼저
      * 내리고, 성공한 뒤에 DB 행을 지운다.
      *

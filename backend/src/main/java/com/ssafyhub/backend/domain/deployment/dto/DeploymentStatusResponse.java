@@ -34,7 +34,16 @@ public record DeploymentStatusResponse(
         String statusMessage,
 
         @Schema(description = "상태 마지막 변경 시각", example = "2026-07-16T16:25:00")
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+
+        @Schema(description = "백엔드 아티팩트 보유 여부(재배포 시 백엔드 코드 교체 가능 여부)", example = "true")
+        Boolean hasBackend,
+
+        @Schema(description = "프론트엔드 아티팩트 보유 여부(재배포 시 프론트 교체 가능 여부)", example = "true")
+        Boolean hasFrontend,
+
+        @Schema(description = "스택(백엔드 재업로드 형식 판단용: SPRING_*는 .jar, 그 외는 .zip)", example = "DJANGO")
+        String techStack
 ) {
 
     // accessUrl: 사용자에게 보여줄 접속 주소(서브도메인). deployment.endpoint_url(IP+경로)은 내부
@@ -49,7 +58,10 @@ public record DeploymentStatusResponse(
                 latestLog.getStatus().displayStatus(),
                 accessUrl,
                 latestLog.getLogMessage(),
-                latestLog.getCreatedAt()
+                latestLog.getCreatedAt(),
+                deployment.getBackendArtifact() != null,
+                deployment.getFrontendArtifact() != null,
+                deployment.getEffectiveTechStack()
         );
     }
 }
