@@ -21,7 +21,6 @@ configurations {
 ext {
     jjwtVersion = '0.12.6'
     awsSdkVersion = '2.48.1'
-    anthropicVersion = '2.34.0'
 }
 
 dependencies {
@@ -39,11 +38,6 @@ dependencies {
 
     implementation platform("software.amazon.awssdk:bom:${awsSdkVersion}")
     implementation 'software.amazon.awssdk:s3'
-
-    // 배포 실패 진단 / 런타임 로그 이상 감지용 Claude API 클라이언트.
-    // ai.enabled=false 또는 ai.api-key 미주입이면 AiConfig가 빈을 만들지 않으므로
-    // 이 의존성이 있어도 기존 동작에는 영향이 없다(global/ai 패키지 참고).
-    implementation "com.anthropic:anthropic-java:${anthropicVersion}"
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

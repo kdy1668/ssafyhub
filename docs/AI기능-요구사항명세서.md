@@ -110,7 +110,7 @@ flowchart LR
     U["사용자 브라우저"] -->|"진단 / 감지 요청"| BE["메인 백엔드<br/>유일한 AI 호출 지점"]
     BE --> RDS["RDS MySQL<br/>deployment_logs 읽기<br/>진단 결과 캐시"]
     BE -.->|"런타임 로그만 중계<br/>(기존 경로 재사용)"| DE["deploy-engine<br/>변경 없음"]
-    BE ==>|"https"| API["Claude API"]
+    BE ==>|"https"| API["SSAFY GMS<br/>OpenAI 호환 프록시"]
 ```
 
 **결정 근거**
@@ -276,7 +276,7 @@ LLM을 호출하지 않는다.
 | | |
 | --- | --- |
 | **설정** | `ai.enabled` (기본 `false`) |
-| **자동 비활성** | API 키가 주입되지 않으면 `ai.enabled` 값과 무관하게 Claude 호출이 비활성 |
+| **자동 비활성** | API 키가 주입되지 않으면 `ai.enabled` 값과 무관하게 모델 호출이 비활성 |
 | **비활성 시 동작** | AI 기능이 애플리케이션에 흔적을 남기지 않는다. **그 외 모든 기존 기능은 영향받지 않는다** |
 
 이 요구사항의 목적은 **키를 넣지 않은 상태로 배포해도 현재 프로덕션 동작이 그대로여야 한다**는
@@ -287,7 +287,7 @@ LLM을 호출하지 않는다.
 | 상황 | 응답 |
 | --- | --- |
 | `ai.enabled=false` | AI 기능 빈이 등록되지 않아 해당 경로가 존재하지 않는다 → **404** |
-| `ai.enabled=true` + API 키 미주입 | 경로는 있으나 Claude 호출이 불가 → **`AI_001`** |
+| `ai.enabled=true` + API 키 미주입 | 경로는 있으나 모델 호출이 불가 → **`AI_001`** |
 
 `GET /api/v1/ai/availability`는 **토글과 무관하게 항상 응답한다.** 프론트엔드는 이 값으로
 AI UI 렌더링 여부를 판단하므로(UI-8), 위 404를 실제로 만나지 않는다.
@@ -296,7 +296,7 @@ AI UI 렌더링 여부를 판단하므로(UI-8), 위 404를 실제로 만나지 
 
 | 상황 | 동작 |
 | --- | --- |
-| Claude API 타임아웃 / 5xx / 429 | `AI_002`(일시적 실패). 화면은 로그·리소스 등 기존 정보를 계속 표시 |
+| GMS 타임아웃 / 4xx / 5xx | `AI_002`(일시적 실패). 화면은 로그·리소스 등 기존 정보를 계속 표시 |
 | 응답이 스키마와 불일치 | `AI_002`. 부분 파싱 결과를 억지로 보여주지 않는다 |
 | 안전 정책상 응답 거부 | `AI_002`. `stop_reason` 확인 후 처리 |
 
@@ -502,9 +502,12 @@ HTTP 왕복을 줄이는 최적화였을 뿐이다.
 ```yaml
 ai:
   enabled: ${AI_ENABLED:false}
-  model: ${AI_MODEL:claude-opus-5}
-  max-tokens: ${AI_MAX_TOKENS:16000}
-  timeout-ms: ${AI_TIMEOUT_MS:60000}
+  api-key: ${OPENAI_API_KEY:}
+  base-url: ${OPENAI_BASE_URL:https://gms.ssafy.io/gmsapi/api.openai.com/v1}
+  model: ${AI_MODEL:gpt-4.1}
+  max-tokens: ${AI_MAX_TOKENS:4000}
+  connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:5000}
+  read-timeout-ms: ${AI_READ_TIMEOUT_MS:60000}
   failure-diagnosis:
     max-log-lines: ${AI_DIAGNOSIS_MAX_LOG_LINES:400}
   runtime-log-detection:
@@ -516,9 +519,10 @@ ai:
 
 | 환경변수 | 필수 | 설명 |
 | --- | :---: | --- |
-| `ANTHROPIC_API_KEY` | AI 기능 사용 시 | 미설정이면 AI 기능만 비활성 ([FR-C.1](#fr-c1-기능-토글)) |
+| `OPENAI_API_KEY` | AI 기능 사용 시 | SSAFY GMS 발급 키. 미설정이면 AI 기능만 비활성 ([FR-C.1](#fr-c1-기능-토글)) |
+| `OPENAI_BASE_URL` | – | 기본 `https://gms.ssafy.io/gmsapi/api.openai.com/v1` |
 | `AI_ENABLED` | – | 기본 `false`. 프로덕션 활성화 시 `true` |
-| `AI_MODEL` | – | 기본 `claude-opus-5` |
+| `AI_MODEL` | – | 기본 `gpt-4.1`. GMS에서 `gpt-4o`/`gpt-4.1-mini`/`gpt-4o-mini`도 사용 가능 확인 |
 
 주입 방식은 기존 시크릿과 동일한 패턴(`JWT_SECRET`, `SECRET_ENCRYPTION_KEY`)을 따른다 —
 Jenkins credential → 컨테이너 환경변수. 아키텍처 문서상 SSM Parameter Store도 존재하므로
@@ -560,7 +564,7 @@ UI-6은 [FR-2.5](#fr-25-정상일-때-정상이라고-말한다)의 화면 대�
 
 | ID | 가정 | 검증 방법 | 틀렸을 경우 |
 | --- | --- | --- | --- |
-| **A1** | 메인 백엔드 EC2에 `api.anthropic.com` 아웃바운드 경로가 있다 | 인스턴스에서 실측 | NAT/보안그룹 아웃바운드 규칙 추가 |
+| **A1** | 메인 백엔드 EC2에 `gms.ssafy.io` 아웃바운드 경로가 있다 | 인스턴스에서 실측 | NAT/보안그룹 아웃바운드 규칙 추가 |
 | **A2** | `deployment_logs`의 실패 로그에 원인 판단에 충분한 정보가 있다 | 실제 실패 사례 5건 이상으로 진단 품질 확인 | 로그 수집 범위 확대 (deploy-engine 변경 필요) |
 | **A3** | 사내 규정상 사용자 배포 로그를 외부 AI API로 전송할 수 있다 | **사내 확인 필요** | 기능 전체 재검토 |
 
@@ -592,20 +596,25 @@ C6은 **가장 강한 제약**이며 설계 선택을 지배한다. 다음 3건�
 | `DeploymentService.deleteDeployment()`에 진단 정리 추가 | FK를 두지 않아 삭제가 실패할 수 없게 한다([§6.3](#63-fk를-두지-않는-이유)) |
 | `DeploymentLogResponse`에 `id` 추가 | 진단 응답이 로그 발췌를 직접 담는다([§7.3](#73-기존-api-변경)) |
 
-**예외 3건** — 공통 기반(S0) 단계에서 아래 파일에 **삭제·수정 없이 추가만** 했다.
-새 라이브러리와 에러 코드는 추가 없이 도입할 방법이 없다.
+**예외 2건** — 공통 기반(S0) 단계에서 아래 파일에 **삭제·수정 없이 추가만** 했다.
+설정 블록과 에러 코드는 추가 없이 도입할 방법이 없다.
 
 | 파일 | 추가 | 성격 |
 | --- | ---: | --- |
-| `build.gradle` | 6줄 | 의존성 선언 |
-| `application.yml` | 15줄 | `ai:` 블록 (기존 키 미변경) |
+| `application.yml` | 19줄 | `ai:` 블록 (기존 키 미변경) |
 | `global/error/ErrorCode.java` | 9줄 | enum 맨 뒤에 상수 4개 (기존 상수의 ordinal 불변) |
+
+`build.gradle`은 **건드리지 않았다.** GMS가 OpenAI 호환 HTTP API라 이미 있는
+Spring `RestClient`로 호출하면 되기 때문이다.
 
 ### 10.3 개발 환경 참고
 
 로컬에 JDK가 PATH에 등록되어 있지 않다. IntelliJ 번들 JBR(Java 25)로 Gradle 9.3.0 빌드가
-동작함을 확인했으며, Claude API Java 클라이언트(`com.anthropic:anthropic-java:2.34.0`)
-의존성 해석도 확인했다.
+동작함을 확인했다.
+
+**새 의존성을 추가하지 않는다.** GMS는 OpenAI 호환 HTTP API이므로 이미 프로젝트에 있는
+Spring `RestClient`로 호출한다(deploy-engine 호출과 같은 방식). 그래서 `build.gradle`은
+원본 그대로다.
 
 ---
 
@@ -636,7 +645,7 @@ C6은 **가장 강한 제약**이며 설계 선택을 지배한다. 다음 3건�
 
 ### 11.3 공통
 
-- [ ] `ANTHROPIC_API_KEY` 없이 애플리케이션이 정상 기동한다
+- [ ] `OPENAI_API_KEY` 없이 애플리케이션이 정상 기동한다
 - [ ] `ai.enabled=false`에서 기존 기능 전체가 회귀 없이 동작한다
 - [ ] AI 결과에 "AI 생성" 표시와 확신도가 노출된다
 - [ ] AI 응답이 HTML로 실행되지 않는다 (텍스트 렌더링)

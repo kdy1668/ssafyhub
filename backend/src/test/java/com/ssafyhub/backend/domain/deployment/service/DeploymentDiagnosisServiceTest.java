@@ -29,7 +29,7 @@ import com.ssafyhub.backend.domain.deployment.support.FailureLogSlice;
 import com.ssafyhub.backend.domain.deployment.support.FailureLogSlicer;
 import com.ssafyhub.backend.global.ai.AiProperties;
 import com.ssafyhub.backend.global.ai.AiResult;
-import com.ssafyhub.backend.global.ai.ClaudeClient;
+import com.ssafyhub.backend.global.ai.AiChatClient;
 import com.ssafyhub.backend.global.ai.SecretRedactor;
 import com.ssafyhub.backend.global.error.BusinessException;
 import com.ssafyhub.backend.global.error.ErrorCode;
@@ -67,7 +67,7 @@ class DeploymentDiagnosisServiceTest {
     @Mock
     private DiagnosisPromptBuilder promptBuilder;
     @Mock
-    private ClaudeClient claudeClient;
+    private AiChatClient aiChatClient;
 
     private DeploymentDiagnosisService service;
     private Deployment deployment;
@@ -81,7 +81,7 @@ class DeploymentDiagnosisServiceTest {
                 diagnosisRepository,
                 new FailureLogSlicer(new SecretRedactor()),
                 promptBuilder,
-                claudeClient,
+                aiChatClient,
                 new AiProperties(),
                 new ObjectMapper());
 
@@ -100,7 +100,7 @@ class DeploymentDiagnosisServiceTest {
         givenFailedLogs();
         given(diagnosisRepository.findByDeploymentIdAndSourceLogId(DEPLOYMENT_ID, FAILED_LOG_ID))
                 .willReturn(Optional.empty());
-        given(claudeClient.ask(eq(FailureDiagnosis.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(FailureDiagnosis.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willReturn(new AiResult<>(sampleDiagnosis(), "claude-opus-5", 3128, 612));
         givenSaveReturnsPersisted();
 
@@ -128,7 +128,7 @@ class DeploymentDiagnosisServiceTest {
 
         assertThat(response.cached()).isTrue();
         assertThat(response.summary()).isEqualTo("DB에 연결하지 못했습니다.");
-        verifyNoInteractions(claudeClient);
+        verifyNoInteractions(aiChatClient);
         verify(diagnosisRepository, never()).saveAndFlush(any());
     }
 
@@ -144,7 +144,7 @@ class DeploymentDiagnosisServiceTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.AI_NOT_ANALYZABLE);
 
-        verifyNoInteractions(claudeClient);
+        verifyNoInteractions(aiChatClient);
     }
 
     @Test
@@ -158,7 +158,7 @@ class DeploymentDiagnosisServiceTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.DEPLOYMENT_NOT_FOUND);
 
-        verifyNoInteractions(claudeClient);
+        verifyNoInteractions(aiChatClient);
     }
 
     @Test
@@ -171,7 +171,7 @@ class DeploymentDiagnosisServiceTest {
                 .willReturn(List.of(
                         new DeploymentEnv(deployment, "JWT_SECRET", "암호화된-값-절대-노출-금지"),
                         new DeploymentEnv(deployment, "DB_HOST", "암호화된-값2")));
-        given(claudeClient.ask(eq(FailureDiagnosis.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(FailureDiagnosis.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willReturn(new AiResult<>(sampleDiagnosis(), "claude-opus-5", 10, 10));
         givenSaveReturnsPersisted();
 
@@ -192,7 +192,7 @@ class DeploymentDiagnosisServiceTest {
         givenFailedLogs();
         given(diagnosisRepository.findByDeploymentIdAndSourceLogId(DEPLOYMENT_ID, FAILED_LOG_ID))
                 .willReturn(Optional.empty(), Optional.of(persistedDiagnosis()));
-        given(claudeClient.ask(eq(FailureDiagnosis.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(FailureDiagnosis.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willReturn(new AiResult<>(sampleDiagnosis(), "claude-opus-5", 10, 10));
         given(diagnosisRepository.saveAndFlush(any()))
                 .willThrow(new DataIntegrityViolationException("uk_deployment_diagnoses_source_log"));
@@ -209,7 +209,7 @@ class DeploymentDiagnosisServiceTest {
         givenFailedLogs();
         given(diagnosisRepository.findByDeploymentIdAndSourceLogId(DEPLOYMENT_ID, FAILED_LOG_ID))
                 .willReturn(Optional.empty());
-        given(claudeClient.ask(eq(FailureDiagnosis.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(FailureDiagnosis.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willReturn(new AiResult<>(sampleDiagnosis(), "claude-opus-5", 10, 10));
         given(diagnosisRepository.saveAndFlush(any()))
                 .willThrow(new DataIntegrityViolationException("배포가 삭제됨"));
@@ -232,7 +232,7 @@ class DeploymentDiagnosisServiceTest {
 
         assertThat(response).isPresent();
         assertThat(response.get().cached()).isTrue();
-        verifyNoInteractions(claudeClient);
+        verifyNoInteractions(aiChatClient);
     }
 
     @Test
@@ -242,7 +242,7 @@ class DeploymentDiagnosisServiceTest {
                 .willReturn(Optional.empty());
 
         assertThat(service.findLatest(MEMBER_ID, DEPLOYMENT_ID)).isEmpty();
-        verifyNoInteractions(claudeClient);
+        verifyNoInteractions(aiChatClient);
     }
 
     // --- fixtures ---

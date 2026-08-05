@@ -20,7 +20,7 @@ import com.ssafyhub.backend.domain.deployment.support.RuntimeLogCooldown;
 import com.ssafyhub.backend.domain.deployment.support.RuntimeLogPromptBuilder;
 import com.ssafyhub.backend.global.ai.AiAvailability;
 import com.ssafyhub.backend.global.ai.AiProperties;
-import com.ssafyhub.backend.global.ai.ClaudeClient;
+import com.ssafyhub.backend.global.ai.AiChatClient;
 import com.ssafyhub.backend.global.ai.SecretRedactor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -140,8 +140,8 @@ class AiFeatureBeanWiringTest {
         }
 
         @Bean
-        ClaudeClient claudeClient() {
-            return mock(ClaudeClient.class);
+        AiChatClient aiChatClient() {
+            return mock(AiChatClient.class);
         }
 
         @Bean

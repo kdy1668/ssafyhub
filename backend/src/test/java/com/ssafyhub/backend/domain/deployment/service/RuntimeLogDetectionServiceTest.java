@@ -26,7 +26,7 @@ import com.ssafyhub.backend.domain.deployment.support.RuntimeLogPromptBuilder;
 import com.ssafyhub.backend.global.ai.AiAvailability;
 import com.ssafyhub.backend.global.ai.AiProperties;
 import com.ssafyhub.backend.global.ai.AiResult;
-import com.ssafyhub.backend.global.ai.ClaudeClient;
+import com.ssafyhub.backend.global.ai.AiChatClient;
 import com.ssafyhub.backend.global.ai.SecretRedactor;
 import com.ssafyhub.backend.global.error.BusinessException;
 import com.ssafyhub.backend.global.error.ErrorCode;
@@ -60,7 +60,7 @@ class RuntimeLogDetectionServiceTest {
     @Mock
     private RuntimeLogCooldown cooldown;
     @Mock
-    private ClaudeClient claudeClient;
+    private AiChatClient aiChatClient;
     @Mock
     private AiAvailability aiAvailability;
 
@@ -75,7 +75,7 @@ class RuntimeLogDetectionServiceTest {
                 devOpsDeploymentClient,
                 cooldown,
                 new RuntimeLogPromptBuilder(),
-                claudeClient,
+                aiChatClient,
                 aiAvailability,
                 new AiProperties(),
                 new SecretRedactor());
@@ -95,7 +95,7 @@ class RuntimeLogDetectionServiceTest {
     void detectsAnomaliesAndMarksCooldown() {
         given(devOpsDeploymentClient.getRuntimeLogs(eq(DEPLOYMENT_ID), anyInt()))
                 .willReturn("INFO Started Application\nERROR connection timeout\n");
-        given(claudeClient.ask(eq(RuntimeLogInsight.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(RuntimeLogInsight.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willReturn(new AiResult<>(warningInsight(), "claude-opus-5", 900, 300));
 
         RuntimeLogDetectionResponse response = service.detect(MEMBER_ID, DEPLOYMENT_ID);
@@ -113,7 +113,7 @@ class RuntimeLogDetectionServiceTest {
     void reportsHealthyWithoutInventingProblems() {
         given(devOpsDeploymentClient.getRuntimeLogs(eq(DEPLOYMENT_ID), anyInt()))
                 .willReturn("INFO Started Application in 6.2 seconds\n");
-        given(claudeClient.ask(eq(RuntimeLogInsight.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(RuntimeLogInsight.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willReturn(new AiResult<>(new RuntimeLogInsight(
                         RuntimeLogInsight.Health.HEALTHY,
                         "특별한 문제가 보이지 않습니다.",
@@ -138,7 +138,7 @@ class RuntimeLogDetectionServiceTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.AI_NOT_ANALYZABLE);
 
-        verifyNoInteractions(devOpsDeploymentClient, claudeClient);
+        verifyNoInteractions(devOpsDeploymentClient, aiChatClient);
     }
 
     @Test
@@ -163,7 +163,7 @@ class RuntimeLogDetectionServiceTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.AI_DISABLED);
 
-        verifyNoInteractions(devOpsDeploymentClient, claudeClient);
+        verifyNoInteractions(devOpsDeploymentClient, aiChatClient);
     }
 
     @Test
@@ -176,7 +176,7 @@ class RuntimeLogDetectionServiceTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.AI_TOO_MANY_REQUESTS);
 
-        verifyNoInteractions(devOpsDeploymentClient, claudeClient);
+        verifyNoInteractions(devOpsDeploymentClient, aiChatClient);
     }
 
     @Test
@@ -189,7 +189,7 @@ class RuntimeLogDetectionServiceTest {
         assertThat(response.health())
                 .isEqualTo(RuntimeLogDetectionResponse.DetectionHealth.UNKNOWN);
         assertThat(response.model()).isNull();
-        verifyNoInteractions(claudeClient);
+        verifyNoInteractions(aiChatClient);
         verify(cooldown, never()).markSuccess(anyLong());
     }
 
@@ -203,7 +203,7 @@ class RuntimeLogDetectionServiceTest {
 
         assertThat(response.health())
                 .isEqualTo(RuntimeLogDetectionResponse.DetectionHealth.UNKNOWN);
-        verifyNoInteractions(claudeClient);
+        verifyNoInteractions(aiChatClient);
     }
 
     @Test
@@ -225,7 +225,7 @@ class RuntimeLogDetectionServiceTest {
     void doesNotMarkCooldownWhenAiFails() {
         given(devOpsDeploymentClient.getRuntimeLogs(eq(DEPLOYMENT_ID), anyInt()))
                 .willReturn("ERROR something\n");
-        given(claudeClient.ask(eq(RuntimeLogInsight.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(RuntimeLogInsight.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willThrow(new BusinessException(ErrorCode.AI_CALL_FAILED));
 
         assertThatThrownBy(() -> service.detect(MEMBER_ID, DEPLOYMENT_ID))
@@ -239,13 +239,13 @@ class RuntimeLogDetectionServiceTest {
     void masksSecretsBeforeSendingToAi() {
         given(devOpsDeploymentClient.getRuntimeLogs(eq(DEPLOYMENT_ID), anyInt()))
                 .willReturn("DB_PASSWORD=hunter2 로 접속 시도\nAuthorization: Bearer abcdef123456\n");
-        given(claudeClient.ask(eq(RuntimeLogInsight.class), anyString(), anyString(), anyString(), anyLong()))
+        given(aiChatClient.ask(eq(RuntimeLogInsight.SCHEMA), anyString(), anyString(), anyString(), anyLong()))
                 .willReturn(new AiResult<>(warningInsight(), "claude-opus-5", 10, 10));
 
         service.detect(MEMBER_ID, DEPLOYMENT_ID);
 
         ArgumentCaptor<String> userPrompt = ArgumentCaptor.forClass(String.class);
-        verify(claudeClient).ask(any(), anyString(), userPrompt.capture(), anyString(), anyLong());
+        verify(aiChatClient).ask(any(), anyString(), userPrompt.capture(), anyString(), anyLong());
 
         assertThat(userPrompt.getValue())
                 .doesNotContain("hunter2")

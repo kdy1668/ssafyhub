@@ -33,7 +33,7 @@
 
 | 기능 ID | 기능명 | 하위 동작 | 화면 |
 | --- | --- | --- | --- |
-| **F0** | 공통 AI 기반 | F0-1 기능 토글 · F0-2 Claude 호출 · F0-3 마스킹 · F0-4 사용량 기록 | – |
+| **F0** | 공통 AI 기반 | F0-1 기능 토글 · F0-2 모델 호출 · F0-3 마스킹 · F0-4 사용량 기록 | – |
 | **F1** | 배포 실패 AI 진단 | F1-1 진단 생성 · F1-2 진단 조회 · F1-3 캐시 판정 · F1-4 로그 구간 추출 | `ManagePage` |
 | **F2** | 런타임 로그 이상 감지 | F2-1 감지 실행 · F2-2 쿨다운 판정 | `RuntimeLogsPage` |
 
@@ -67,52 +67,80 @@
 | --- | --- |
 | **판정식** | `ai.enabled == true` **AND** API 키가 주입되어 있음 |
 | **평가 시점** | 애플리케이션 기동 시 1회 (이후 불변) |
-| **비활성 시** | Claude 클라이언트 빈을 생성하지 않는다. 기동은 정상 진행 (NFR-4.2) |
-| **노출** | `GET /api/v1/ai/availability` → `{ "enabled": true }` (프론트 UI-8 판단용) |
+| **비활성 시** | GMS 호출용 클라이언트 빈을 생성하지 않는다. 기동은 정상 진행 (NFR-4.2) |
+| **노출** | `GET /api/v1/ai/availability` → `{ "enabled": true, "runtimeLogCooldownSeconds": 30 }` |
+
+판정 기준은 `AiEnabledCondition` 한 곳에만 둔다.
 
 ```
-isAvailable() = ai.enabled && StringUtils.hasText(apiKey)
+빈 등록 조건  = ai.enabled == true && hasText(ai.api-key)
+isAvailable() = GMS 클라이언트 빈이 존재하는가
 ```
+
+`AiAvailability`가 설정값을 다시 읽지 않고 빈 존재 여부만 보는 이유는, 판정이 두 곳에
+있으면 설정과 실제 동작이 어긋날 수 있기 때문이다.
 
 비활성 상태에서 AI 엔드포인트 호출 시 즉시 `AI_001`을 반환하고, 그 앞의 어떤 처리도
 수행하지 않는다(로그 조회 포함).
 
-### 2.2 F0-2 Claude 호출 — `ClaudeClient`
+### 2.2 F0-2 모델 호출 — `AiChatClient`
 
 #### 인터페이스
 
 ```java
-<T> AiResult<T> ask(Class<T> responseType, String systemPrompt, String userPrompt, String purpose);
+<T> AiResult<T> ask(AiJsonSchema<T> schema, String systemPrompt, String userPrompt,
+                    String purpose, Long targetId);
 ```
 
 | 파라미터 | 설명 |
 | --- | --- |
-| `responseType` | 출력 스키마를 정의하는 record. 구조화 출력으로 강제한다 |
+| `schema` | JSON 스키마 + 역직렬화 타입. `FailureDiagnosis.SCHEMA` 같은 상수로 전달 |
 | `systemPrompt` | 역할·독자·제약 |
 | `userPrompt` | 분석 대상 데이터 |
 | `purpose` | 로그 태그 (`FAILURE_DIAGNOSIS` / `RUNTIME_LOG_DETECTION`) |
+| `targetId` | 로그에 남길 대상 리소스 id |
 
 `AiResult<T>`는 파싱된 결과와 사용량을 함께 담는다 — `{ T value, String model, int inputTokens, int outputTokens }`.
 F1이 사용량을 DB에 저장해야 하므로 반환 타입에 포함한다.
 
-#### 호출 파라미터
+#### 호출 방식
+
+SSAFY GMS(OpenAI 호환 프록시)의 `POST {base-url}/chat/completions`를 호출한다.
+**별도 SDK를 쓰지 않고 Spring `RestClient`를 사용한다** — 프로젝트가 이미 deploy-engine 호출에
+같은 방식을 쓰고 있고(`DevOpsConfig`), 새 의존성을 추가하지 않아도 된다.
 
 | 항목 | 값 | 근거 |
 | --- | --- | --- |
-| 모델 | `ai.model` (기본 `claude-opus-5`) | 설정으로 교체 가능 |
-| `max_tokens` | `ai.max-tokens` (기본 16000) | 비스트리밍 응답의 HTTP 타임아웃 여유 |
-| 출력 형식 | 구조화 출력 (스키마 강제) | 자유 텍스트 파싱 실패 방지 |
-| 타임아웃 | `ai.timeout-ms` (기본 60000) | NFR-2.1 |
-| 재시도 | SDK 기본 재시도에 위임. 애플리케이션 레벨 추가 재시도 **없음** | 비용 통제 (NFR-1.x) |
+| 인증 | `Authorization: Bearer {ai.api-key}` | GMS 발급 키 |
+| 모델 | `ai.model` (기본 `gpt-4.1`) | 설정으로 교체 가능. strict `json_schema` 지원 모델이어야 한다 |
+| `max_tokens` | `ai.max-tokens` (기본 4000) | 진단 결과가 잘리지 않을 정도면 충분 |
+| 출력 형식 | `response_format: {type: "json_schema", json_schema: {strict: true, ...}}` | 모델이 스키마를 벗어난 응답을 만들 수 없다 |
+| 타임아웃 | `ai.connect-timeout-ms` 5000 / `ai.read-timeout-ms` 60000 | NFR-2.1 |
+| 재시도 | **없음** | 비용 상한(실패 1건당 1회 / 30초당 1회)을 무너뜨린다 |
+
+`strict: true`가 중요하다. 이걸 켜면 파싱 실패 가능성이 프롬프트 품질에 의존하지 않는다.
+
+#### JSON 스키마는 손으로 적는다
+
+record에서 자동 생성하지 않는다. strict 모드는 모든 object에 `additionalProperties: false`와
+전 필드 `required`를 요구하는데, 자동 생성기가 만든 스키마가 조용히 400으로 거부되는 편이
+더 찾기 어렵다. 스키마는 각 DTO의 `SCHEMA` 상수로 둔다.
+
+손으로 적으면 record와 어긋날 위험이 생기므로 `AiJsonSchemaConsistencyTest`가
+필드 이름·enum 값·strict 요구사항을 검증한다.
 
 #### 응답 검증 순서
 
 ```
-1. stop_reason 확인 → "refusal"이면 AI_002
-2. 텍스트 블록 존재 확인 → 없으면 AI_002
-3. 스키마 역직렬화 → 실패하면 AI_002
-4. 필수 필드 null 검사 → 위반하면 AI_002
+1. choices 존재 확인          → 없으면 AI_002
+2. message.refusal 확인       → 있으면 AI_002 (안전 정책 거부)
+3. finish_reason == "length"  → AI_002 (토큰 상한으로 잘림)
+4. message.content 비어있음    → AI_002
+5. 스키마 역직렬화 실패        → AI_002
 ```
+
+각 단계는 로그에 다른 결과 태그를 남긴다(`REFUSAL` / `TRUNCATED` / `EMPTY_CONTENT` /
+`SCHEMA_MISMATCH`). `TRUNCATED`가 반복되면 `max-tokens`를 올려야 한다는 신호다.
 
 **부분 파싱 결과를 반환하지 않는다.** 절반만 채워진 진단은 없는 진단보다 나쁘다.
 
@@ -121,7 +149,7 @@ F1이 사용량을 DB에 저장해야 하므로 반환 타입에 포함한다.
 호출 종료 시(성공·실패 무관) 1줄 기록한다.
 
 ```
-[AI] purpose=FAILURE_DIAGNOSIS targetId=42 model=claude-opus-5
+[AI] purpose=FAILURE_DIAGNOSIS targetId=42 model=gpt-4.1
      inputTokens=3128 outputTokens=612 elapsedMs=8471 result=SUCCESS
 ```
 
@@ -212,7 +240,7 @@ sequenceDiagram
     participant U as 사용자 브라우저
     participant BE as 메인 백엔드
     participant DB as RDS MySQL
-    participant AI as Claude API
+    participant AI as SSAFY GMS
 
     Note over U: /logs 3초 폴링 중 (기존)
     U->>BE: GET /deployments/{id}/logs
@@ -264,7 +292,7 @@ X-XSRF-TOKEN: ...
 | 7 | 실패 사이클 로그 구간 추출 ([F1-4](#35-f1-4-실패-사이클-로그-구간-추출)) | 구간이 비면 `AI_004` |
 | 8 | 마스킹 (F0-3) | |
 | 9 | 줄 번호 부여 | |
-| 10 | 프롬프트 구성 → `ClaudeClient.ask()` | `AI_002` (502) |
+| 10 | 프롬프트 구성 → `AiChatClient.ask()` | `AI_002` (502) |
 | 11 | 진단 저장 (사용량 포함) | 유니크 충돌 시 → 재조회해 반환 |
 | 12 | 응답 반환 | |
 
@@ -303,7 +331,7 @@ X-XSRF-TOKEN: ...
       { "lineNumber": 2, "status": "FAILED", "message": "  Caused by: com.mysql.cj.jdbc.exceptions.CommunicationsException" }
     ],
     "omittedLeadingLines": 0,
-    "model": "claude-opus-5",
+    "model": "gpt-4.1-2025-04-14",
     "cached": false,
     "createdAt": "2026-08-05T14:22:31"
   }
@@ -504,7 +532,7 @@ sequenceDiagram
     participant U as 사용자 브라우저
     participant BE as 메인 백엔드
     participant DE as deploy-engine
-    participant AI as Claude API
+    participant AI as SSAFY GMS
 
     Note over U: 5초 폴링은 로그 표시 전용 (감지와 무관)
     U->>BE: POST /deployments/{id}/runtime-logs/detection (버튼 클릭)
@@ -549,7 +577,7 @@ POST /api/v1/deployments/{deploymentId}/runtime-logs/detection
 | 5 | deploy-engine에서 로그 조회 (`tail` = `ai.runtime-log-detection.tail`) | `AI_002` |
 | 6 | 로그 공백 또는 조회 실패 문구 → `health=UNKNOWN` 응답, **LLM 미호출** | |
 | 7 | 마스킹 | |
-| 8 | `ClaudeClient.ask()` | `AI_002` |
+| 8 | `AiChatClient.ask()` | `AI_002` |
 | 9 | 쿨다운 타임스탬프 갱신 | |
 | 10 | 응답 반환 (**저장하지 않음**, FR-2.7) | |
 
@@ -584,7 +612,7 @@ LLM에 보내지 않는다.
       "리소스 모니터링에서 메모리 사용량이 같이 올라가는지 확인해 보세요."
     ],
     "analyzedLines": 300,
-    "model": "claude-opus-5",
+    "model": "gpt-4.1-2025-04-14",
     "detectedAt": "2026-08-05T14:40:12"
   }
 }
@@ -847,7 +875,9 @@ backend/src/main/java/com/ssafyhub/backend/
 │   ├── AiEnabledCondition.java                       # 토글 + 키 동시 판정
 │   ├── AiConfig.java                                 # AnthropicClient 빈 (조건 충족 시만)
 │   ├── AiAvailability.java                           # F0-1 활성 판정
-│   ├── ClaudeClient.java                             # F0-2 호출 + 검증 + 사용량 기록
+│   ├── AiChatClient.java                             # F0-2 호출 + 검증 + 사용량 기록
+│   ├── AiHttpClient.java                             # GMS RestClient 래퍼
+│   ├── AiJsonSchema.java                             # 스키마 + 역직렬화 타입
 │   ├── AiResult.java                                 # 결과 + 사용량
 │   ├── AiPromptCommon.java                           # 두 기능 공유 프롬프트 조각
 │   ├── SecretRedactor.java                           # F0-3 마스킹
@@ -953,7 +983,7 @@ frontend/src/
 | 타인/없는 배포 id | `DEPLOYMENT_004` | 404 | 접근 불가 안내 |
 | `ai.enabled=false` | – | 404 | 경로 자체가 없다. 프론트는 `/ai/availability`로 먼저 확인해 AI 영역을 렌더링하지 않으므로 이 응답을 만나지 않는다 |
 | 토글은 켰으나 API 키 미주입 | `AI_001` | 503 | AI 영역을 렌더링하지 않음 |
-| Claude 타임아웃·5xx·429 | `AI_002` | 502 | 안내 + 재시도 버튼. 기존 화면 유지 |
+| GMS 타임아웃·4xx·5xx | `AI_002` | 502 | 안내 + 재시도 버튼. 기존 화면 유지 |
 | 응답 스키마 불일치 | `AI_002` | 502 | 동일 |
 | 안전 정책상 응답 거부 | `AI_002` | 502 | 동일 |
 | deploy-engine 순단 (F2) | `AI_002` | 502 | 동일 |
@@ -967,7 +997,7 @@ frontend/src/
 | --- | --- |
 | F1 진단 실패 | 배포 상태 표시, 진행 로그 뷰어, 서버 제어, 배포 삭제 |
 | F2 감지 실패 | 런타임 로그 폴링 표시 |
-| Claude API 전체 장애 | 플랫폼 전체 기능 (배포·조회·삭제·쇼케이스·리소스 모니터링) |
+| GMS 전체 장애 | 플랫폼 전체 기능 (배포·조회·삭제·쇼케이스·리소스 모니터링) |
 
 ### 7.3 경계 조건
 
@@ -1004,7 +1034,7 @@ frontend/src/
 | F1-T10 | 환경변수·DB 비밀번호 포함 배포 | 전송 페이로드에 값이 없음 (프롬프트 스냅샷 검증) |
 | F1-T11 | 로그에 `password=abc123` 포함 | 전송 페이로드에 `password=***` |
 | F1-T12 | 로그에 JDBC URL 자격증명 포함 | `***:***@`로 치환 |
-| F1-T13 | Claude 타임아웃 | 502 `AI_002`, 로그 뷰어 정상 |
+| F1-T13 | GMS 타임아웃 | 502 `AI_002`, 로그 뷰어 정상 |
 | F1-T14 | 스키마 불일치 응답 | 502 `AI_002`, 부분 결과 미반환 |
 | F1-T15 | 응답 조치에 SSH/kubectl 포함 여부 | 포함되지 않음 (프롬프트 제약 검증) |
 | F1-T16 | 배포 삭제 | `deployment_diagnoses` 행 함께 삭제 |

@@ -8,9 +8,9 @@ import org.springframework.stereotype.Component;
 /**
  * AI 기능(배포 실패 진단 / 런타임 로그 이상 감지) 설정.
  *
- * apiKey는 이 클래스가 유일한 통로다. SDK의 환경변수 자동 인식(fromEnv)을 쓰지 않는 이유는
- * "키가 주입되었는가"를 애플리케이션이 직접 판정해야 하기 때문이다(AiEnabledCondition).
- * 키가 없으면 Claude 클라이언트 빈 자체를 만들지 않고, 기동은 정상 진행한다.
+ * SSAFY GMS(OpenAI 호환 프록시)를 호출한다. apiKey는 이 클래스가 유일한 통로이며,
+ * "키가 주입되었는가"를 애플리케이션이 직접 판정해야 하므로(AiEnabledCondition)
+ * 환경변수를 라이브러리가 알아서 읽는 방식을 쓰지 않는다.
  */
 @Getter
 @Setter
@@ -21,15 +21,25 @@ public class AiProperties {
     /** AI 기능 사용 여부. 기본 false - 켜져 있어도 apiKey가 없으면 비활성이다. */
     private boolean enabled = false;
 
-    /** Claude API 키. 비어 있으면 enabled 값과 무관하게 AI 기능이 비활성된다. */
+    /** GMS API 키. 비어 있으면 enabled 값과 무관하게 AI 기능이 비활성된다. */
     private String apiKey = "";
 
-    private String model = "claude-opus-5";
+    /** OpenAI 호환 엔드포인트 base URL. 뒤에 /chat/completions를 붙여 호출한다. */
+    private String baseUrl = "https://gms.ssafy.io/gmsapi/api.openai.com/v1";
 
-    /** 응답 토큰 상한. 비스트리밍 호출이라 HTTP 타임아웃에 걸리지 않을 범위로 둔다. */
-    private int maxTokens = 16000;
+    /**
+     * 사용할 모델. GMS에서 gpt-4.1 / gpt-4o / gpt-4.1-mini / gpt-4o-mini 사용을 확인했다.
+     * 구조화 출력(strict json_schema)을 쓰므로 이를 지원하는 모델이어야 한다.
+     */
+    private String model = "gpt-4.1";
 
-    private long timeoutMs = 60000L;
+    /** 응답 토큰 상한. 진단 결과가 잘리지 않을 정도면 충분하다. */
+    private int maxTokens = 4000;
+
+    private long connectTimeoutMs = 5000L;
+
+    /** 모델 응답을 기다리는 시간. 진단 1건에 수십 초가 걸릴 수 있다. */
+    private long readTimeoutMs = 60000L;
 
     private FailureDiagnosis failureDiagnosis = new FailureDiagnosis();
 

@@ -13,7 +13,7 @@ import com.ssafyhub.backend.domain.deployment.support.RuntimeLogPromptBuilder;
 import com.ssafyhub.backend.global.ai.AiAvailability;
 import com.ssafyhub.backend.global.ai.AiProperties;
 import com.ssafyhub.backend.global.ai.AiResult;
-import com.ssafyhub.backend.global.ai.ClaudeClient;
+import com.ssafyhub.backend.global.ai.AiChatClient;
 import com.ssafyhub.backend.global.ai.SecretRedactor;
 import com.ssafyhub.backend.global.error.BusinessException;
 import com.ssafyhub.backend.global.error.ErrorCode;
@@ -46,7 +46,7 @@ public class RuntimeLogDetectionService {
     private final DevOpsDeploymentClient devOpsDeploymentClient;
     private final RuntimeLogCooldown cooldown;
     private final RuntimeLogPromptBuilder promptBuilder;
-    private final ClaudeClient claudeClient;
+    private final AiChatClient aiChatClient;
     private final AiAvailability aiAvailability;
     private final AiProperties aiProperties;
     private final SecretRedactor secretRedactor;
@@ -86,8 +86,8 @@ public class RuntimeLogDetectionService {
         String redactedLogs = secretRedactor.redact(rawLogs);
         int lineCount = countLines(redactedLogs);
 
-        AiResult<RuntimeLogInsight> result = claudeClient.ask(
-                RuntimeLogInsight.class,
+        AiResult<RuntimeLogInsight> result = aiChatClient.ask(
+                RuntimeLogInsight.SCHEMA,
                 promptBuilder.system(),
                 promptBuilder.user(deployment, redactedLogs, lineCount),
                 PURPOSE,

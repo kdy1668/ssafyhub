@@ -17,7 +17,7 @@ import com.ssafyhub.backend.domain.deployment.support.FailureLogSlice;
 import com.ssafyhub.backend.domain.deployment.support.FailureLogSlicer;
 import com.ssafyhub.backend.global.ai.AiProperties;
 import com.ssafyhub.backend.global.ai.AiResult;
-import com.ssafyhub.backend.global.ai.ClaudeClient;
+import com.ssafyhub.backend.global.ai.AiChatClient;
 import com.ssafyhub.backend.global.error.BusinessException;
 import com.ssafyhub.backend.global.error.ErrorCode;
 import java.util.List;
@@ -57,7 +57,7 @@ public class DeploymentDiagnosisService {
     private final DeploymentDiagnosisRepository diagnosisRepository;
     private final FailureLogSlicer failureLogSlicer;
     private final DiagnosisPromptBuilder promptBuilder;
-    private final ClaudeClient claudeClient;
+    private final AiChatClient aiChatClient;
     private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
 
@@ -102,8 +102,8 @@ public class DeploymentDiagnosisService {
                 .map(com.ssafyhub.backend.domain.deployment.entity.DeploymentEnv::getEnvKey)
                 .toList();
 
-        AiResult<FailureDiagnosis> result = claudeClient.ask(
-                FailureDiagnosis.class,
+        AiResult<FailureDiagnosis> result = aiChatClient.ask(
+                FailureDiagnosis.SCHEMA,
                 promptBuilder.system(),
                 promptBuilder.user(deployment, envKeys, slice),
                 PURPOSE,
