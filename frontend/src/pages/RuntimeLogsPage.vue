@@ -4,11 +4,8 @@ import { useRouter } from "vue-router";
 import AppHeader from "../components/common/AppHeader.vue";
 import BaseButton from "../components/common/BaseButton.vue";
 import BaseSkeleton from "../components/common/BaseSkeleton.vue";
-import RuntimeLogDetectionPanel from "../components/manage/RuntimeLogDetectionPanel.vue";
 import { useMyDeployment } from "../composables/useDeployments";
 import { useRuntimeLogs } from "../composables/useRuntimeLogs";
-import { useAiConfig } from "../composables/useAiConfig";
-import { useRuntimeLogDetection } from "../composables/useRuntimeLogDetection";
 
 const TAIL_OPTIONS = [100, 300, 1000];
 
@@ -33,16 +30,6 @@ const { data: logs, isLoading: isLogsLoading, isFetching, refetch } = useRuntime
   canViewRuntimeLogs,
   tail
 );
-
-// AI 이상 감지. 위 5초 폴링과 완전히 분리되어 버튼 클릭으로만 실행된다.
-const { aiEnabled, cooldownSeconds } = useAiConfig();
-const {
-  mutate: detectAnomalies,
-  data: detection,
-  isPending: isDetecting,
-  error: detectionError,
-  cooldownRemaining,
-} = useRuntimeLogDetection(deploymentId, cooldownSeconds);
 
 watch(logs, async () => {
   if (!autoScroll.value || !logBoxRef.value) return;
@@ -101,18 +88,6 @@ const isLoading = computed(() => isDeploymentLoading.value);
           배포가 실패한 상태입니다. 컨테이너가 뜨지 못했다면 남은 로그가 없을 수 있습니다 -
           그때는 배포 관리 화면의 AI 진단 카드가 배포 로그를 근거로 원인을 알려줍니다.
         </p>
-
-        <!-- AI 이상 감지 (버튼 클릭 시에만 호출 - 위 로그 폴링과 무관).
-             실행 중일 때만 노출한다. 서버가 RUNNING이 아닌 배포의 감지 요청을
-             AI_NOT_ANALYZABLE로 거부하므로, 눌러도 실패할 버튼을 보여주지 않는다. -->
-        <RuntimeLogDetectionPanel
-          v-if="aiEnabled && isRunningOrSuccess"
-          :detection="detection"
-          :loading="isDetecting"
-          :error="detectionError"
-          :cooldown-remaining="cooldownRemaining"
-          @detect="detectAnomalies()"
-        />
 
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5">

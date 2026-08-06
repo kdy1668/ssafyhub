@@ -18,9 +18,10 @@ export function useAiConfig() {
     retry: false,
   });
 
+  // 서버는 runtimeLogCooldownSeconds도 함께 주지만 쓰지 않는다. 런타임 로그 이상 감지
+  // 기능을 화면에서 걷어냈고, 그 값은 그 기능 전용이다.
   return {
     ...query,
     aiEnabled: computed(() => query.data.value?.enabled === true),
-    cooldownSeconds: computed(() => query.data.value?.runtimeLogCooldownSeconds ?? 30),
   };
 }
