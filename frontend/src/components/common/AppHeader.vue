@@ -55,7 +55,7 @@ async function handleLogout() {
 </script>
 
 <template>
-  <header class="sticky top-0 z-10 border-b border-border bg-surface">
+  <header class="sticky top-0 z-50 border-b border-border bg-surface">
     <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
       <!-- 로고 + 목차 -->
       <div class="flex items-center gap-6">

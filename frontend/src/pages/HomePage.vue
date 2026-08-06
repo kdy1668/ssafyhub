@@ -76,11 +76,11 @@ const STACKS = ["Spring Boot", "Django", "FastAPI", "Flask", "Express"];
             SSAFYHUB CONSOLE
           </span>
 
-          <h1 class="mt-4 text-3xl font-bold leading-[1.15] tracking-tight text-white sm:text-[42px]">
+          <h1 class="mt-4 break-keep text-3xl font-bold leading-[1.15] tracking-tight text-white sm:text-[42px]">
             <template v-if="user">{{ user.name }}님, 환영합니다 👋</template>
             <template v-else>코드만 올리면,<br />배포는 저희가 합니다.</template>
           </h1>
-          <p class="mt-4 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
+          <p class="mt-4 max-w-xl break-keep text-sm leading-relaxed text-white/85 sm:text-base">
             빌드·컨테이너·도메인·DB까지 신경 쓸 필요 없이, zip 하나로 팀 프로젝트를 클라우드에 올리는
             SSAFY 전용 간편 배포 플랫폼입니다.
           </p>
