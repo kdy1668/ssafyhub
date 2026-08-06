@@ -258,5 +258,38 @@ const STACKS = ["Spring Boot", "Django", "FastAPI", "Flask", "Express"];
         </div>
       </section>
     </main>
+
+    <!-- 하단 푸터 바 -->
+    <footer class="mt-16 border-t border-border bg-surface">
+      <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <!-- 정책 링크 -->
+        <nav class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-ink-700">
+          <a href="#" class="transition hover:text-primary" @click.prevent>이용약관</a>
+          <span class="text-border">|</span>
+          <a href="#" class="transition hover:text-primary" @click.prevent>개인정보처리방침</a>
+          <span class="text-border">|</span>
+          <a href="#" class="transition hover:text-primary" @click.prevent>금융상품공시 고지</a>
+          <span class="text-border">|</span>
+          <a href="#" class="transition hover:text-primary" @click.prevent>회사소개</a>
+        </nav>
+
+        <!-- 팀 / 회사 정보 -->
+        <div class="mt-5 space-y-1 text-[11px] leading-relaxed text-ink-500">
+          <p>
+            팀명: SSAFY 15기 부울경 2반 E206
+            <span class="mx-1.5 text-ink-300">|</span>
+            대표 연구원: 좋좋조
+          </p>
+          <p>
+            주소: 부산 강서구 녹산산업중로 333 부울경캠퍼스
+            <span class="mx-1.5 text-ink-300">|</span>
+            이메일:
+            <a href="mailto:support@ssafyhub.site" class="hover:text-primary hover:underline">support@ssafyhub.site</a>
+          </p>
+        </div>
+
+        <p class="mt-5 text-[11px] text-ink-300">© 2026 SSAFYHUB. All rights reserved.</p>
+      </div>
+    </footer>
   </div>
 </template>
