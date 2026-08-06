@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, reactive, watch } from "vue";
+import { computed, ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 import AppHeader from "../components/common/AppHeader.vue";
 import BaseButton from "../components/common/BaseButton.vue";
@@ -10,13 +10,10 @@ import ConfirmModal from "../components/common/ConfirmModal.vue";
 import ControlButtons from "../components/manage/ControlButtons.vue";
 import LogViewer from "../components/manage/LogViewer.vue";
 import FailureDiagnosisCard from "../components/manage/FailureDiagnosisCard.vue";
-import RuntimeLogDetectionPanel from "../components/manage/RuntimeLogDetectionPanel.vue";
 import { useMyDeployment, useUpdateDeployment, useRedeployWithArtifacts } from "../composables/useDeployments";
 import { useDeploymentLogs } from "../composables/useDeploymentLogs";
-import { useRuntimeLogs } from "../composables/useRuntimeLogs";
 import { useAiConfig } from "../composables/useAiConfig";
 import { useFailureDiagnosis } from "../composables/useFailureDiagnosis";
-import { useRuntimeLogDetection } from "../composables/useRuntimeLogDetection";
 import { deleteDeployment } from "../api/deployments";
 import { useQueryClient } from "@tanstack/vue-query";
 import { useToastStore } from "../stores/useToastStore";
@@ -38,7 +35,7 @@ const {
 
 // 배포 실패 시 AI 진단 (상태가 FAILED일 때만 1회 요청, 폴링하지 않음).
 // 서버가 실패 건별로 캐시하므로 화면을 오가도 AI 호출 비용은 늘지 않는다.
-const { aiEnabled, cooldownSeconds } = useAiConfig();
+const { aiEnabled } = useAiConfig();
 const deploymentStatus = computed(() => currentDeployment.value?.status);
 const {
   data: diagnosis,
@@ -249,70 +246,15 @@ const statusConfig = computed(() => {
 
 // 현재 배포가 성공(실행 중) 상태인지 판별
 const isRunningOrSuccess = computed(() => currentDeployment.value?.status === "RUNNING");
+// 런타임 로그는 실행 중일 때뿐 아니라 실패했을 때도 열 수 있어야 한다. 원인을 확인해야
+// 할 때가 정작 실패했을 때인데, RUNNING 전용이면 그때 로그 원문에 접근할 방법이 없다.
+const canViewRuntimeLogs = computed(() =>
+  ["RUNNING", "FAILED"].includes(currentDeployment.value?.status)
+);
 // 환경변수 수정은 진행 중(PENDING/BUILDING/DEPLOYING)이 아닐 때만 가능 - 백엔드 게이팅과 동일한 조건.
 const canEditEnv = computed(() =>
   ["RUNNING", "FAILED"].includes(currentDeployment.value?.status)
 );
-
-// --- 런타임 로그(컨테이너 stdout/stderr) + AI 이상 감지 ---
-// 전용 페이지(/deployments/logs)에서 이 화면으로 옮겼다. 상태·제어·로그를 한 화면에서
-// 보는 편이 자연스럽고, 로그를 보려고 화면을 오갈 이유가 없어진다.
-//
-// 위쪽 배포 진행 로그(useDeploymentLogs)와는 다른 데이터다. 그쪽은 배포 단계 이력이고
-// 이쪽은 앱이 실제로 찍는 출력이다. AI 이상 감지는 이 런타임 로그만 분석한다.
-//
-// 이 블록이 isRunningOrSuccess 정의보다 뒤에 있어야 한다 - script setup은 위에서
-// 아래로 실행되므로 앞에 두면 초기화 전 참조가 된다.
-const RUNTIME_TAIL_OPTIONS = [100, 300, 1000];
-const runtimeTail = ref(300);
-const runtimeAutoScroll = ref(true);
-const runtimeLogBoxRef = ref(null);
-// 로그 버튼으로 펼친다. 전용 페이지를 두지 않으면서도 평소 화면이 길어지지 않는다.
-const showRuntimeLogs = ref(false);
-
-// 실행 중일 때만이 아니라 실패했을 때도 보여준다. 원인을 확인해야 할 때가 정작
-// 실패했을 때인데, RUNNING 전용으로 두면 그때 로그 원문에 접근할 방법이 없어진다.
-// 컨테이너가 뜨지 못해 로그가 없으면 deploy-engine이 조회 실패 문구를 돌려주므로,
-// 화면은 빈 상태가 아니라 그 문구를 그대로 보여준다.
-const canViewRuntimeLogs = computed(() =>
-  ["RUNNING", "FAILED"].includes(currentDeployment.value?.status)
-);
-
-// 펼쳤을 때만 조회한다. 접어둔 채로 폴링하면 화면을 열어두는 것만으로
-// deploy-engine에 5초마다 요청이 나간다.
-const isRuntimeLogsOpen = computed(
-  () => canViewRuntimeLogs.value && showRuntimeLogs.value
-);
-
-const {
-  data: runtimeLogs,
-  isLoading: isRuntimeLogsLoading,
-  isFetching: isRuntimeLogsFetching,
-  refetch: refetchRuntimeLogs,
-} = useRuntimeLogs(deploymentId, isRuntimeLogsOpen, runtimeTail);
-
-// 버튼 클릭으로만 실행된다. 위 5초 폴링에 연결하면 화면을 열어두는 것만으로
-// 시간당 720회 AI 호출이 발생한다.
-const {
-  mutate: detectAnomalies,
-  data: detection,
-  isPending: isDetecting,
-  error: detectionError,
-  cooldownRemaining,
-} = useRuntimeLogDetection(deploymentId, cooldownSeconds);
-
-watch(runtimeLogs, async () => {
-  if (!runtimeAutoScroll.value || !runtimeLogBoxRef.value) return;
-  await nextTick();
-  runtimeLogBoxRef.value.scrollTop = runtimeLogBoxRef.value.scrollHeight;
-});
-
-function handleRuntimeLogScroll() {
-  const el = runtimeLogBoxRef.value;
-  if (!el) return;
-  // 사용자가 위로 스크롤해서 과거 로그를 보고 있으면 자동 스크롤을 멈춘다.
-  runtimeAutoScroll.value = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-}
 </script>
 
 <template>
@@ -392,15 +334,14 @@ function handleRuntimeLogScroll() {
               환경변수
             </button>
 
-            <!-- 런타임 로그 펼치기/접기. 별도 페이지로 나가지 않고 이 화면 안에서 연다.
-                 실행 중일 때뿐 아니라 실패했을 때도 눌러야 원인을 볼 수 있다. -->
+            <!-- 런타임 로그 보기. 실행 중일 때뿐 아니라 실패했을 때도 노출한다. -->
             <button
               v-if="canViewRuntimeLogs"
-              @click="showRuntimeLogs = !showRuntimeLogs"
+              @click="router.push('/deployments/logs')"
               class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-3 py-1 text-sm font-medium text-ink-700 hover:bg-black/5"
             >
               <AppIcon name="terminal" class="h-4 w-4" />
-              {{ showRuntimeLogs ? "로그 닫기" : "로그" }}
+              로그
             </button>
 
             <!-- 이름/설명/공개여부 수정 (재배포 없이 즉시 반영) -->
@@ -599,82 +540,6 @@ function handleRuntimeLogScroll() {
           :loading="isLogsFetching"
           @refresh="handleRefreshLogs"
         />
-      </div>
-
-      <!-- 런타임 로그(컨테이너 출력) + AI 이상 감지. 위 "로그" 버튼으로 펼친다. -->
-      <div v-if="isRuntimeLogsOpen" class="mt-6 flex flex-col gap-3">
-        <div class="flex flex-col gap-1 border-b border-border/80 pb-3">
-          <h2 class="text-lg font-bold text-ink-900">백엔드 런타임 로그</h2>
-          <p class="text-xs text-ink-500">
-            컨테이너의 표준 출력(stdout/stderr)을 5초마다 새로 불러옵니다. 실시간 스트리밍은
-            아니라 아주 최근 로그는 약간 늦게 보일 수 있습니다.
-          </p>
-          <p v-if="!isRunningOrSuccess" class="text-xs text-ink-500">
-            배포가 실패한 상태입니다. 컨테이너가 뜨지 못했다면 남은 로그가 없을 수 있습니다 -
-            그때는 위의 AI 진단 카드가 배포 로그를 근거로 원인을 알려줍니다.
-          </p>
-        </div>
-
-        <!-- AI 이상 감지 (버튼 클릭 시에만 호출 - 아래 로그 폴링과 무관).
-             실행 중일 때만 노출한다. 서버가 RUNNING이 아닌 배포의 감지 요청을
-             AI_NOT_ANALYZABLE로 거부하므로, 눌러도 실패할 버튼을 보여주지 않는다.
-             실패 상태의 원인 분석은 위쪽 배포 실패 AI 진단이 담당한다. -->
-        <RuntimeLogDetectionPanel
-          v-if="aiEnabled && isRunningOrSuccess"
-          :detection="detection"
-          :loading="isDetecting"
-          :error="detectionError"
-          :cooldown-remaining="cooldownRemaining"
-          @detect="detectAnomalies()"
-        />
-
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5">
-            <button
-              v-for="opt in RUNTIME_TAIL_OPTIONS"
-              :key="opt"
-              @click="runtimeTail = opt"
-              class="rounded-md border px-2.5 py-1 text-xs font-medium transition-colors"
-              :class="runtimeTail === opt
-                ? 'border-primary bg-primary-light text-primary'
-                : 'border-border bg-surface text-ink-600 hover:bg-black/5'"
-            >
-              최근 {{ opt }}줄
-            </button>
-          </div>
-          <button
-            @click="refetchRuntimeLogs()"
-            class="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1 text-xs font-medium text-ink-700 hover:bg-black/5"
-          >
-            새로고침
-          </button>
-        </div>
-
-        <div
-          ref="runtimeLogBoxRef"
-          @scroll="handleRuntimeLogScroll"
-          class="h-[32rem] overflow-y-auto rounded-lg border border-border bg-ink-900 p-4 font-mono text-xs leading-relaxed text-white"
-        >
-          <BaseSkeleton
-            v-if="isRuntimeLogsLoading && !runtimeLogs"
-            class="h-full w-full bg-white/10"
-          />
-          <pre v-else class="whitespace-pre-wrap break-all">{{ runtimeLogs || "(아직 출력된 로그가 없습니다)" }}</pre>
-        </div>
-
-        <div class="flex items-center justify-between text-xs text-ink-500">
-          <span v-if="!runtimeAutoScroll">
-            위로 스크롤 중 - 자동 스크롤이 꺼졌습니다. 아래로 내리면 다시 켜집니다.
-          </span>
-          <span v-else />
-          <span class="flex items-center gap-1">
-            <span
-              class="h-1.5 w-1.5 rounded-full"
-              :class="isRuntimeLogsFetching ? 'bg-accent animate-pulse' : 'bg-success'"
-            />
-            5초마다 자동 갱신
-          </span>
-        </div>
       </div>
     </main>
 
