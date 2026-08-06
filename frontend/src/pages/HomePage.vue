@@ -63,14 +63,15 @@ const STACKS = ["Spring Boot", "Django", "FastAPI", "Flask", "Express"];
           style="background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px); background-size: 40px 40px;"
         />
 
-        <div class="relative z-10 max-w-2xl">
+        <div class="relative z-10 grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+          <div class="max-w-xl">
           <span class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-white ring-1 ring-white/25">
             <span class="h-1.5 w-1.5 rounded-full bg-white" />
             SSAFYHUB CONSOLE
           </span>
 
           <h1 class="mt-4 text-3xl font-bold leading-[1.15] tracking-tight text-white sm:text-[42px]">
-            <template v-if="user">{{ user.name }}님, 다시 오셨네요 👋</template>
+            <template v-if="user">{{ user.name }}님, 환영합니다 👋</template>
             <template v-else>코드만 올리면,<br />배포는 저희가 합니다.</template>
           </h1>
           <p class="mt-4 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
@@ -107,6 +108,60 @@ const STACKS = ["Spring Boot", "Django", "FastAPI", "Flask", "Express"];
             >
               {{ s }}
             </span>
+          </div>
+          </div>
+
+          <!-- 오른쪽: 콘솔 미리보기 목업 (넓은 화면에서만) -->
+          <div class="relative hidden lg:block">
+            <div class="absolute -inset-4 rounded-3xl bg-white/5 blur-2xl" />
+            <div class="relative rounded-2xl bg-white/10 p-3 shadow-2xl ring-1 ring-white/25 backdrop-blur">
+              <!-- 브라우저 크롬 -->
+              <div class="mb-3 flex items-center gap-2 px-1">
+                <span class="h-2.5 w-2.5 rounded-full bg-white/40" />
+                <span class="h-2.5 w-2.5 rounded-full bg-white/40" />
+                <span class="h-2.5 w-2.5 rounded-full bg-white/40" />
+                <span class="ml-2 flex-1 truncate rounded-md bg-white/15 px-2.5 py-1 font-mono text-[11px] text-white/80">
+                  https://1551343.ssafyhub.site
+                </span>
+              </div>
+
+              <!-- 배포 상태 카드 -->
+              <div class="rounded-xl bg-white p-4 text-ink-900">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm font-bold">richman</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-success-light px-2.5 py-0.5 text-[11px] font-semibold text-success">
+                    <span class="h-1.5 w-1.5 rounded-full bg-success" /> RUNNING
+                  </span>
+                </div>
+                <p class="mt-0.5 text-[11px] text-ink-500">Django · MySQL · 배포 성공</p>
+
+                <div class="mt-4 space-y-3">
+                  <div>
+                    <div class="mb-1 flex justify-between text-[10px] font-medium text-ink-500">
+                      <span>CPU</span><span>32%</span>
+                    </div>
+                    <div class="h-1.5 overflow-hidden rounded-full bg-primary-light">
+                      <div class="h-full w-1/3 rounded-full bg-primary" />
+                    </div>
+                  </div>
+                  <div>
+                    <div class="mb-1 flex justify-between text-[10px] font-medium text-ink-500">
+                      <span>메모리</span><span>210MB</span>
+                    </div>
+                    <div class="h-1.5 overflow-hidden rounded-full bg-sky-light">
+                      <div class="h-full w-2/5 rounded-full bg-sky" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 미니 배포 로그 -->
+              <div class="mt-3 space-y-1.5 rounded-xl bg-black/20 p-3 font-mono text-[10px] leading-relaxed text-white/70">
+                <p>✓ 이미지 빌드 완료</p>
+                <p>✓ Kubernetes 배포 완료</p>
+                <p class="text-white">▸ https://1551343.ssafyhub.site 접속 가능</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
