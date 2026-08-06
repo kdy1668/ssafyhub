@@ -49,7 +49,7 @@ const STEPS = [
   { icon: "link", title: "바로 접속", desc: "HTTPS 서브도메인" },
 ];
 
-const STACKS = ["Spring Boot", "Django", "FastAPI", "Flask", "Express"];
+const STACKS = ["Spring Boot", "Django", "FastAPI", "Express"];
 </script>
 
 <template>
