@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from "vue";
 import { useRouter } from "vue-router";
 import AppHeader from "../components/common/AppHeader.vue";
 import AppIcon from "../components/common/AppIcon.vue";
@@ -8,6 +9,11 @@ import { useAuthStore } from "../stores/useAuthStore";
 const router = useRouter();
 const authStore = useAuthStore();
 const { data: user } = useCurrentUser();
+
+// 히어로 오른쪽 목업은 장식용(실배포 데이터 아님)이지만, 모두에게 똑같은 남의 프로젝트가
+// 뜨면 어색하므로 로그인 사용자의 학번(=실제 서브도메인)·이름으로 개인화한다. 비로그인은 샘플.
+const previewSlug = computed(() => user.value?.studentNumber || "1551343");
+const previewName = computed(() => (user.value?.name ? `${user.value.name}-app` : "my-app"));
 
 // 로그인이 필요한 경로는 미인증 시 로그인으로 우회시킨다.
 function go(path, requiresAuth = false) {
@@ -121,19 +127,19 @@ const STACKS = ["Spring Boot", "Django", "FastAPI", "Flask", "Express"];
                 <span class="h-2.5 w-2.5 rounded-full bg-white/40" />
                 <span class="h-2.5 w-2.5 rounded-full bg-white/40" />
                 <span class="ml-2 flex-1 truncate rounded-md bg-white/15 px-2.5 py-1 font-mono text-[11px] text-white/80">
-                  https://1551343.ssafyhub.site
+                  https://{{ previewSlug }}.ssafyhub.site
                 </span>
               </div>
 
               <!-- 배포 상태 카드 -->
               <div class="rounded-xl bg-white p-4 text-ink-900">
                 <div class="flex items-center justify-between">
-                  <span class="text-sm font-bold">richman</span>
+                  <span class="text-sm font-bold">{{ previewName }}</span>
                   <span class="inline-flex items-center gap-1.5 rounded-full bg-success-light px-2.5 py-0.5 text-[11px] font-semibold text-success">
                     <span class="h-1.5 w-1.5 rounded-full bg-success" /> RUNNING
                   </span>
                 </div>
-                <p class="mt-0.5 text-[11px] text-ink-500">Django · MySQL · 배포 성공</p>
+                <p class="mt-0.5 text-[11px] text-ink-500">내 서비스 · 배포 미리보기</p>
 
                 <div class="mt-4 space-y-3">
                   <div>
@@ -159,7 +165,7 @@ const STACKS = ["Spring Boot", "Django", "FastAPI", "Flask", "Express"];
               <div class="mt-3 space-y-1.5 rounded-xl bg-black/20 p-3 font-mono text-[10px] leading-relaxed text-white/70">
                 <p>✓ 이미지 빌드 완료</p>
                 <p>✓ Kubernetes 배포 완료</p>
-                <p class="text-white">▸ https://1551343.ssafyhub.site 접속 가능</p>
+                <p class="text-white">▸ https://{{ previewSlug }}.ssafyhub.site 접속 가능</p>
               </div>
             </div>
           </div>
