@@ -8,7 +8,6 @@ import DeployRequestPage from "./pages/DeployRequestPage.vue";
 import ManagePage from "./pages/ManagePage.vue";
 import ResourcesPage from "./pages/ResourcesPage.vue";
 import EnvUpdatePage from "./pages/EnvUpdatePage.vue";
-import RuntimeLogsPage from "./pages/RuntimeLogsPage.vue";
 import AdminPage from "./pages/AdminPage.vue";
 import ShowcaseListPage from "./pages/ShowcaseListPage.vue";
 import ShowcaseDetailPage from "./pages/ShowcaseDetailPage.vue";
@@ -26,7 +25,6 @@ export const router = createRouter({
     { path: "/deployments", component: ManagePage, meta: { requiresAuth: true } },
     { path: "/deployments/resources", component: ResourcesPage, meta: { requiresAuth: true } },
     { path: "/deployments/env", component: EnvUpdatePage, meta: { requiresAuth: true } },
-    { path: "/deployments/logs", component: RuntimeLogsPage, meta: { requiresAuth: true } },
     { path: "/admin", component: AdminPage, meta: { requiresAuth: true, requiresAdmin: true } },
     // 쇼케이스(공개 배포 목록/상세)는 백엔드 API 자체가 인증 불필요이므로 비로그인 접근 허용
     { path: "/showcase", component: ShowcaseListPage },
