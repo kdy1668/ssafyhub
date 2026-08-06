@@ -16,9 +16,6 @@ const BASE_NAV_ITEMS = [
   { label: "쇼케이스", to: "/showcase", icon: "eye", public: true },
   { label: "배포하기", to: "/deploy/new", icon: "upload" },
   { label: "내가 배포한 서비스", to: "/deployments", icon: "cube" },
-  // 런타임 로그는 배포 상세 안의 버튼으로만 갈 수 있었다. 그 버튼은 실행 중일 때만 보이므로
-  // 실패한 배포에서는 로그 화면(과 AI 이상 감지)에 도달할 방법이 아예 없다. 목차에 직접 노출한다.
-  { label: "런타임 로그", to: "/deployments/logs", icon: "terminal" },
   { label: "마이페이지", to: "/mypage", icon: "user" },
 ];
 
