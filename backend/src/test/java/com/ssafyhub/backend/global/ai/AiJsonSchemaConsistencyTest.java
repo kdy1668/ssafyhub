@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ssafyhub.backend.domain.deployment.dto.DeployGuide;
 import com.ssafyhub.backend.domain.deployment.dto.FailureDiagnosis;
 import com.ssafyhub.backend.domain.deployment.dto.RuntimeLogInsight;
 import java.util.ArrayList;
@@ -32,7 +33,8 @@ class AiJsonSchemaConsistencyTest {
     static Stream<Arguments> schemas() {
         return Stream.of(
                 Arguments.of("failure_diagnosis", FailureDiagnosis.SCHEMA),
-                Arguments.of("runtime_log_insight", RuntimeLogInsight.SCHEMA));
+                Arguments.of("runtime_log_insight", RuntimeLogInsight.SCHEMA),
+                Arguments.of("deploy_guide", DeployGuide.SCHEMA));
     }
 
     @ParameterizedTest(name = "{0}")
