@@ -28,14 +28,3 @@ export async function fetchFailureDiagnosis(deploymentId) {
   const { data } = await apiClient.get(`/api/v1/deployments/${deploymentId}/diagnosis`);
   return data?.data ?? null;
 }
-
-/**
- * 런타임 로그 이상 감지. 사용자가 버튼을 눌렀을 때만 호출해야 한다.
- * 로그 폴링에 연결하면 화면을 열어두는 것만으로 비용이 계속 발생한다.
- */
-export async function detectRuntimeLogAnomalies(deploymentId) {
-  const { data } = await apiClient.post(
-    `/api/v1/deployments/${deploymentId}/runtime-logs/detection`
-  );
-  return data?.data;
-}
