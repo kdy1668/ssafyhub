@@ -55,7 +55,7 @@ public class DeployGuideController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @Valid @RequestBody DeployGuideRequest request
     ) {
-        DeployGuideResponse response = deployGuideService.generate(request);
+        DeployGuideResponse response = deployGuideService.generate(userDetails.getMemberId(), request);
         return ResponseEntity.ok(ApiResponse.success("배포 가이드를 생성했습니다.", response));
     }
 }
