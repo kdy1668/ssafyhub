@@ -5,6 +5,7 @@ import SignupPage from "./pages/SignupPage.vue";
 import HomePage from "./pages/HomePage.vue";
 import MyPage from "./pages/MyPage.vue";
 import DeployRequestPage from "./pages/DeployRequestPage.vue";
+import DeployGuidePage from "./pages/DeployGuidePage.vue";
 import ManagePage from "./pages/ManagePage.vue";
 import ResourcesPage from "./pages/ResourcesPage.vue";
 import EnvUpdatePage from "./pages/EnvUpdatePage.vue";
@@ -23,6 +24,7 @@ export const router = createRouter({
     { path: "/login", component: LoginPage },
     { path: "/mypage", component: MyPage, meta: { requiresAuth: true } },
     { path: "/deploy/new", component: DeployRequestPage, meta: { requiresAuth: true } },
+    { path: "/deploy/guide", component: DeployGuidePage, meta: { requiresAuth: true } },
     { path: "/deployments", component: ManagePage, meta: { requiresAuth: true } },
     { path: "/deployments/resources", component: ResourcesPage, meta: { requiresAuth: true } },
     { path: "/deployments/env", component: EnvUpdatePage, meta: { requiresAuth: true } },
