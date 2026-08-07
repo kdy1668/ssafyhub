@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref } from "vue";
 import AppHeader from "../components/common/AppHeader.vue";
 import AppIcon from "../components/common/AppIcon.vue";
 import { useDeployGuide } from "../composables/useDeployGuide";
@@ -15,9 +15,17 @@ const KEY_NAMES = ["package.json", "requirements.txt", "build.gradle", "build.gr
   "settings.py", "manage.py", "main.py", "app.py", "wsgi.py", "asgi.py",
   "vite.config.js", "vite.config.ts", "angular.json", "svelte.config.js", "next.config.js",
   "application.yml", "application.yaml", "application.properties",
-  "dockerfile", "docker-compose.yml", "docker-compose.yaml", ".env.example"];
+  "dockerfile", "docker-compose.yml", "docker-compose.yaml", ".env.example",
+  "schema.sql", "data.sql"];
 const API_CLIENT_NAMES = ["client.js", "client.ts", "api.js", "api.ts", "http.js", "http.ts", "axios.js", "axios.ts"];
-const MAX_KEY_FILES = 15;
+const KEY_PATH_PATTERNS = [
+  /(^|\/)application(?:-[^/]+)?\.(?:ya?ml|properties)$/i,
+  /(^|\/)(?:schema|data)\.sql$/i,
+  /(^|\/)(?:db\/migration|migrations?|mappers?)\//i,
+  /(^|\/)src\/(?:api|services|config)\//i,
+  /(?:auth|oauth|security|cors|socket|websocket|database|datasource)[^/]*\.(?:js|ts|java|py)$/i,
+];
+const MAX_KEY_FILES = 25;
 const MAX_FILE_CHARS = 8000;
 const MAX_TREE_ENTRIES = 500;
 
@@ -35,7 +43,14 @@ function isIgnored(path) {
 }
 function isKeyFile(path) {
   const name = path.split("/").pop().toLowerCase();
-  return KEY_NAMES.includes(name) || API_CLIENT_NAMES.includes(name);
+  return KEY_NAMES.includes(name) || API_CLIENT_NAMES.includes(name) || KEY_PATH_PATTERNS.some((pattern) => pattern.test(path));
+}
+function keyFileScore(path) {
+  const name = path.split("/").pop().toLowerCase();
+  if (KEY_NAMES.includes(name) || API_CLIENT_NAMES.includes(name)) return 3;
+  if (/(^|\/)application(?:-[^/]+)?\.(?:ya?ml|properties)$/i.test(path)) return 3;
+  if (/(^|\/)(?:schema|data)\.sql$|(^|\/)(?:db\/migration|migrations?)\//i.test(path)) return 2;
+  return 1;
 }
 
 async function onPick(e) {
@@ -58,7 +73,11 @@ async function onPick(e) {
       paths.slice(0, MAX_TREE_ENTRIES).join("\n") +
       (paths.length > MAX_TREE_ENTRIES ? `\n…(+${paths.length - MAX_TREE_ENTRIES} more)` : "");
 
-    const candidates = list.filter((f) => isKeyFile(f.webkitRelativePath)).slice(0, MAX_KEY_FILES);
+    const candidates = list
+      .filter((f) => isKeyFile(f.webkitRelativePath))
+      .sort((a, b) => keyFileScore(b.webkitRelativePath) - keyFileScore(a.webkitRelativePath)
+        || a.webkitRelativePath.localeCompare(b.webkitRelativePath))
+      .slice(0, MAX_KEY_FILES);
     const kf = [];
     for (const f of candidates) {
       let text = "";
