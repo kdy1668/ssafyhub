@@ -580,6 +580,23 @@ async function handleRetry() {
         ← 뒤로가기
       </BaseButton>
 
+      <!-- 처음이신가요? AI 배포 가이드 안내 -->
+      <div class="mb-5 flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary-light px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-start gap-2">
+          <AppIcon name="chat" class="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <p class="text-sm text-ink-700">
+            처음이신가요? <b>통합/분리·zip 만드는 법</b>이 헷갈리면 AI가 프로젝트를 분석해 가이드를 만들어줘요.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
+          @click="router.push('/deploy/guide')"
+        >
+          배포 가이드 받기 →
+        </button>
+      </div>
+
       <!-- 상단 서브 헤더 -->
       <div class="mb-6 flex flex-col gap-1 border-b border-border/80 pb-4">
         <div class="flex items-center gap-2">
