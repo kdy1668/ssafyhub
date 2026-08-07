@@ -1,7 +1,6 @@
 package com.ssafyhub.backend.domain.deployment.support;
 
 import com.ssafyhub.backend.domain.deployment.dto.DeployGuide;
-import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
@@ -32,18 +31,15 @@ public class DeployGuideRenderer {
                 md.append("- **").append(safe(s.target())).append("**: ").append(safe(s.instruction())).append("\n");
             }
         }
-        if (g.frontend() != null && g.frontend().present()) {
-            md.append("- ⚠️ 프론트 zip은 **dist 내용물**을 압축해 `index.html`이 루트에 오게 하세요.\n");
-        }
-        md.append("\n");
+        md.append("- ⚠️ 프론트 zip은 **dist 내용물**을 압축해 `index.html`이 루트에 오게 하세요.\n\n");
 
         // 2. API 연결
         md.append("## 2. 프론트 → 백엔드 연결\n");
         DeployGuide.ApiWiring w = g.apiWiring();
         if (w != null) {
-            md.append("- 백엔드 최종 경로 prefix: **`").append(safe(w.targetBase())).append("`** (same-origin)\n");
-            md.append("- `").append(safe(w.targetBase())).append("`로 시작하는 요청은 실제로 **`")
-                    .append(safe(accessUrl)).append(safe(w.targetBase())).append("...`** 로 전달됩니다.\n");
+            md.append("- 목표 API base: **`").append(safe(w.targetBase())).append("`** (상대경로, same-origin)\n");
+            md.append("- 프론트가 `").append(safe(w.targetBase())).append("` 로 호출하면 실제로는 **`")
+                    .append(safe(accessUrl)).append(safe(w.targetBase())).append("`** 로 요청됩니다.\n");
             md.append("- 현재: ").append(safe(w.currentBase())).append("\n");
             if (w.changes() != null) {
                 for (DeployGuide.Change c : w.changes()) {
@@ -55,16 +51,14 @@ public class DeployGuideRenderer {
         md.append("\n");
 
         // 3. 환경변수
-        md.append("## 3. 환경변수\n");
+        md.append("## 3. 필수 환경변수 (배포 시 입력)\n");
         if (g.requiredEnv() == null || g.requiredEnv().isEmpty()) {
             md.append("- (없음)\n");
         } else {
-            renderEnvGroup(md, "프론트 빌드 전에 설정", g.requiredEnv().stream()
-                    .filter(e -> "BUILD".equals(e.phase())).toList());
-            renderEnvGroup(md, "사용자가 배포 화면에서 입력", g.requiredEnv().stream()
-                    .filter(e -> "RUNTIME".equals(e.phase()) && !e.providedByPlatform()).toList());
-            renderEnvGroup(md, "SSAFYHUB가 자동 설정", g.requiredEnv().stream()
-                    .filter(e -> "RUNTIME".equals(e.phase()) && e.providedByPlatform()).toList());
+            for (DeployGuide.EnvVar e : g.requiredEnv()) {
+                md.append("- `").append(safe(e.key())).append("` — ").append(safe(e.reason()));
+                md.append(e.required() ? " (필수)" : " (선택)").append("\n");
+            }
         }
         md.append("\n");
 
@@ -81,23 +75,19 @@ public class DeployGuideRenderer {
         md.append("\n");
 
         // 5. 프레임워크별 확인
-        md.append("## 5. 프레임워크별 확인\n");
-        if (g.frameworkFixes() == null || g.frameworkFixes().isEmpty()) {
-            md.append("- (없음)\n");
-        } else {
+        if (g.frameworkFixes() != null && !g.frameworkFixes().isEmpty()) {
+            md.append("## 5. 프레임워크별 확인\n");
             for (DeployGuide.FrameworkFix f : g.frameworkFixes()) {
                 md.append("- **").append(safe(f.title())).append("**: ").append(safe(f.detail())).append("\n");
             }
+            md.append("\n");
         }
-        md.append("\n");
 
         // 6. 배포 전 체크리스트
         md.append("## 6. 배포 전 체크\n");
-        md.append("- [ ] 최종 백엔드 요청 경로가 `/api`로 시작하는가\n");
-        md.append("- [ ] baseURL과 요청 경로를 합쳤을 때 `/api/api` 중복이 없는가\n");
-        md.append("- [ ] OAuth·WebSocket·SSE 경로도 `/api` 아래에 있는가\n");
+        md.append("- [ ] 프론트 API base가 `/api`(상대경로)인가\n");
         md.append("- [ ] 프론트 zip 루트에 index.html이 있는가\n");
-        md.append("- [ ] 사용자 입력 환경변수를 모두 준비했는가\n\n");
+        md.append("- [ ] 필수 환경변수를 모두 준비했는가\n\n");
 
         // 경고
         if (g.warnings() != null && !g.warnings().isEmpty()) {
@@ -113,16 +103,5 @@ public class DeployGuideRenderer {
 
     private String safe(String s) {
         return s == null ? "" : s;
-    }
-
-    private void renderEnvGroup(StringBuilder md, String title, List<DeployGuide.EnvVar> envVars) {
-        if (envVars.isEmpty()) {
-            return;
-        }
-        md.append("\n### ").append(title).append("\n");
-        for (DeployGuide.EnvVar env : envVars) {
-            md.append("- `").append(safe(env.key())).append("` — ").append(safe(env.reason()));
-            md.append(env.required() ? " (필수)" : " (선택)").append("\n");
-        }
     }
 }
