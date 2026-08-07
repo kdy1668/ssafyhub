@@ -29,6 +29,8 @@ public class DeployGuidePromptBuilder {
                 [접속 구조]
                 - 이 배포의 실제 접속 주소는 userPrompt의 "배포 주소"에 구체적으로 주어진다(예: https://1551343.ssafyhub.site).
                 - 같은 오리진에서 /api/* 는 백엔드로, 그 외는 정적 프론트(S3)로 분기된다.
+                - 플랫폼은 /api prefix를 제거하거나 다른 경로로 rewrite하지 않고 요청 경로를 그대로 백엔드에 전달한다.
+                  별도 rewrite 설정이 제공된 파일에서 확인되지 않는 한 /api/ws → /ws 같은 변환을 가정하지 않는다.
                 - 모든 백엔드 요청의 "최종 경로"는 /api로 시작해야 한다. axios baseURL을 무조건 /api로
                   지정하라는 뜻은 아니다. baseURL과 개별 요청 경로를 결합해 /api/api 중복이 생기지 않게 판정한다.
                   예: get('/api/v1/users')는 baseURL 생략, get('/v1/users')는 baseURL='/api'가 맞다.
@@ -66,6 +68,8 @@ public class DeployGuidePromptBuilder {
                 [환경변수]
                 - ${ENV_KEY}, process.env.KEY, import.meta.env.KEY, os.environ, System.getenv 등을 모두 찾아
                   requiredEnv에 빠짐없이 넣는다. ***는 마스킹된 실제 값이지 사용자가 코드에 채울 자리가 아니다.
+                - requiredEnv.key에는 코드에 실제로 등장한 환경변수 이름만 넣는다. cors.allowed-origins 같은
+                  YAML property 경로를 환경변수 이름으로 바꾸어 만들지 않는다. 대응 env 이름을 확인하지 못하면 warnings에 남긴다.
                 - VITE_* 등 프론트 변수는 BUILD, 서버 실행 중 필요한 변수는 RUNTIME으로 분류한다.
                 - 플랫폼 자동 주입 변수는 providedByPlatform=true로 표시한다:
                   DB_HOST, DB_PORT, DB_NAME, DB_USERNAME, DB_USER, DB_PASSWORD,
@@ -77,8 +81,24 @@ public class DeployGuidePromptBuilder {
 
                 # 분석 규칙
                 - 제공된 파일의 "증거"로만 판정. 불확실하면 warnings에 남기고 확신하지 않는다.
-                - 프론트의 axios baseURL과 개별 axios/fetch 요청 경로를 함께 확인해 최종 URL을 계산한다.
-                  최종 경로가 /api로 시작하지 않거나 /api/api가 되면 apiWiring.changes에 파일·수정·이유를 적는다.
+                - HTTP API는 프론트의 axios baseURL과 개별 axios/fetch 요청 경로를 반드시 결합해 최종 URL을 계산한다.
+                  대표 요청 하나만 보지 말고 확인 가능한 요청 경로들을 함께 비교한다.
+                - 개별 요청 경로가 이미 /api로 시작하면 권장 baseURL은 빈 문자열이다.
+                  개별 요청 경로가 /api로 시작하지 않으면 권장 baseURL은 /api다.
+                  baseURL=/api와 요청 경로=/api/...를 함께 사용해 /api/api가 되게 안내해서는 안 된다.
+                - 요청 방식이 섞여 있으면 최종 경로가 정확히 한 번만 /api로 시작하도록 한 가지 방식으로 통일한다.
+                  "빈 문자열로 바꾸거나 /api로 설정"처럼 서로 다른 선택지를 동시에 제시하지 말고,
+                  현재 코드의 증거에 맞는 수정안 하나를 선택해 파일·수정·이유를 apiWiring.changes에 적는다.
+                - apiWiring.targetBase의 /api는 "최종 백엔드 경로 prefix"다. 이를 axios baseURL 권장값으로 오해하지 않는다.
+                - WebSocket은 프론트의 brokerURL/WebSocket 생성 코드와 백엔드의 실제 엔드포인트 등록 코드를 함께 확인한다.
+                  최종 경로가 /api 아래에 있어야 하며, 변경이 필요하면 프론트와 백엔드 양쪽 수정 파일을 모두 적는다.
+                  프론트가 /api/ws를 사용하고 백엔드가 /ws만 등록했다면 플랫폼 rewrite를 가정하지 말고
+                  백엔드 등록 경로와 보안 허용 경로도 /api/ws로 맞추도록 안내한다.
+                  백엔드 등록 코드를 찾지 못했다면 /api/ws 같은 경로를 임의로 만들어내지 말고 warnings에 확인 필요로 남긴다.
+                - SSE는 EventSource/fetch 경로와 백엔드 엔드포인트를 함께 확인해 HTTP API와 동일한 /api 중복 규칙을 적용한다.
+                - OAuth는 프론트의 로그인 시작 URL, 백엔드 authorization endpoint, callback endpoint,
+                  인증 후 프론트 리다이렉트 주소를 구분해 모두 확인한다. 백엔드가 처리하는 경로는 /api 아래에 있어야 한다.
+                  프레임워크 기본 경로가 /api 밖이면 클라이언트 경로만 바꾸지 말고 서버 설정 변경도 함께 안내한다.
                 - 설정 파일의 모든 프로필을 비교하고 실제 배포 설정을 우선한다.
                 - 비밀 '값'(키/비밀번호)은 절대 출력에 포함하지 않는다. 키 '이름'만 사용.
                 - 코드 수정은 지시/제안으로만 서술(파괴적 자동수정 지양).

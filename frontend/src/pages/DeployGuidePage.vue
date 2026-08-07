@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import AppHeader from "../components/common/AppHeader.vue";
 import AppIcon from "../components/common/AppIcon.vue";
 import { useDeployGuide } from "../composables/useDeployGuide";
@@ -12,20 +12,29 @@ const { mutateAsync, data: result, isPending, reset } = useDeployGuide();
 const IGNORE_DIRS = ["node_modules", ".git", "dist", "build", ".venv", "venv",
   "__pycache__", ".idea", ".gradle", "target", "out", ".next", ".cache", "coverage", ".vscode"];
 const KEY_NAMES = ["package.json", "requirements.txt", "build.gradle", "build.gradle.kts", "pom.xml",
+  "package-lock.json", "pnpm-lock.yaml", "yarn.lock",
   "settings.py", "manage.py", "main.py", "app.py", "wsgi.py", "asgi.py",
   "vite.config.js", "vite.config.ts", "angular.json", "svelte.config.js", "next.config.js",
   "application.yml", "application.yaml", "application.properties",
   "dockerfile", "docker-compose.yml", "docker-compose.yaml", ".env.example",
   "schema.sql", "data.sql"];
 const API_CLIENT_NAMES = ["client.js", "client.ts", "api.js", "api.ts", "http.js", "http.ts", "axios.js", "axios.ts"];
+const CRITICAL_WIRING_PATTERN =
+  /(?:auth|oauth|security|cors|socket|websocket|stomp|sse|eventsource)[^/]*\.(?:js|ts|java|py)$/i;
+const ROUTING_CONFIG_PATTERN =
+  /(?:(?:auth|oauth|security|cors).*(?:config|handler|filter|interceptor)|(?:config|handler|filter|interceptor).*(?:auth|oauth|security|cors)|(?:socket|websocket|stomp|sse|eventsource).*)\.(?:js|ts|java|py)$/i;
+const APPLICATION_CONFIG_PATTERN = /(^|\/)application(?:-[^/]+)?\.(?:ya?ml|properties)$/i;
+const DATABASE_PATTERN =
+  /(^|\/)(?:schema|data)\.sql$|(^|\/)(?:db\/migration|migrations?|mappers?)\/|(?:database|datasource|redis|mysql|mongo)[^/]*\.(?:js|ts|java|py)$/i;
+const API_PATH_PATTERN = /(^|\/)src\/(?:api|services)\//i;
 const KEY_PATH_PATTERNS = [
-  /(^|\/)application(?:-[^/]+)?\.(?:ya?ml|properties)$/i,
-  /(^|\/)(?:schema|data)\.sql$/i,
-  /(^|\/)(?:db\/migration|migrations?|mappers?)\//i,
+  APPLICATION_CONFIG_PATTERN,
+  DATABASE_PATTERN,
   /(^|\/)src\/(?:api|services|config)\//i,
-  /(?:auth|oauth|security|cors|socket|websocket|database|datasource)[^/]*\.(?:js|ts|java|py)$/i,
+  CRITICAL_WIRING_PATTERN,
 ];
 const MAX_KEY_FILES = 25;
+const KEY_FILE_QUOTAS = { core: 10, routing: 7, api: 5, database: 3 };
 const MAX_FILE_CHARS = 8000;
 const MAX_TREE_ENTRIES = 500;
 
@@ -47,10 +56,39 @@ function isKeyFile(path) {
 }
 function keyFileScore(path) {
   const name = path.split("/").pop().toLowerCase();
-  if (KEY_NAMES.includes(name) || API_CLIENT_NAMES.includes(name)) return 3;
-  if (/(^|\/)application(?:-[^/]+)?\.(?:ya?ml|properties)$/i.test(path)) return 3;
-  if (/(^|\/)(?:schema|data)\.sql$|(^|\/)(?:db\/migration|migrations?)\//i.test(path)) return 2;
+  if (APPLICATION_CONFIG_PATTERN.test(path)) return 10;
+  if (ROUTING_CONFIG_PATTERN.test(path)) return 9;
+  if (API_CLIENT_NAMES.includes(name)) return 8;
+  if (DATABASE_PATTERN.test(path)) return 7;
+  if (KEY_NAMES.includes(name)) return 6;
   return 1;
+}
+function keyFileGroup(path) {
+  const name = path.split("/").pop().toLowerCase();
+  if (DATABASE_PATTERN.test(path)) return "database";
+  if (ROUTING_CONFIG_PATTERN.test(path)) return "routing";
+  if (APPLICATION_CONFIG_PATTERN.test(path) || KEY_NAMES.includes(name)) return "core";
+  if (API_CLIENT_NAMES.includes(name) || API_PATH_PATTERN.test(path)) return "api";
+  return "other";
+}
+function selectKeyFiles(files) {
+  const sorted = [...files].sort((a, b) =>
+    keyFileScore(b.webkitRelativePath) - keyFileScore(a.webkitRelativePath)
+      || a.webkitRelativePath.localeCompare(b.webkitRelativePath));
+  const selected = [];
+  const selectedPaths = new Set();
+
+  for (const [group, quota] of Object.entries(KEY_FILE_QUOTAS)) {
+    for (const file of sorted.filter((candidate) => keyFileGroup(candidate.webkitRelativePath) === group).slice(0, quota)) {
+      selected.push(file);
+      selectedPaths.add(file.webkitRelativePath);
+    }
+  }
+  for (const file of sorted) {
+    if (selected.length >= MAX_KEY_FILES) break;
+    if (!selectedPaths.has(file.webkitRelativePath)) selected.push(file);
+  }
+  return selected;
 }
 
 async function onPick(e) {
@@ -73,11 +111,7 @@ async function onPick(e) {
       paths.slice(0, MAX_TREE_ENTRIES).join("\n") +
       (paths.length > MAX_TREE_ENTRIES ? `\n…(+${paths.length - MAX_TREE_ENTRIES} more)` : "");
 
-    const candidates = list
-      .filter((f) => isKeyFile(f.webkitRelativePath))
-      .sort((a, b) => keyFileScore(b.webkitRelativePath) - keyFileScore(a.webkitRelativePath)
-        || a.webkitRelativePath.localeCompare(b.webkitRelativePath))
-      .slice(0, MAX_KEY_FILES);
+    const candidates = selectKeyFiles(list.filter((f) => isKeyFile(f.webkitRelativePath)));
     const kf = [];
     for (const f of candidates) {
       let text = "";
