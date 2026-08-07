@@ -46,13 +46,7 @@ public record DeployGuide(
     public record Change(String file, String action, String why) {
     }
 
-    public record EnvVar(
-            String key,
-            String reason,
-            boolean required,
-            String phase,
-            boolean providedByPlatform
-    ) {
+    public record EnvVar(String key, String reason, boolean required) {
     }
 
     public record BackingService(String serviceType, String reason) {
@@ -129,7 +123,7 @@ public record DeployGuide(
                   "properties": {
                     "needsChange": { "type": "boolean", "description": "현재 설정을 바꿔야 하는지" },
                     "currentBase": { "type": "string", "description": "감지된 현재 API base. 없으면 '없음'." },
-                    "targetBase": { "type": "string", "description": "최종 백엔드 요청이 따라야 할 경로 prefix. SSAFYHUB에서는 /api. axios baseURL 권장값과는 다를 수 있음." },
+                    "targetBase": { "type": "string", "description": "목표 API base. 보통 /api." },
                     "changes": {
                       "type": "array",
                       "description": "수정할 파일과 지시. 파괴적 자동수정이 아니라 제안 형태.",
@@ -156,18 +150,9 @@ public record DeployGuide(
                     "properties": {
                       "key": { "type": "string" },
                       "reason": { "type": "string" },
-                      "required": { "type": "boolean" },
-                      "phase": {
-                        "type": "string",
-                        "description": "BUILD=프론트 빌드 전에 필요, RUNTIME=배포된 서버 실행 중 필요.",
-                        "enum": ["BUILD", "RUNTIME"]
-                      },
-                      "providedByPlatform": {
-                        "type": "boolean",
-                        "description": "SSAFYHUB가 DB/Redis/프록시 설정으로 자동 주입하면 true, 사용자가 입력해야 하면 false."
-                      }
+                      "required": { "type": "boolean" }
                     },
-                    "required": ["key", "reason", "required", "phase", "providedByPlatform"],
+                    "required": ["key", "reason", "required"],
                     "additionalProperties": false
                   }
                 },
