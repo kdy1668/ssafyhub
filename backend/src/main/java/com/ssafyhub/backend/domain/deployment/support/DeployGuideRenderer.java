@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class DeployGuideRenderer {
 
-    public String render(DeployGuide g, String projectName) {
+    public String render(DeployGuide g, String projectName, String accessUrl) {
         StringBuilder md = new StringBuilder();
         String name = (projectName == null || projectName.isBlank()) ? "이 레포" : projectName;
 
@@ -20,7 +20,9 @@ public class DeployGuideRenderer {
         md.append("> SSAFY Hub가 프로젝트를 분석해 만든 배포 가이드입니다. ")
                 .append("코딩 에이전트(Claude Code 등)가 이 지침을 따라 배포 준비를 도와줍니다.\n\n");
         md.append("- **요약**: ").append(safe(g.summary())).append("\n");
-        md.append("- **앱 유형**: ").append(safe(g.appType())).append("\n\n");
+        md.append("- **앱 유형**: ").append(safe(g.appType())).append("\n");
+        md.append("- **배포 주소**: `").append(safe(accessUrl)).append("` ")
+                .append("(배포되면 이 주소로 접속됩니다)\n\n");
 
         // 1. 패키징
         md.append("## 1. 패키징 (무엇을 올리나)\n");
@@ -36,6 +38,8 @@ public class DeployGuideRenderer {
         DeployGuide.ApiWiring w = g.apiWiring();
         if (w != null) {
             md.append("- 목표 API base: **`").append(safe(w.targetBase())).append("`** (상대경로, same-origin)\n");
+            md.append("- 프론트가 `").append(safe(w.targetBase())).append("` 로 호출하면 실제로는 **`")
+                    .append(safe(accessUrl)).append(safe(w.targetBase())).append("`** 로 요청됩니다.\n");
             md.append("- 현재: ").append(safe(w.currentBase())).append("\n");
             if (w.changes() != null) {
                 for (DeployGuide.Change c : w.changes()) {

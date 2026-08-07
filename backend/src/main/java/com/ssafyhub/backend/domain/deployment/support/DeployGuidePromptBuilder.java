@@ -28,10 +28,11 @@ public class DeployGuidePromptBuilder {
 
                 # 플랫폼 계약 (반드시 이 규약에 맞춰 판정)
                 [접속 구조]
-                - 배포된 서비스는 https://{학번}.ssafyhub.site 로 접속(HTTPS 자동).
+                - 이 배포의 실제 접속 주소는 userPrompt의 "배포 주소"에 구체적으로 주어진다(예: https://1551343.ssafyhub.site).
                 - 같은 오리진에서 /api/* 는 백엔드로, 그 외는 정적 프론트(S3)로 분기된다.
                 - 따라서 프론트엔드는 백엔드를 반드시 상대경로 /api 로 호출해야 한다.
-                  localhost:8080 등 하드코딩 금지(로컬만 되고 배포 시 깨진다).
+                  그러면 실제로는 {배포 주소}/api 로 요청이 간다. localhost:8080 등 하드코딩 금지(배포 시 깨진다).
+                - apiWiring과 안내에 이 구체적 배포 주소를 그대로 언급해, 사용자가 "어디로 요청되는지"를 명확히 알 수 있게 한다.
 
                 [앱 유형]
                 - MONOLITH: 백엔드가 빌드된 프론트까지 함께 서빙(단일 컨테이너).
@@ -67,10 +68,12 @@ public class DeployGuidePromptBuilder {
                 """;
     }
 
-    public String user(DeployGuideRequest request) {
+    public String user(DeployGuideRequest request, String accessUrl) {
         StringBuilder sb = new StringBuilder();
         String name = request.projectName();
-        sb.append("# 프로젝트: ").append(name == null || name.isBlank() ? "(이름 없음)" : name).append("\n\n");
+        sb.append("# 프로젝트: ").append(name == null || name.isBlank() ? "(이름 없음)" : name).append("\n");
+        sb.append("배포 주소: ").append(accessUrl)
+                .append("  (프론트가 /api로 호출하면 실제로는 ").append(accessUrl).append("/api 로 간다)\n\n");
 
         sb.append("## 파일 트리\n");
         sb.append(clamp(secretRedactor.redact(nullToEmpty(request.fileTree())), MAX_FILE_CHARS)).append("\n\n");

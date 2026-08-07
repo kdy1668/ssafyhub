@@ -101,8 +101,6 @@ async function copyMd() {
   await navigator.clipboard.writeText(result.value.markdown);
   toast.showToast("CLAUDE.md 내용을 복사했어요.", "success");
 }
-
-const guide = computed(() => result.value?.guide);
 </script>
 
 <template>
@@ -147,52 +145,6 @@ const guide = computed(() => result.value?.guide);
 
       <!-- 결과 -->
       <div v-if="result" class="mt-8">
-        <!-- 구조화 요약 -->
-        <div class="rounded-2xl border border-border bg-surface p-6 shadow-card">
-          <div class="flex items-center justify-between">
-            <h2 class="text-lg font-bold text-ink-900">분석 결과</h2>
-            <span class="rounded-full bg-primary-light px-2.5 py-1 text-xs font-medium text-primary">{{ guide.appType }}</span>
-          </div>
-          <p class="mt-2 text-sm text-ink-700">{{ guide.summary }}</p>
-
-          <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div class="rounded-lg border border-border p-3">
-              <p class="text-xs font-semibold text-ink-500">패키징</p>
-              <ul class="mt-1 space-y-1 text-xs text-ink-700">
-                <li v-for="(s, i) in guide.packageSteps" :key="i"><b>{{ s.target }}</b> · {{ s.instruction }}</li>
-              </ul>
-            </div>
-            <div class="rounded-lg border border-border p-3">
-              <p class="text-xs font-semibold text-ink-500">프론트 → 백엔드 (API base: {{ guide.apiWiring.targetBase }})</p>
-              <ul class="mt-1 space-y-1 text-xs text-ink-700">
-                <li v-if="!guide.apiWiring.changes?.length">변경 불필요</li>
-                <li v-for="(c, i) in guide.apiWiring.changes" :key="i"><code>{{ c.file }}</code> — {{ c.action }}</li>
-              </ul>
-            </div>
-            <div class="rounded-lg border border-border p-3">
-              <p class="text-xs font-semibold text-ink-500">필수 환경변수</p>
-              <ul class="mt-1 space-y-1 text-xs text-ink-700">
-                <li v-if="!guide.requiredEnv?.length">없음</li>
-                <li v-for="(e, i) in guide.requiredEnv" :key="i"><code>{{ e.key }}</code> — {{ e.reason }}</li>
-              </ul>
-            </div>
-            <div class="rounded-lg border border-border p-3">
-              <p class="text-xs font-semibold text-ink-500">백킹 서비스</p>
-              <ul class="mt-1 space-y-1 text-xs text-ink-700">
-                <li v-if="!guide.backingServices?.length">불필요</li>
-                <li v-for="(b, i) in guide.backingServices" :key="i"><b>{{ b.serviceType }}</b> — {{ b.reason }}</li>
-              </ul>
-            </div>
-          </div>
-
-          <div v-if="guide.warnings?.length" class="mt-4 rounded-lg border border-accent/30 bg-accent-light p-3">
-            <p class="text-xs font-semibold text-accent">확인 필요</p>
-            <ul class="mt-1 space-y-1 text-xs text-ink-700">
-              <li v-for="(w, i) in guide.warnings" :key="i">• {{ w }}</li>
-            </ul>
-          </div>
-        </div>
-
         <!-- CLAUDE.md -->
         <div class="mt-6 rounded-2xl border border-border bg-surface p-6 shadow-card">
           <div class="mb-3 flex items-center justify-between">
